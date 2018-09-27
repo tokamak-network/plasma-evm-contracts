@@ -28,7 +28,7 @@ library Data {
   function hash(Transaction self) internal returns (bytes32) {
   }
 
-  function nullAddress() internal returns (address) {
+  function nullAddress() internal pure returns (address) {
     return address(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
   }
 }

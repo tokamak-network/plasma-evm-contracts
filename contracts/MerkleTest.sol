@@ -33,6 +33,7 @@ contract MerkleTest {
     return _getRoot(leaves);
   }
 
+  // TODO: remove recursive call
   function _getRoot(bytes32[] memory level) internal view returns (bytes32) {
     if (level.length == 1) return level[0];
 
