@@ -10,48 +10,65 @@ contract RootChain {
   using Math for *;
   using Data for *;
 
+  enum State {
+    AcceptingNRB,
+    AcceptingORB,
+    AcceptingURB
+  }
+
   /*
    * Storage
    */
   address public operator;
+  State public state;
 
   // Increase for each URB
   uint public currentFork;
 
+  // Increase for each epoch
+  uint public currentEpoch;
+
   // Highest block number of the fork
   mapping (uint => uint) public highestBlock;
 
+  // fork => block number
   mapping (uint => uint) public lastFinalizedBlock;
 
-  // Last request in the fork
-  mapping (uint => uint) public lastRequest;
-
+  // fork => block number => PlasmaBlock
   mapping (uint => mapping (uint => Data.PlasmaBlock)) public blocks;
 
-  // 1 epoch = N NRBs + k ORBs, epoch length = N
-  // Massive requests can be included in k ORBs, and k is determined in preparing
-  // step.
+  // fork => epoch number => Epoch
+  mapping (uint => mapping (uint => Data.Epoch)) public epochs;
+
+  // 1 epoch = N NRBs or k URBs or k ORBs.
+  // N consecutive NRBs must be submitted in an epoch. In case of request block,
+  // massive requests can be included in k ORBs, and k is determined when
+  // N NRBs are submitted or when preparing URBs submission.
   uint public epochLength;
 
-  // the number of NRBs submitted in current epoch. No more than epochLength
-  // NRBs can be submitted.
-  uint public epochFilled;
+  // the number of blocks submitted in an epoch.
+  uint public NRBFilled;
+  uint public ORBFilled;
+  uint public URBFilled;
 
-  // Increase for each session
-  uint public currentEpoch;
+  // Enter & Exit requests for ORB / URB
+  Data.Request[] public EROs;
+  Data.Request[] public ERUs;
 
-  // Enter & Exit requests for ORB & URB
-  Data.Request[] public ORBRequests;
-  Data.Request[] public URBRequests;
+  // Requests info for the ORBs in a single epoch of a fork
+  mapping (uint => mapping (uint => Data.RequestBlock[])) public ORBs;
 
-  // Requests info for the ORBs in a single epoch
-  mapping (uint => Data.RequestTransactions[]) public ORBs;
+  // Requests info for the URBs in a fork
+  mapping (uint => Data.RequestBlock[]) public URBs;
 
-  // Requests info for the URBs in a single epoch
-  mapping (uint => Data.RequestTransactions[]) public URBs;
+  // the first epoch of a fork
+  mapping (uint => uint) public firstEpoch;
 
-  Data.Session public ORBSession;
-  Data.Session public URBSession;
+  Data.Session[] public ORBSessions;
+  Data.Session[] public URBSessions;
+
+  Data.Session public currentORBSession;
+  Data.Session public currentURBSession;
 
   // simple cost parameters
   uint public constant COST_ERO = 0.1 ether;         // cost for invalid exit
@@ -63,11 +80,12 @@ contract RootChain {
   uint public constant COST_ORB = 0.1 ether;         // cost for invalid computation
   uint public constant COST_NRB = 0.1 ether;         // cost for invalid computation
 
-  // All sessions are removed after the timeout
+  // All sessions are reset after the timeout
   uint public constant SESSION_TIMEOUT = 1 hours;
 
   // Challenge periods for computation and withholding
-
+  uint public constant CP_WITHHOLDING = 1 days;
+  uint public constant CP_COMPUTATION = 7 days;
 
   // How many requests can be included in a single request block
   uint public constant MAX_REQUESTS = 1000;
@@ -79,12 +97,12 @@ contract RootChain {
   /*
    * Event
    */
-  event ORBSesionActivated();
-  event URBSesionActivated();
   event SessionTimeout(bool userActivated);
+  event StateChanged(State state);
 
   event NRBSubmitted(uint fork, uint blockNumber);
   event ORBSubmitted(uint fork, uint blockNumber);
+  event URBSubmitted(uint fork, uint blockNumber);
 
   event RequestCreated(
     uint requestId,
@@ -110,6 +128,11 @@ contract RootChain {
     _;
   }
 
+  modifier onlyState(State _state) {
+    require(state == _state);
+    _;
+  }
+
   modifier onlyValidCost(uint _expected) {
     require(msg.value == _expected);
     _;
@@ -117,16 +140,20 @@ contract RootChain {
 
   modifier onlyValidSession(Data.Session storage _session, bool _userActivated) {
     if (_session.timestamp + SESSION_TIMEOUT < block.timestamp) {
-      _session.reset();
+      _session.reset(_session.userActivated);
+
+      // TODO: revert submitted RBs if the session is out of time
 
       emit SessionTimeout(_userActivated);
     } else {
+      _session.timestamp = block.timestamp;
       _;
     }
   }
 
   modifier finalizeBefore() {
     // TODO: update last finalized block
+    _;
   }
 
   /**
@@ -155,46 +182,17 @@ contract RootChain {
    */
 
   /**
-   * @notice prepare to submit ORB. It prevents further new requests from
-   * being inserted into the request blocks in current epoch.
-   */
-  function prepareToSubmitORB()
-    external
-    onlyOperator
-    onlyValidSession(ORBSession, false)
-    returns (bool)
-  {
-    require(!URBSession.active);
-
-    if (ORBRequests.length == 0) {
-      ORBSession.requestStart = 0;
-    } else {
-      ORBSession.requestStart = uint128(lastRequest[currentFork].add(1));
-    }
-
-    ORBSession.requestEnd = uint128(ORBRequests.length.sub(1));
-    ORBSession.active = true;
-    ORBSession.setRequestTransactions(ORBs[currentFork], MAX_REQUESTS);
-
-    emit ORBSesionActivated();
-    return true;
-  }
-
-  /**
-   * @notice prepare to submit URB. It prevents further new requests from
-   * inserted into the just other request blocks in next epoch.
+   * @notice Declare to submit URB.
    */
   function prepareToSubmitURB()
     external
     onlyOperator
-    onlyValidSession(URBSession, true)
+    onlyValidSession(currentURBSession, true)
     returns (bool)
   {
-
+    state = State.AcceptingURB;
     return true;
   }
-
-
 
   function submitNRB(
     bytes32 _statesRoot,
@@ -203,9 +201,12 @@ contract RootChain {
   )
     external
     onlyOperator
+    onlyState(State.AcceptingNRB)
     onlyValidCost(COST_NRB)
     returns (bool)
   {
+    require(NRBFilled < epochLength);
+
     uint blockNumber = _storeBlock(
       _statesRoot,
       _transactionsRoot,
@@ -213,8 +214,11 @@ contract RootChain {
       false,
       false
     );
+    NRBFilled = NRBFilled.add(1);
 
-    // TODO: verify merkle root
+    if (NRBFilled == epochLength) {
+      _prepareToSubmitORB();
+    }
 
     emit NRBSubmitted(currentFork, blockNumber);
     return true;
@@ -228,9 +232,12 @@ contract RootChain {
   )
     external
     onlyOperator
+    onlyState(State.AcceptingORB)
     onlyValidCost(COST_ORB)
     returns (bool)
   {
+    require(currentORBSession.blockSubmitted < currentORBSession.numRequestBlocks);
+
     uint blockNumber = _storeBlock(
       _statesRoot,
       _transactionsRoot,
@@ -239,14 +246,14 @@ contract RootChain {
       false
     );
 
+    currentORBSession.blockSubmitted = currentORBSession.blockSubmitted.add(1);
+
     // TODO: verify merkle root
     // TODO: mark request start / end
 
     emit ORBSubmitted(currentFork, blockNumber);
     return true;
   }
-
-
 
   function submitURB(
     bytes32 _statesRoot,
@@ -255,6 +262,7 @@ contract RootChain {
   )
     external
     payable
+    onlyState(State.AcceptingURB)
     onlyValidCost(COST_URB)
     returns (bool)
   {
@@ -285,9 +293,9 @@ contract RootChain {
     onlyValidCost(COST_ERO)
     returns (bool)
   {
-    // TODO: if ORb is prepared, insert the request in next epoch
+    // TODO: if ORB is prepared, insert the request in next epoch
 
-    uint requestId = _storeRequest(ORBRequests, _to, _trieKey, _trieValue, true);
+    uint requestId = _storeRequest(EROs, _to, _trieKey, _trieValue, true);
 
     emit RequestCreated(requestId, msg.sender, _to, _trieKey, _trieValue, true);
     return true;
@@ -303,7 +311,7 @@ contract RootChain {
   {
     // TODO: if ORb is prepared, insert the request in next epoch
 
-    uint requestId = _storeRequest(ORBRequests, _to, _trieKey, _trieValue, false);
+    uint requestId = _storeRequest(EROs, _to, _trieKey, _trieValue, false);
 
     emit RequestCreated(requestId, msg.sender, _to, _trieKey, _trieValue, false);
     return true;
@@ -318,7 +326,7 @@ contract RootChain {
     onlyValidCost(COST_ERU)
     returns (bool)
   {
-    uint requestId = _storeRequest(URBRequests, _to, _trieKey, _trieValue, true);
+    uint requestId = _storeRequest(ERUs, _to, _trieKey, _trieValue, true);
 
     emit ERUCreated(requestId, msg.sender, _to, _trieKey, _trieValue);
     return true;
@@ -337,7 +345,7 @@ contract RootChain {
   }
 
   function getExitFinalized(uint _requestId) public view returns (bool) {
-    Data.Request memory r = ORBRequests[_requestId];
+    Data.Request memory r = EROs[_requestId];
     require(r.isExit);
 
     return r.finalized;
@@ -392,5 +400,46 @@ contract RootChain {
     r.trieValue = _trieValue;
     r.timestamp = uint64(block.timestamp);
     r.isExit = _isExit;
+  }
+
+  /**
+   * @notice prepare to submit ORB. It prevents further new requests from
+   * being inserted into the request blocks in current epoch.
+   */
+  function _prepareToSubmitORB() internal {
+    uint startBlockNumber = highestBlock[currentEpoch];
+
+    currentEpoch += 1;
+    Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
+
+    if (currentEpoch == 1) {
+      // first ORB epoch
+      epoch.requestStart = 0;
+    } else {
+      // last request id of previous ORB epoch + 1
+      epoch.requestStart = epochs[currentFork][currentEpoch - 2].requestEnd + 1;
+    }
+
+    epoch.requestEnd = uint64(EROs.length.sub(1));
+    epoch.startBlockNumber = startBlockNumber;
+    epoch.endBlockNumber = uint64(startBlockNumber +
+      uint(epoch.requestEnd - epoch.requestStart + 1).divCeil(MAX_REQUESTS));
+
+    state = State.AcceptingORB;
+    emit StateChanged(state);
+  }
+
+  function _prepareToSubmitURB() internal {
+    /* if (currentFork == 0) {
+      currentURBSession.requestStart = 0;
+    } else {
+      uint previousFork = currentFork.sub(1);
+      currentURBSession.requestStart = uint128(URBs[previousFork].getNextRequestId());
+    }
+
+    currentURBSession.requestEnd = uint128(ERUs.length.sub(1));
+    currentURBSession.prepare(URBs[currentFork], MAX_REQUESTS);
+
+    emit StateChanged(true); */
   }
 }

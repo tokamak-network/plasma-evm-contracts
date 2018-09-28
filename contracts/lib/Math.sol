@@ -17,4 +17,9 @@ library Math {
     // (a + b) / 2 can overflow, so we distribute
     return (a / 2) + (b / 2) + ((a % 2 + b % 2) / 2);
   }
+
+  // return ceil(n/d)
+  function divCeil(uint256 n, uint256 d) internal pure returns (uint256) {
+    return n % d == 0 ? n / d : n / d + 1;
+  }
 }

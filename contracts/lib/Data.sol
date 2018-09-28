@@ -4,18 +4,21 @@ import "./SafeMath.sol";
 import "./Math.sol";
 
 library Data {
+  using SafeMath for *;
+
   struct PlasmaBlock {
     bytes32 statesRoot;
     bytes32 transactionsRoot;
     bytes32 intermediateStatesRoot;
-    uint128 requestStart; // first request id of ORB & NRB
-    uint128 requestEnd;   // last request id of ORB & NRB
+    uint64 requestBlockId;
+    uint64 epochNumber;
     uint64 timestamp;
     bool isRequest;       // true in case of URB & ORB
     bool userActivated;   // true in case of URB
     bool reverted;        // true if it is challenged
     bool finalized;       // true if it is not challenged in challenge period
   }
+
   struct Request {
     uint64 timestamp;
     bool isExit;
@@ -26,58 +29,40 @@ library Data {
     bytes32 trieValue;
   }
 
-  // Requests in a single ORB / URB
-  struct RequestTransactions {
-    uint128 requestStart;
-    uint128 requestEnd;
+  struct RequestBlock {
+    uint64 requestStart;     // first request id
+    uint64 requestEnd;       // last request id
   }
 
-  struct Session {
-    uint128 requestStart; // first request id
-    uint128 requestEnd;   // last request id
-    uint128 numRequestBlocks;
-    uint64 timestamp;
-    bool active;          // true if it is prepared to submit new block
-    bool userActivated;
+  struct Epoch {
+    uint64 requestStart;     // first request id
+    uint64 requestEnd;       // last request id
+    uint64 startBlockNumber; // first block number of the epoch
+    uint64 endBlockNumber;   // last block number of the epoch
+
+    uint64 timestamp;        // timestamp when the epoch is initialized.
+                             // required for URB / ORB
+    bool isRequest;          // true in case of URB / ORB
+    bool userActivated;      // true in case of URB
   }
 
-  function reset(Session storage _s) internal {
-    _s.requestStart = 0;
-    _s.requestEnd = 0;
-    _s.numRequestBlocks = 0;
-    _s.timestamp = 0;
-    _s.active = false;
-    _s.userActivated = false;
+  function getBlockNumber(Epoch _e) internal returns (uint) {
+    if (_e.endBlockNumber == 0) return 0;
+    return _e.endBlockNumber - _e.startBlockNumber + 1;
   }
 
-  // TODO: check OOG
-  function setRequestTransactions(
-    Session _session,
-    RequestTransactions[] storage _rts,
-    uint _limit
-  )
-    internal
-    returns (bool)
-  {
-    uint numBlocks = SafeMath.add(
-      SafeMath.div(
-        SafeMath.sub(_session.requestEnd, _session.requestStart),
-        _limit
-      ),
-      1
-    );
+  function getRequestRange(Epoch _e, uint _blockNumber, uint _limit) internal returns (uint requestStart, uint requestEnd) {
+    require(_e.isRequest);
+    require(_blockNumber >= _e.startBlockNumber && _blockNumber <= _e.endBlockNumber);
 
-    RequestTransactions storage rt = _rts[_rts.length++];
-
-    for (uint i = 0; i < numBlocks - 1; i++) {
-      // TODO: use SafeMath
-      rt.requestStart = uint128(_session.requestStart + _limit * i);
-      rt.requestEnd = uint128(_session.requestStart + _limit * (i + 1));
-
-      rt = _rts[_rts.length++];
+    if (_blockNumber == _e.endBlockNumber) {
+      requestStart = _e.requestStart + (getBlockNumber(_e) - 1) * _limit;
+      requestEnd = _e.requestEnd;
+      return;
     }
 
-    rt.requestStart = uint128(_session.requestStart + _limit * (numBlocks - 1));
-    rt.requestEnd = uint128(_session.requestEnd);
+    requestStart = _e.requestStart + (_blockNumber - _e.startBlockNumber) * _limit;
+    requestEnd = requestStart + _limit;
+    return;
   }
 }
