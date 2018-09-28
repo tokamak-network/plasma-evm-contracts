@@ -41,7 +41,6 @@ library Data {
     RLP.RLPItem[] memory rlpTx = txBytes.toRLPItem().toList(13);
     TX memory transaction;
 
-    //        transaction.blockHash = keccak256(abi.encodePacked(rlpTx[0]));
     transaction.blockHash = bytes32(rlpTx[0].toUint());
     transaction.blockNumber = uint8(rlpTx[1].toUint());
     transaction.from = rlpTx[2].toAddress();
