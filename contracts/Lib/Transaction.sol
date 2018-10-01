@@ -1,43 +1,81 @@
 pragma solidity ^0.4.24;
 
 import "./RLP.sol";
+import "./RLPEncode.sol";
 
-library Data {
+library Transaction {
   using RLP for bytes;
   using RLP for RLP.RLPItem;
+  using RLPEncode for *;
 
   struct TX {
-    bytes32 txHash;
-    uint8 nonce;
-    bytes32 blockHash;
-    uint8 blockNumber;
-    uint gasPrice;
-    uint gas;
-    address from;
+    uint256 nonce;
+    uint256 gasPrice;
+    uint256 gasLimit;
     address to;
-    uint value;
-    bytes32 data;
-    uint8 txIndex;
+    uint256 value;
+    bytes data;
     uint8 v;
-    bytes32 r;
-    bytes32 s;
+    uint256 r;
+    uint256 s;
+  }
+
+  function encodeTX(
+    uint256 nonce,
+    uint256 gasPrice,
+    uint256 gasLimit,
+    address to,
+    uint256 value,
+    bytes data,
+    uint8 v,
+    uint256 r,
+    uint256 s
+  ) internal pure returns (bytes32 encodedTxHash) {
+    TX memory t;
+    bytes memory pack;
+
+    t.nonce = nonce;
+    t.gasPrice = gasPrice;
+    t.gasLimit = gasLimit;
+    t.to = to;
+    t.value = value;
+    t.data = data;
+    t.v = v;
+    t.r = r;
+    t.s = s;
+
+    pack = abi.encodePacked(
+      t.nonce.encodeUint(),
+      t.gasPrice.encodeUint(),
+      t.gasLimit.encodeUint(),
+      t.to.encodeAddress(),
+      t.value.encodeUint(),
+      t.data.encodeBytes(),
+      t.v.encodeUint8(),
+      t.r.encodeUint(),
+      t.s.encodeUint()
+      );
+
+    return keccak256(pack);
+
   }
 
   // TODO: data = func sig + trie key + value
-  function toRequestTransaction(
+  /* function toRequestTransaction(
     address _to,
     uint _value,
     uint _nonce,
     bytes _data
-  ) internal pure returns (Transaction memory t) {
+  ) internal pure returns (Transaction t) {
     t.from = nullAddress();
     t.to = _to;
     t.value = _value;
     t.nonce = _nonce;
     t.data = _data;
-  }
+    return t;
+  } */
 
-  function getTx(bytes memory txBytes) internal pure returns (TX memory) {
+  /* function getTx(bytes memory txBytes) internal pure returns (TX memory) {
     RLP.RLPItem[] memory rlpTx = txBytes.toRLPItem().toList(13);
     TX memory transaction;
 
@@ -66,5 +104,5 @@ library Data {
 
   function nullAddress() internal returns (address) {
     return address(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
-  }
+  } */
 }
