@@ -158,7 +158,7 @@ contract RootChain {
   /**
    * @notice This
    */
-  function prepareToSubmitORB() external onlyOperator returns (bool) {
+  /* function prepareToSubmitORB() external onlyOperator returns (bool) {
     if (ORBSession.timestamp + SESSION_TIMEOUT < block.timestamp) {
       ORBSession = _newSession();
 
@@ -177,9 +177,9 @@ contract RootChain {
     ORBSession.requestEnd = _getLastRequest(requests, ORBSession.requestStart);
     ORBSession.active = true;
 
-    event ORBSesionActivated();
+    emit ORBSesionActivated();
     return true;
-  }
+  } */
 
   /**
    * @notice This
@@ -368,9 +368,9 @@ contract RootChain {
     r.isExit = _isExit;
   }
 
-  function _getLastRequest(Requests[] storage _requests, uint _requestStart) internal returns (uint) {
+  /* function _getLastRequest(Requests[] storage _requests, uint _requestStart) internal returns (uint) {
     return _requests.length.sub(1).min(_requestStart.add(MAX_REQUESTS));
-  }
+  } */
 
   function _newSession() internal returns (SubmitSession memory s) {
     return s;
