@@ -1,26 +1,22 @@
 pragma solidity ^0.4.24;
 
-import "./RLP.sol";
+import "./RLPEncoder.sol";
 
-library Data {
-  using RLP for bytes;
-  using RLP for RLP.RLPItem;
+library Transaction {
+  using RLPEncoder for bytes;
 
-  struct TX {
-    bytes32 txHash;
+  bytes[] tx_list;
+
+  struct Tx {
     uint8 nonce;
-    bytes32 blockHash;
-    uint8 blockNumber;
-    uint gasPrice;
     uint gas;
-    address from;
+    uint gasPrice;
     address to;
     uint value;
-    bytes32 data;
-    uint8 txIndex;
+    bytes data;
     uint8 v;
-    bytes32 r;
-    bytes32 s;
+    bytes r;
+    bytes s;
   }
 
   // TODO: data = func sig + trie key + value
@@ -37,31 +33,20 @@ library Data {
     t.data = _data;
   }
 
-  function getTx(bytes memory txBytes) internal pure returns (TX memory) {
-    RLP.RLPItem[] memory rlpTx = txBytes.toRLPItem().toList(13);
-    TX memory transaction;
 
-    transaction.blockHash = bytes32(rlpTx[0].toUint());
-    transaction.blockNumber = uint8(rlpTx[1].toUint());
-    transaction.from = rlpTx[2].toAddress();
-    transaction.gas = rlpTx[3].toUint();
-    transaction.gasPrice = rlpTx[4].toUint();
-    transaction.data = bytes32(rlpTx[5].toUint());
-    transaction.nonce = uint8(rlpTx[6].toUint());
-    transaction.r = bytes32(rlpTx[7].toUint());
-    transaction.s = bytes32(rlpTx[8].toUint());
-    transaction.to = rlpTx[9].toAddress();
-    transaction.txIndex = uint8(rlpTx[10].toUint());
-    transaction.v = uint8(rlpTx[11].toUint());
-    transaction.value = uint(rlpTx[12].toUint());
 
-    transaction.txHash = keccak256(txBytes);
+  function txHash(Transaction self) internal returns (bytes) {
+    tx_list.push(RLPEncoder.encodeUint(self.nonce));
+    tx_list.push(RLPEncoder.encodeUint(self.gasPrice));
+    tx_list.push(RLPEncoder.encodeUint(self.gas));
+    tx_list.push(RLPEncoder.encodeAddress(self.to));
+    tx_list.push(RLPEncoder.encodeUint(self.value));
+    tx_list.push(self.data);
+    tx_list.push(RLPEncoder.encodeUint(self.v));
+    tx_list.push(self.r);
+    tx_list.push(self.s);
 
-    return transaction;
-  }
-
-  function hash(Transaction self) internal returns (bytes32) {
-    return self.txHash;
+    return RLPEncoder.encodeList(tx_list);
   }
 
   function nullAddress() internal returns (address) {
