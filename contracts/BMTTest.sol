@@ -1,7 +1,11 @@
 pragma solidity ^0.4.24;
 
+import "./lib/BMT.sol";
 
-contract MerkleTest {
+
+contract BMTTest {
+  using BMT for bytes32[];
+
   uint constant public MAX_LEAVES = 2 ** 16;
   bytes32[] public leaves;
   bytes32 public root;
@@ -30,26 +34,6 @@ contract MerkleTest {
   }
 
   function getRoot() public view returns (bytes32) {
-    return _getRoot(leaves);
-  }
-
-  // TODO: remove recursive call
-  function _getRoot(bytes32[] memory level) internal view returns (bytes32) {
-    if (level.length == 1) return level[0];
-
-    bytes32[] memory nextLevel = new bytes32[]((level.length + 1) / 2);
-    uint i;
-
-    for(; i + 1 < level.length; i += 2) {
-      nextLevel[i/2] = keccak256(abi.encodePacked(level[i], level[i+1]));
-    }
-
-    if (level.length % 2 == 1) {
-      nextLevel[i/2] = keccak256(
-        abi.encodePacked(level[level.length - 1], level[level.length - 1])
-      );
-    }
-
-    return _getRoot(nextLevel);
+    return leaves.getRoot();
   }
 }

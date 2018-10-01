@@ -13,37 +13,39 @@ library Data {
     uint64 requestBlockId;
     uint64 epochNumber;
     uint64 timestamp;
-    bool isRequest;       // true in case of URB & ORB
-    bool userActivated;   // true in case of URB
-    bool reverted;        // true if it is challenged
-    bool finalized;       // true if it is not challenged in challenge period
+    bool isRequest;           // true in case of URB & ORB
+    bool userActivated;       // true in case of URB
+    bool challenged;          // true if it is challenged
+    bool finalized;           // true if it is successfully finalized
   }
 
   struct Request {
     uint64 timestamp;
     bool isExit;
     bool finalized;
+    bool challenged;
     address requestor;
     address to;
     bytes32 trieKey;
     bytes32 trieValue;
+    bytes32 txHash;           // request trasaction hash
   }
 
   struct RequestBlock {
-    uint64 requestStart;     // first request id
-    uint64 requestEnd;       // last request id
+    uint64 requestStart;      // first request id
+    uint64 requestEnd;        // last request id
   }
 
   struct Epoch {
-    uint64 requestStart;     // first request id
-    uint64 requestEnd;       // last request id
-    uint64 startBlockNumber; // first block number of the epoch
-    uint64 endBlockNumber;   // last block number of the epoch
+    uint64 requestStart;      // first request id
+    uint64 requestEnd;        // last request id
+    uint64 startBlockNumber;  // first block number of the epoch
+    uint64 endBlockNumber;    // last block number of the epoch
 
-    uint64 timestamp;        // timestamp when the epoch is initialized.
-                             // required for URB / ORB
-    bool isRequest;          // true in case of URB / ORB
-    bool userActivated;      // true in case of URB
+    uint64 timestamp;         // timestamp when the epoch is initialized.
+                              // required for URB / ORB
+    bool isRequest;           // true in case of URB / ORB
+    bool userActivated;       // true in case of URB
   }
 
   function getBlockNumber(Epoch _e) internal returns (uint) {

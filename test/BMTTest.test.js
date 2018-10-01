@@ -1,24 +1,31 @@
 const { marshalString, unmarshalString } = require('./helpers/marshal');
 const { padLeft, padRight } = require('./helpers/pad');
 
-const MerkleTest = artifacts.require('MerkleTest');
+const BMTTest = artifacts.require('BMTTest');
 
 require('chai')
   .use(require('chai-bignumber')(web3.BigNumber))
   .should();
 
-contract('MerkleTest', () => {
+const leaf = padLeft('0xdead');
+const roots = {
+  1: leaf,
+  2: '0x0af3feac67a59f8a6c839e5e7d85e7aa16d8569a0bbed85ae2204fa465300dde',
+  10: '0x40f0a1fe3c6023fac1363e8ab9f303422a86f17df1d7c51a8a45a46fa76b3675',
+  100: '0x098095028c5a5bd103ad3984aafc50ce2c04edcf65b5fdbdc359fc9d0d4a0618',
+};
+
+contract('BMTTest', () => {
   let merkle;
 
-  const leaf = padRight('0xdead');
   const leaves = [];
 
-  describe('description', () => {
+  describe('merkle root', () => {
     before(async () => {
-      merkle = await MerkleTest.new();
+      merkle = await BMTTest.new();
     });
 
-    it('add one leaf', async () => {
+    it('1 leaf', async () => {
       leaves.push(leaf);
 
       await merkle.addLeaf(leaf);
@@ -26,27 +33,47 @@ contract('MerkleTest', () => {
 
       await merkle.setRoot();
       (await merkle.leaves(0)).should.be.equal(leaf);
-      (await merkle.getRoot()).should.be.equal(merkleLeaves(leaves));
+      (await merkle.getRoot()).should.be.equal(roots[leaves.length]);
     });
 
-    it('add another leaf', async () => {
+    it('2 leaves', async () => {
       leaves.push(leaf);
 
       await merkle.addLeaf(leaf);
       (await merkle.getLeavesCount()).should.be.bignumber.equal(leaves.length);
 
       await merkle.setRoot();
-      (await merkle.getRoot()).should.be.equal(merkleLeaves(leaves));
+      (await merkle.getRoot()).should.be.equal(roots[leaves.length]);
     });
 
-    it('add another leaf', async () => {
-      leaves.push(leaf);
+    it('10 leaves', async () => {
+      const N = 10 - leaves.length;
+      const leavesN = [];
+      for (let i = 0; i < N; i++) {
+        leaves.push(leaf);
+        leavesN.push(leaf);
+      }
 
-      await merkle.addLeaf(leaf);
+      await merkle.addLeaves(leavesN);
       (await merkle.getLeavesCount()).should.be.bignumber.equal(leaves.length);
 
       await merkle.setRoot();
-      (await merkle.getRoot()).should.be.equal(merkleLeaves(leaves));
+      (await merkle.getRoot()).should.be.equal(roots[leaves.length]);
+    });
+
+    it('100 leaves', async () => {
+      const N = 100 - leaves.length;
+      const leavesN = [];
+      for (let i = 0; i < N; i++) {
+        leaves.push(leaf);
+        leavesN.push(leaf);
+      }
+
+      await merkle.addLeaves(leavesN);
+      (await merkle.getLeavesCount()).should.be.bignumber.equal(leaves.length);
+
+      await merkle.setRoot();
+      (await merkle.getRoot()).should.be.equal(roots[leaves.length]);
     });
 
     it('add other 10 leaves', async () => {
