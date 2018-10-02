@@ -1,14 +1,11 @@
 const TransactionTest = artifacts.require('TransactionTest');
 
-contract('TransactionTest', async (accounts) => {
-  let [
-    account1,
-    account2
-  ] = accounts
+contract('TransactionTest', async () => {
 
   before('#create instance', async () => {
     transactionTest = await TransactionTest.deployed();
-  });
+  })
+
   describe('#RLP-encoding', async () => {
     const testHash = '0x0bd8a391244bd7e3e66fda3209d1d4f9c0209da1a6d2de48a8a3fe2198c7c999';
 
@@ -23,7 +20,7 @@ contract('TransactionTest', async (accounts) => {
     const s = '0x513e3030b597c2c2ae4117e88cc86d8610eaf1a374b3049056e6a2c3d2b3ff10';
 
     it('it should be equal to hash value', async () => {
-      const value1 = await transactionTest.getHash(
+      await transactionTest.getHashGasTest(
         nonce,
         gasPrice,
         gasLimit,
@@ -33,10 +30,22 @@ contract('TransactionTest', async (accounts) => {
         v,
         r,
         s,
-        { from: account1 }
-      );
-      console.log(value1, testHash);
-      assert.equal(value1, testHash);
-    });
-  });
-});
+      )
+
+      const encodedhash = await transactionTest.getHash(
+        nonce,
+        gasPrice,
+        gasLimit,
+        to,
+        value,
+        data,
+        v,
+        r,
+        s,
+      )
+
+      assert.equal(encodedhash, testHash)
+
+    })
+  })
+})

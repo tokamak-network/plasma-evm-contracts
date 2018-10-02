@@ -18,8 +18,8 @@ module.exports = {
   networks: {
     development: {
       host: 'localhost',
-      port: 7545,
-      // gas: 100000000,
+      port: 8545,
+      // gas: 100000000000,
       // gasPrice: 0x01,
       network_id: '*', // eslint-disable-line camelcase
     },
@@ -39,12 +39,12 @@ module.exports = {
   //     port: 8545,
   //     network_id: '*', // eslint-disable-line camelcase
   //   },
-  // },
-  // mocha: {
-  //   reporter: 'eth-gas-reporter',
-  //   reporterOptions: {
-  //     currency: 'USD',
-  //     gasPrice: 21,
-  //   },
+  },
+  mocha: {
+    reporter: 'eth-gas-reporter',
+    reporterOptions: {
+      currency: 'USD',
+      gasPrice: 21,
+    },
   },
 }
