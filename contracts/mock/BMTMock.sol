@@ -1,9 +1,9 @@
 pragma solidity ^0.4.24;
 
-import "./lib/BMT.sol";
+import "../lib/BMT.sol";
 
 
-contract BMTTest {
+contract BMTMock {
   using BMT for bytes32[];
 
   uint constant public MAX_LEAVES = 2 ** 16;

@@ -1,7 +1,7 @@
 const { marshalString, unmarshalString } = require('./helpers/marshal');
 const { padLeft, padRight } = require('./helpers/pad');
 
-const BMTTest = artifacts.require('BMTTest');
+const BMTMock = artifacts.require('BMTMock');
 
 require('chai')
   .use(require('chai-bignumber')(web3.BigNumber))
@@ -15,14 +15,14 @@ const roots = {
   100: '0x098095028c5a5bd103ad3984aafc50ce2c04edcf65b5fdbdc359fc9d0d4a0618',
 };
 
-contract('BMTTest', () => {
+contract('BMTMock', () => {
   let merkle;
 
   const leaves = [];
 
   describe('merkle root', () => {
     before(async () => {
-      merkle = await BMTTest.new();
+      merkle = await BMTMock.new();
     });
 
     it('1 leaf', async () => {
