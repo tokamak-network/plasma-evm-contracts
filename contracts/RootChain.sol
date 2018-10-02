@@ -5,6 +5,7 @@ import "./lib/Math.sol";
 import "./lib/Data.sol";
 
 
+// TODO: use SafeMath
 contract RootChain {
   using SafeMath for uint;
   using Math for *;
@@ -24,6 +25,9 @@ contract RootChain {
 
   // Increase for each URB
   uint public currentFork;
+
+  // the first epoch of a fork
+  mapping (uint => uint) public firstEpoch;
 
   // Increase for each epoch
   uint public currentEpoch;
@@ -46,11 +50,6 @@ contract RootChain {
   // N NRBs are submitted or when preparing URBs submission.
   uint public NRBEpochLength;
 
-  // the number of blocks submitted in an epoch.
-  uint public NRBFilled;
-  uint public ORBFilled;
-  uint public URBFilled;
-
   // Enter & Exit requests for ORB / URB
   Data.Request[] public EROs;
   Data.Request[] public ERUs;
@@ -61,27 +60,22 @@ contract RootChain {
   // Requests info for the URBs in a fork
   mapping (uint => Data.RequestBlock[]) public URBs;
 
-  // the first epoch of a fork
-  mapping (uint => uint) public firstEpoch;
+  // last finalized reqeust block
+  uint public lastFinalizedORB;
+  uint public lastFinalizedURB;
 
-  Data.Session[] public ORBSessions;
-  Data.Session[] public URBSessions;
+  // last finalize request
+  uint public lastFinalizedERO;
+  uint public lastFinalizedERU;
 
-  Data.Session public currentORBSession;
-  Data.Session public currentURBSession;
 
   // simple cost parameters
   uint public constant COST_ERO = 0.1 ether;         // cost for invalid exit
   uint public constant COST_ERU = 0.2 ether;         // cost for fork & rebase
-
   uint public constant COST_URB_PREPARE = 0.1 ether; // cost for URB prepare
   uint public constant COST_URB = 0.9 ether;         // cost for fork & rebase
-
   uint public constant COST_ORB = 0.1 ether;         // cost for invalid computation
   uint public constant COST_NRB = 0.1 ether;         // cost for invalid computation
-
-  // All sessions are reset after the timeout
-  uint public constant SESSION_TIMEOUT = 1 hours;
 
   // Challenge periods for computation and withholding
   uint public constant CP_COMPUTATION = 1 days;
@@ -233,7 +227,7 @@ contract RootChain {
     returns (bool)
   {
     Epoch storage epoch = epochs[currentFork][currentEpoch];
-    uint numBlocks = epoch.getBlockNumber();
+    uint numBlocks = epoch.getNumBlocks();
 
     // double check
     require(ORBFilled < numBlocks);
@@ -330,8 +324,16 @@ contract RootChain {
     return true;
   }
 
-  function finalizeExit() public returns (bool) {
-    // TODO: find the request block including _requestId with binary search
+  /**
+   * @notice finalize last Enter or Exit request. this returns the bond in both of
+   *         request types. For exit request, this calls applyRequestInRootChain
+   *         function of the requestable contract in root chain.
+   */
+  function finalizeRequest() public returns (bool) {
+    if (!_finalizeERU()) {
+      return _finalizeERO();
+    }
+
     return true;
   }
 
@@ -342,11 +344,15 @@ contract RootChain {
     return _fork != currentFork;
   }
 
-  function getExitFinalized(uint _requestId) public view returns (bool) {
-    Data.Request memory r = EROs[_requestId];
-    require(r.isExit);
+  /**
+   * @notice return true if the request is finalized
+   */
+  function getRequestFinalized(uint _requestId, uint _userActivated) public view returns (bool) {
+    if (_userActivated) {
+      ERUs[_requestId].finalized;
+    }
 
-    return r.finalized;
+    return EROs[_requestId].finalized;
   }
 
 
@@ -449,10 +455,17 @@ contract RootChain {
   }
 
   function _prepareToSubmitURB() internal {
+
   }
 
   function _finalizeBlock() internal onlyNotState(State.AcceptingURB) {
-    uint blockNumber = lastFinalizedBlock[currentFork];
+    uint blockNumber = lastFinalizedBlock[currentFork] + 1;
+
+    // return if no unfinalized block exists
+    if (blockNumber > highestBlockNumber[currentFork]) {
+      return;
+    }
+
     Data.PlasmaBlock storage pb = blocks[currrentFork][blockNumber];
 
     // finalize request block
@@ -462,11 +475,12 @@ contract RootChain {
         return;
       }
 
-
+      // mark the block as finalized
+      pb.finalized = true;
+      return;
     }
 
     // finalize non request block
-
     uint nextEpochNumber = pb.epochNumber + 1;
 
     // return if challenge period doesn't end
@@ -474,16 +488,18 @@ contract RootChain {
       return;
     }
 
-    // if the first block of the next epoch is finalized, finalize this block too.
+    // if the first block of the next request epoch is finalized, finalize this block too.
     if (_finalizeFirstEpoch(nextEpochNumber)) {
       pb.finalized = true;
+      lastFinalizedBlock[currentFork] = blockNumber;
+      return;
     }
 
-    // TODO: check the NRB
+    // TODO: check NRB was not challenged
   }
 
   /**
-   * @notice finalize the first block of an request epoch (ORB epoch / URB epoch).
+   * @notice finalize the first block of a request epoch (ORB epoch / URB epoch).
    *         return true if the block is finalized.
    */
   function _finalizeFirstBlock(uint _epochNumber) internal returns (bool) {
@@ -518,5 +534,46 @@ contract RootChain {
     }
 
     return false;
+  }
+
+  /**
+   * @notice finalize ERUs in the first epoch of current fork.
+   *         return true if an ERU is finalized.
+   */
+  function _finalizeERU() internal returns (bool) {
+    // short circuit if not forked yet
+    if (currentFork != 0) {
+      return false;
+    }
+
+    Data.Epoch storage previousRequestEpoch = epoch[currentFork - 1][firstEpoch[currentFork] - 1];
+    Data.Epoch storage epoch = epoch[currentFork][firstEpoch[currentFork]];
+
+    if (!previousRequestEpoch.isRequest) {
+      previousRequestEpoch = epoch[currentFork - 1][firstEpoch[currentFork] - 2];
+    }
+
+    // NOTE: ORB epoch number = firstEpoch - 1?
+
+    // short circuit if EROs are not finalized yet
+    if (lastFinalizedERO < ORBEpoch.requestStart) {
+      return false;
+    }
+
+    // if there is an ERU that is not finalized yet
+    if (lastFinalizedERU <= ERUs.length) {
+      Data.Request storage ERU = ERUs[lastFinalizedERU + 1];
+    }
+
+    /* Data.PlasmaBlock storage pb = blocks[last]; */
+    return true;
+  }
+
+  /**
+   * @notice finalize ERUs in the first epoch of current fork.
+   *         return true if an ERU is finalized.
+   */
+  function _finalizeERO() internal returns (bool) {
+
   }
 }

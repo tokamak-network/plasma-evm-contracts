@@ -41,24 +41,42 @@ library Data {
     uint64 requestEnd;        // last request id
     uint64 startBlockNumber;  // first block number of the epoch
     uint64 endBlockNumber;    // last block number of the epoch
-
+    uint64 limit;             // the maximum number of request transactions in
+                              // a request block
     uint64 timestamp;         // timestamp when the epoch is initialized.
                               // required for URB / ORB
     bool isRequest;           // true in case of URB / ORB
     bool userActivated;       // true in case of URB
+    bool challenged;          // true if a block in the epoch is challenged
   }
 
-  function getBlockNumber(Epoch _e) internal returns (uint) {
+  function getNumBlocks(Epoch _e) internal returns (uint) {
     if (_e.endBlockNumber == 0) return 0;
     return _e.endBlockNumber - _e.startBlockNumber + 1;
   }
+
+  /**
+   * @notice This returns the request block number if the request is included
+   *         in an epoch. Otherwise, returns 0.
+   */
+  function getBlockNumber(Epoch _e, uint _requestId) internal returns (uint) {
+    if (!_e.isReqeust
+      || _e.limit == 0
+      || _e.requestStart < requestId ||
+      _e.requestEnd > requestId) {
+        return 0;
+    }
+    return uint(_e.startBlockNumber)
+      .add(uint(_requestId - _e.requestStart + 1).divCeil(_e.limit));
+  }
+
 
   function getRequestRange(Epoch _e, uint _blockNumber, uint _limit) internal returns (uint requestStart, uint requestEnd) {
     require(_e.isRequest);
     require(_blockNumber >= _e.startBlockNumber && _blockNumber <= _e.endBlockNumber);
 
     if (_blockNumber == _e.endBlockNumber) {
-      requestStart = _e.requestStart + (getBlockNumber(_e) - 1) * _limit;
+      requestStart = _e.requestStart + (getNumBlocks(_e) - 1) * _limit;
       requestEnd = _e.requestEnd;
       return;
     }
