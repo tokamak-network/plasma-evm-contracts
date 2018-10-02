@@ -17,6 +17,20 @@ contract TransactionTest {
     uint256 s;
   }
 
+  function getHashGasTest(
+    uint256 nonce,
+    uint256 gasPrice,
+    uint256 gasLimit,
+    address to,
+    uint256 value,
+    bytes data,
+    uint8 v,
+    uint256 r,
+    uint256 s
+  ) public {
+    getHash(nonce, gasPrice, gasLimit, to, value, data, v, r, s);
+  }
+
   function getHash(
     uint256 nonce,
     uint256 gasPrice,

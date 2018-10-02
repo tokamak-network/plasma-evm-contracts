@@ -47,15 +47,6 @@ library RLPEncode {
     }
 
     /**
-     * @notice Encode uint8
-     * @param self The uint8 to encode
-     * @return The RLP encoded uint8 in bytes
-     */
-    function encodeUint8(uint8 self) internal pure returns (bytes) {
-        return encodeBytes(toBinary(self));
-    }
-
-    /**
      * @notice Encode int
      * @param self The int to encode
      * @return The RLP encoded int in bytes

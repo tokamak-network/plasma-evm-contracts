@@ -5,65 +5,14 @@ import "./RLPEncode.sol";
 library Transaction {
   using RLPEncode for *;
 
-  struct TX {
-    uint256 nonce;
-    uint256 gasPrice;
-    uint256 gasLimit;
-    address to;
-    uint256 value;
-    bytes data;
-    uint8 v;
-    uint256 r;
-    uint256 s;
-  }
-
-  function getHash(
-    uint256 nonce,
-    uint256 gasPrice,
-    uint256 gasLimit,
-    address to,
-    uint256 value,
-    bytes data,
-    uint8 v,
-    uint256 r,
-    uint256 s
-  ) public pure returns (bytes32) {
-    TX memory t;
-    bytes32 encodedhash;
-
-    t.nonce = nonce;
-    t.gasPrice = gasPrice;
-    t.gasLimit = gasLimit;
-    t.to = to;
-    t.value = value;
-    t.data = data;
-    t.v = v;
-    t.r = r;
-    t.s = s;
-
-    encodedhash = encodeTX(
-      t.nonce,
-      t.gasPrice,
-      t.gasLimit,
-      t.to,
-      t.value,
-      t.data,
-      t.v,
-      t.r,
-      t.s
-    );
-
-    return encodedhash;
-  }
-
   function encodeTX(
-    uint256 nonce,
+    uint64 nonce,
     uint256 gasPrice,
-    uint256 gasLimit,
+    uint64 gasLimit,
     address to,
     uint256 value,
     bytes data,
-    uint8 v,
+    uint256 v,
     uint256 r,
     uint256 s
   ) internal pure returns (bytes32 encodedTxHash) {
