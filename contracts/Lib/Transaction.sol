@@ -33,6 +33,8 @@ library Transaction {
   ) internal pure returns (bytes32 encodedTxHash) {
     TX memory t;
     bytes memory pack;
+    bytes[] memory packArr;
+    bytes memory encodedPackArr;
 
     t.nonce = nonce;
     t.gasPrice = gasPrice;
@@ -44,19 +46,19 @@ library Transaction {
     t.r = r;
     t.s = s;
 
-    pack = abi.encodePacked(
-      t.nonce.encodeUint(),
-      t.gasPrice.encodeUint(),
-      t.gasLimit.encodeUint(),
-      t.to.encodeAddress(),
-      t.value.encodeUint(),
-      t.data.encodeBytes(),
-      t.v.encodeUint8(),
-      t.r.encodeUint(),
-      t.s.encodeUint()
-      );
+    packArr[0] = nonce.encodeUint();
+    packArr[1] = gasPrice.encodeUint();
+    packArr[2] = gasLimit.encodeUint();
+    packArr[3] = to.encodeAddress();
+    packArr[4] = value.encodeUint();
+    packArr[5] = data.encodeBytes();
+    packArr[6] = v.encodeUint8();
+    packArr[7] = r.encodeUint();
+    packArr[8] = s.encodeUint();
 
-    return keccak256(pack);
+    encodedPackArr = packArr.encodeList();
+
+    return keccak256(encodedPackArr);
 
   }
 

@@ -1,8 +1,4 @@
 const TransactionTest = artifacts.require("TransactionTest")
-const RLPEncodeTest = artifacts.require("RLPEncodeTest")
-
-const abi = require('ethereumjs-abi')
-const BN = require('bn.js')
 
 contract("TransactionTest", async (accounts) => {
 
@@ -13,22 +9,24 @@ contract("TransactionTest", async (accounts) => {
 
   before('#create instance', async () => {
     transactionTest = await TransactionTest.deployed()
-    rlpEncodeTest = await RLPEncodeTest.deployed()
   })
 
   describe("#RLP-encoding", async () => {
-    const nonce = 1
-    const gasPrice = 10
-    const gasLimit = 100
-    const to = 0x43989fb883ba8111221e89123897538475893837
-    const value = 1000
-    const data = 0x11
-    const v = 1
-    const r = 10
-    const s = 100
+
+    const testHash = '0x08d549eaea5af0a98cb522840661dbe5ea87a1158e59918c4805c2209264431e'
+
+    const nonce = 0x6
+    const gasPrice= 0x2540be400
+    const gasLimit = 0x5208
+    const to = 0x7c23a65d25cc8486557c988f3c9a68c5b595dd10
+    const value = 0x1a530c08cd7e780
+    const data = 0x000
+    const v = 0x25
+    const r = 0x5fa8173448bb1884861d441d8a7f88f8308eaf83a50ad0f23806ce248c91feb
+    const s = 0x497e1e0fa9f4a39bc43a6bc1b13387275169739f5b5cb94a77ec43371320f5a4
 
     it("it should be equal to hash value", async () => {
-      const value1 = await transactionTest.encodeTX(
+      const value1 = await transactionTest.getHash(
         nonce,
         gasPrice,
         gasLimit,
@@ -40,20 +38,8 @@ contract("TransactionTest", async (accounts) => {
         s,
         {from: account1}
       )
-
-      const RLPnonce = await rlpEncodeTest.encodeUint(nonce, {from: account1})
-      const RLPgasPrice = await rlpEncodeTest.encodeUint(gasPrice, {from: account1})
-      const RLPgasLimit = await rlpEncodeTest.encodeUint(gasLimit, {from: account1})
-      const RLPto = await rlpEncodeTest.encodeAddress(to, {from: account1})
-      const RLPvalue = await rlpEncodeTest.encodeAddress(value, {from: account1})
-      const RLPdata = await rlpEncodeTest.encodeBytes(data, {from: account1})
-      const RLPv = await rlpEncodeTest.encodeUint8(v, {from: account1})
-      const RLPr = await rlpEncodeTest.encodeUint(r, {from: account1})
-      const RLPs = await rlpEncodeTest.encodeUint(s, {from: account1})
-
-      
-
-      //assert.equal(value1, value2)
+      console.log(value1, testHash)
+      //assert.equal(value1, testHash)
 
     })
 

@@ -20,6 +20,62 @@ contract TransactionTest {
     uint256 s;
   }
 
+  function toBytes(uint256 x) internal pure returns (bytes b) {
+    b = new bytes(32);
+    assembly { mstore(add(b, 32), x) }
+  }
+
+  function getHash(
+    uint256 nonce,
+    uint256 gasPrice,
+    uint256 gasLimit,
+    uint256 to,
+    uint256 value,
+    uint256 data,
+    uint256 v,
+    uint256 r,
+    uint256 s
+  ) public pure returns (bytes32) {
+    TX memory t;
+    bytes32 encodedhash;
+
+    t.nonce = nonce;
+    t.gasPrice = gasPrice;
+    t.gasLimit = gasLimit;
+    t.to = address(to);
+    t.value = value;
+    t.data = toBytes(data);
+    t.v = uint8(v);
+    t.r = r;
+    t.s = s;
+
+    encodedhash = encodeTX(
+      t.nonce,
+      t.gasPrice,
+      t.gasLimit,
+      t.to,
+      t.value,
+      t.data,
+      t.v,
+      t.r,
+      t.s
+    );
+
+    return encodedhash;
+
+  }
+
+  function stringToBytes32(string memory source) returns (bytes32 result) {
+    bytes memory tempEmptyStringTest = bytes(source);
+    if (tempEmptyStringTest.length == 0) {
+        return 0x0;
+    }
+
+    assembly {
+        result := mload(add(source, 32))
+    }
+  }
+
   function encodeTX(
     uint256 nonce,
     uint256 gasPrice,
@@ -30,33 +86,25 @@ contract TransactionTest {
     uint8 v,
     uint256 r,
     uint256 s
-  ) public pure returns (bytes32 encodedTxHash) {
-    TX memory t;
-    bytes memory pack;
+  ) internal pure returns (bytes32 encodedTxHash) {
 
-    t.nonce = nonce;
-    t.gasPrice = gasPrice;
-    t.gasLimit = gasLimit;
-    t.to = to;
-    t.value = value;
-    t.data = data;
-    t.v = v;
-    t.r = r;
-    t.s = s;
+    bytes[] memory encodedNonce = new bytes[](2);
 
-    pack = abi.encodePacked(
-      t.nonce.encodeUint(),
-      t.gasPrice.encodeUint(),
-      t.gasLimit.encodeUint(),
-      t.to.encodeAddress(),
-      t.value.encodeUint(),
-      t.data.encodeBytes(),
-      t.v.encodeUint8(),
-      t.r.encodeUint(),
-      t.s.encodeUint()
-      );
+    encodedNonce = [stringToBytes32("nonce").encodeBytes(), nonce.encodeUint()];
 
-    return keccak256(pack);
+    bytes[] memory packArr = new bytes[](9);
+
+    packArr[0] = nonce.encodeUint();
+    packArr[1] = gasPrice.encodeUint();
+    packArr[2] = gasLimit.encodeUint();
+    packArr[3] = to.encodeAddress();
+    packArr[4] = value.encodeUint();
+    packArr[5] = data.encodeBytes();
+    packArr[6] = v.encodeUint();
+    packArr[7] = r.encodeUint();
+    packArr[8] = s.encodeUint();
+
+    return keccak256(packArr.encodeList());
 
   }
 
