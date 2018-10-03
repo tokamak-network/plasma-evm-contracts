@@ -10,13 +10,13 @@ library Data {
     bytes32 statesRoot;
     bytes32 transactionsRoot;
     bytes32 intermediateStatesRoot;
-    uint64 requestBlockId;
+    uint64 forkNumber;
     uint64 epochNumber;
     uint64 timestamp;
     bool isRequest;           // true in case of URB & ORB
     bool userActivated;       // true in case of URB
     bool challenged;          // true if it is challenged
-    bool finalized;           // true if it is successfully finalized
+    bool challenging;         // true if it is being challenged
   }
 
   struct Request {
@@ -41,17 +41,23 @@ library Data {
     uint64 requestEnd;        // last request id
     uint64 startBlockNumber;  // first block number of the epoch
     uint64 endBlockNumber;    // last block number of the epoch
+    uint64 forkedBlockNumber; // forked block number due to URB
+
     uint64 limit;             // the maximum number of request transactions in
                               // a request block
+
     uint64 timestamp;         // timestamp when the epoch is initialized.
                               // required for URB / ORB
+
     bool isRequest;           // true in case of URB / ORB
     bool userActivated;       // true in case of URB
     bool challenged;          // true if a block in the epoch is challenged
+    bool challenging;         // true if a block in the epoch is being challenged
+    bool finalized;           // true if it is successfully finalized
   }
 
   function getNumBlocks(Epoch _e) internal returns (uint) {
-    if (_e.endBlockNumber == 0) return 0;
+    if (_e.startBlockNumber == _e.endBlockNumber) return 0;
     return _e.endBlockNumber - _e.startBlockNumber + 1;
   }
 
@@ -62,10 +68,11 @@ library Data {
   function getBlockNumber(Epoch _e, uint _requestId) internal returns (uint) {
     if (!_e.isReqeust
       || _e.limit == 0
-      || _e.requestStart < requestId ||
-      _e.requestEnd > requestId) {
+      || _e.requestStart < requestId
+      || _e.requestEnd > requestId) {
         return 0;
     }
+
     return uint(_e.startBlockNumber)
       .add(uint(_requestId - _e.requestStart + 1).divCeil(_e.limit));
   }
