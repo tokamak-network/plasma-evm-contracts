@@ -491,7 +491,7 @@ contract RootChain {
       return;
     }
 
-    Data.PlasmaBlock storage pb = blocks[currrentFork][blockNumber];
+    Data.PlasmaBlock storage pb = blocks[currentFork][blockNumber];
 
     // short circuit if the block is under challenge
     if (pb.challenging) {
@@ -516,7 +516,7 @@ contract RootChain {
 
     // if the first block of the next request epoch is finalized, finalize all
     // blocks of the current non request epoch.
-    if (_checkFinalizable(currentFork, nextEpochNumber)) {
+    if (_checkFinalizable(nextEpochNumber)) {
       _doFinalizeEpoch(pb.epochNumber);
       return;
     }
@@ -535,13 +535,13 @@ contract RootChain {
    * @notice return true if the first block of a request epoch (ORB epoch / URB epoch)
    *         can be finalized.
    */
-  function _checkFinalizable(uint _forkNumber, uint _epochNumber) internal returns (bool) {
+  function _checkFinalizable(uint _epochNumber) internal returns (bool) {
     // cannot finalize future epoch
     if (_epochNumber > currentEpoch) {
       return false;
     }
 
-    Data.Epoch storage epoch = epochs[_forkNumber][_epochNumber];
+    Data.Epoch storage epoch = epochs[currentFork][_epochNumber];
 
     // cannot finalize if it is not request epoch
     if (!epoch.isRequest) {
