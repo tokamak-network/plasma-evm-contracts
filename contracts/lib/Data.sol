@@ -2,9 +2,12 @@ pragma solidity ^0.4.24;
 
 import "./SafeMath.sol";
 import "./Math.sol";
+import "./RLPEncode.sol";
 
 library Data {
   using SafeMath for *;
+  using Math for *;
+  using RLPEncode for *;
 
   struct PlasmaBlock {
     bytes32 statesRoot;
@@ -67,10 +70,10 @@ library Data {
    *         in an epoch. Otherwise, returns 0.
    */
   function getBlockNumber(Epoch _e, uint _requestId) internal returns (uint) {
-    if (!_e.isReqeust
+    if (!_e.isRequest
       || _e.limit == 0
-      || _e.requestStart < requestId
-      || _e.requestEnd > requestId) {
+      || _e.requestStart < _requestId
+      || _e.requestEnd > _requestId) {
         return 0;
     }
 
@@ -92,5 +95,77 @@ library Data {
     requestStart = _e.requestStart + (_blockNumber - _e.startBlockNumber) * _limit;
     requestEnd = requestStart + _limit;
     return;
+  }
+
+
+  /*
+   * TX for Ethereum transaction
+   */
+  struct TX {
+    uint64 nonce;
+    uint256 gasPrice;
+    uint64 gasLimit;
+    address to;
+    uint256 value;
+    bytes data;
+    uint256 v;
+    uint256 r;
+    uint256 s;
+  }
+
+  function toTX(
+    uint64 _nonce,
+    uint256 _gasPrice,
+    uint64 _gasLimit,
+    address _to,
+    uint256 _value,
+    bytes _data,
+    uint256 _v,
+    uint256 _r,
+    uint256 _s
+  )
+    internal
+    pure
+    returns (TX memory tx)
+  {
+    tx.nonce = _nonce;
+    tx.gasPrice = _gasPrice;
+    tx.gasLimit = _gasLimit;
+    tx.to = _to;
+    tx.value = _value;
+    tx.data = _data;
+    tx.v = _v;
+    tx.r = _r;
+    tx.s = _s;
+  }
+
+  /**
+   * @notice convert Request to TX
+   *         data = func sig + trie key + value
+   */
+  function toTX(
+    Request _request
+  )
+    internal
+    pure
+    returns (TX memory tx)
+  {
+
+  }
+
+  function hash(TX memory _tx) internal pure returns (bytes32) {
+    bytes[] memory packArr = new bytes[](9);
+
+    packArr[0] = _tx.nonce.encodeUint();
+    packArr[1] = _tx.gasPrice.encodeUint();
+    packArr[2] = _tx.gasLimit.encodeUint();
+    packArr[3] = _tx.to.encodeAddress();
+    packArr[4] = _tx.value.encodeUint();
+    packArr[5] = _tx.data.encodeBytes();
+    packArr[6] = _tx.v.encodeUint();
+    packArr[7] = _tx.r.encodeUint();
+    packArr[8] = _tx.s.encodeUint();
+
+    return keccak256(packArr.encodeList());
   }
 }
