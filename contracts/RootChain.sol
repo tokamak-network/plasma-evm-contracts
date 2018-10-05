@@ -98,6 +98,8 @@ contract RootChain {
   event SessionTimeout(bool userActivated);
   event StateChanged(State state);
 
+  event Forked(uint newFork, uint forkedBlockNumber);
+
   event NRBSubmitted(uint fork, uint blockNumber);
   event ORBSubmitted(uint fork, uint blockNumber);
   event URBSubmitted(uint fork, uint blockNumber);
@@ -118,8 +120,8 @@ contract RootChain {
     bytes32 trieValue
   );
 
-  event BlockFinalized(uint _fork, uint _blockNumber);
-  event EpochFinalized(uint _fork, uint _epochNumber, uint _firstBlockNumber, uint _lastBlockNumber);
+  event BlockFinalized(uint _forkNumber, uint _blockNumber);
+  event EpochFinalized(uint _forkNumber, uint _epochNumber, uint _firstBlockNumber, uint _lastBlockNumber);
 
   // emit when exit is finalized. _userActivated is true for ERU
   event ExitFinalized(uint _requestId, uint _userActivated);
@@ -192,6 +194,7 @@ contract RootChain {
     returns (bool)
   {
     state = State.AcceptingURB;
+    _prepareToSubmitURB();
     return true;
   }
 
@@ -207,22 +210,20 @@ contract RootChain {
     onlyValidCost(COST_NRB)
     returns (bool)
   {
-    Epoch storage epoch = epochs[currentFork][currentEpoch];
-    uint numBlocks = epoch.getNumBlocks();
-    uint submittedNRBs = highestBlockNumber[currentFork] - epoch.startBlockNumber + 1;
-
-    // double check
-    require(NRBFilled < NRBEpochLength);
-
     uint blockNumber = _storeBlock(
       _statesRoot,
       _transactionsRoot,
       _intermediateStatesRoot,
       false,
+      false,
       false
     );
 
-    if (submittedNRBs + 1 == numBlocks) {
+    Epoch storage epoch = epochs[currentFork][currentEpoch];
+    uint numBlocks = epoch.getNumBlocks();
+    uint submittedBlocks = highestBlockNumber[currentFork] - epoch.startBlockNumber + 1;
+
+    if (submittedBlocks == numBlocks) {
       _prepareToSubmitORB();
     }
 
@@ -242,21 +243,22 @@ contract RootChain {
     onlyValidCost(COST_ORB)
     returns (bool)
   {
-    Epoch storage epoch = epochs[currentFork][currentEpoch];
-    uint numBlocks = epoch.getNumBlocks();
-    uint submittedORBs = highestBlockNumber[currentFork] - epoch.startBlockNumber + 1;
-
     uint blockNumber = _storeBlock(
       _statesRoot,
       _transactionsRoot,
       _intermediateStatesRoot,
       true,
+      false,
       false
     );
 
+    Epoch storage epoch = epochs[currentFork][currentEpoch];
+    uint numBlocks = epoch.getNumBlocks();
+    uint submittedBlocks = highestBlockNumber[currentFork] - epoch.startBlockNumber + 1;
+
     // TODO: verify merkle root
 
-    if (submittedORBs + 1 == numBlocks) {
+    if (submittedBlocks == numBlocks) {
       _prepareToSubmitNRB();
     }
 
@@ -275,32 +277,68 @@ contract RootChain {
     onlyValidCost(COST_URB)
     returns (bool)
   {
+    bool firstURB = !blocks[currentFork][highestBlock[current]].request;
+
     uint blockNumber = _storeBlock(
       _statesRoot,
       _transactionsRoot,
       _intermediateStatesRoot,
       true,
-      true
+      true,
+      firstURB
     );
 
-    // TODO: verify merkle root
+    if (blockNumber != 0) {
+      Epoch storage epoch = epochs[currentFork][currentEpoch];
+      uint numBlocks = epoch.getNumBlocks();
+      uint submittedURBs = highestBlockNumber[currentFork] - epoch.startBlockNumber + 1;
 
-    emit ORBSubmitted(currentFork, blockNumber);
-    return true;
+      // TODO: verify merkle root
+
+      if (submittedURBs == numBlocks) {
+        _prepareToSubmitNRB();
+      }
+
+      emit ORBSubmitted(currentFork, blockNumber);
+      return true;
+    }
+
+    return false;
   }
 
   /**
-   * @notice Mock function to revert request block. It should be called only
-   *         by computation verifier contract.
+   * @notice Computation verifier contract reverts the block in case of wrong
+   *         computation.
    */
-  function revertRequestBlock(uint _blockNumber) external {
+  function revertBlock(uint _forkNumber, uint _blockNumber) external {
+    // TODO: make a new fork?
   }
 
   /**
-   * @notice Mock function to revert non request block. It should be called only
-   *         by computation verifier contract.
+   * @notice It challenges on NRBs containing Null Address transaction.
    */
-  function revertRequestBlock(uint _blockNumber) external {
+  function challengeNATX(uint _blockNumber, bytes _key, bytes _txData, uint _branchMask, bytes32[] _siblings) external {
+    Data.PlasmaBlock storage pb = blocks[currentFork][_blockNumber];
+
+    // check the plasma block is NRB
+    require(!pb.isRequest);
+
+    // check the challenge period
+    require(pb.timestamp + CP_COMPUTATION > block.timestamp);
+
+    bytes32 root = pb.transactionsRoot;
+    bytes32 txHash;
+
+    /* TODO: implement Data.Transaction, MPT
+
+    Data.Transaction memory tx = _txData().toTransaction();
+    require(tx.from == NullAddress);
+    require(root.verifyProof(bytes _key, _txData, _branchMask, _siblings));
+
+    */
+
+
+    // TODO: fork? penalize?
   }
 
   /*
@@ -366,8 +404,8 @@ contract RootChain {
   /**
    * @notice return true if the chain is forked by URB
    */
-  function forked(uint _fork) public returns (bool) {
-    return _fork != currentFork;
+  function forked(uint _forkNumber) public returns (bool) {
+    return _forkNumber != currentFork;
   }
 
   /**
@@ -395,10 +433,29 @@ contract RootChain {
     internal
     returns (uint blockNumber)
   {
-    blockNumber = highestBlockNumber[currentFork].add(1);
+    if (_isRequest && _userActivated && _firstURB) {
+      uint nextFork = currentFork.add(1);
 
-    if (_userActivated) {
-      currentFork = currentFork.add(1);
+      // NOTE: can targetEpoch be 0?
+      uint forkEpochNumber = blocks[currentEpoch][lastFinalizedBlock[currentFork] + 1].epochNumber;
+
+      Data.Epoch storage newEpoch = epochs[nextFork][forkEpochNumber];
+
+      // URB submission is out of time
+      if (newEpoch.isRequest && newEpoch.timestamp + PREPARE_TIMEOUT < block.timestamp) {
+        firstEpoch[nextFork] = 0;
+        delete epochs[nextFork];
+        return;
+      }
+
+      // update storage
+      currentFork = nextFork;
+      blockNumber = epochs[currentFork].startBlockNumber;
+      epochs[currentFork - 1][forkEpochNumber].forkedBlockNumber = blockNumber;
+
+      emit Forked(nextFork, blockNumber);
+    } else {
+      blockNumber = highestBlockNumber[currentFork].add(1);
     }
 
     Data.PlasmaBlock storage b = blocks[currentFork][blockNumber];
@@ -407,8 +464,10 @@ contract RootChain {
     b.transactionsRoot = _transactionsRoot;
     b.intermediateStatesRoot = _intermediateStatesRoot;
     b.isRequest = _isRequest;
+    b.userActivated = _userActivated;
 
     highestBlockNumber[currentFork] = blockNumber;
+    return;
   }
 
   function _storeRequest(
@@ -480,7 +539,32 @@ contract RootChain {
   }
 
   function _prepareToSubmitURB() internal {
+    // NOTE: what if no finalized block at this fork?
 
+    uint lastBlockNumber = lastFinalizedBlock[currentFork];
+    Data.PlasmaBlock storage lastBlock = blocks[lastBlockNumber];
+
+    uint nextFork = currentFork + 1;
+    uint forkEpochNumber = lastBlock.epochNumber;
+
+    // note epoch number for the new fork
+    firstEpoch[nextFork] = forkEpochNumber;
+
+    Data.Epoch storage epoch = epochs[nextFork][forkEpochNumber];
+
+    if (nextFork == 1) {
+      // first URB fork
+      epoch.requestStart = 0;
+    } else {
+      // last ERU id of previous URB fork + 1
+      epoch.requestStart = epochs[currentFork][firstEpoch[currentFork]].requestEnd + 1;
+    }
+
+    epoch.isRequest = true;
+    epoch.userActivated = true;
+    epoch.requestEnd = uint64(ERUs.length.sub(1));
+    epoch.startBlockNumber = lastBlockNumber + 1;
+    epoch.endBlockNumber = uint64(startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + 1).divCeil(MAX_REQUESTS) - 1);
   }
 
   function _finalizeBlock() internal onlyNotState(State.AcceptingURB) {
@@ -656,7 +740,6 @@ contract RootChain {
 
     Data.PlasmaBlock storage pb = blocks[blockNumber];
     Data.Request storage ERU = ERUs[requestId];
-
 
     return true;
   }

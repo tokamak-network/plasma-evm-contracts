@@ -41,7 +41,8 @@ library Data {
     uint64 requestEnd;        // last request id
     uint64 startBlockNumber;  // first block number of the epoch
     uint64 endBlockNumber;    // last block number of the epoch
-    uint64 forkedBlockNumber; // forked block number due to URB
+    uint64 forkedBlockNumber; // forked block number due to URB or challenge
+                              // last finalized block is forkedBlockNumber - 1
 
     uint64 limit;             // the maximum number of request transactions in
                               // a request block
