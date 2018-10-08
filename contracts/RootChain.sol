@@ -55,21 +55,19 @@ contract RootChain {
   Data.Request[] public EROs;
   Data.Request[] public ERUs;
 
-  // Requests info for the ORBs in a single epoch of a fork
-  mapping (uint => mapping (uint => Data.RequestBlock[])) public ORBs;
-
-  // Requests info for the URBs in a fork
-  mapping (uint => Data.RequestBlock[]) public URBs;
-
-  // Last finalized reqeust block
-  uint public lastFinalizedORB;
-  uint public lastFinalizedURB;
+  // Consecutive request block. The fork where they are in is defined in Data.PlasmaBlock
+  Data.RequestBlock[] public ORBs;
+  Data.RequestBlock[] public URBs;
 
   // Last finalize request
   uint public lastFinalizedERO;
   uint public lastFinalizedERU;
 
-  // TODO: develop cost function
+  // Last request block containing lastFinalizedERO / lastFinalizedERU
+  uint public lastEROBlockNumber;
+  uint public lastERUBlockNumber;
+
+  // TODO: develop cost function model
   // Simple cost parameters
   uint public constant COST_ERO = 0.1 ether;         // cost for invalid exit
   uint public constant COST_ERU = 0.2 ether;         // cost for fork & rebase
@@ -154,7 +152,7 @@ contract RootChain {
     _;
   }
 
-  /**
+  /*
    * Constructor
    */
   constructor(
@@ -190,7 +188,8 @@ contract RootChain {
   function prepareToSubmitURB()
     external
     onlyOperator
-    onlyValidSession(currentURBSession, true)
+    onlyNotState(State.AcceptingURB)
+    // finalizeBlocks
     returns (bool)
   {
     state = State.AcceptingURB;
@@ -208,6 +207,7 @@ contract RootChain {
     onlyOperator
     onlyState(State.AcceptingNRB)
     onlyValidCost(COST_NRB)
+    finalizeBlocks
     returns (bool)
   {
     uint blockNumber = _storeBlock(
@@ -219,7 +219,10 @@ contract RootChain {
       false
     );
 
-    Epoch storage epoch = epochs[currentFork][currentEpoch];
+    Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
+
+    require(!epoch.isRequest);
+
     uint numBlocks = epoch.getNumBlocks();
     uint submittedBlocks = highestBlockNumber[currentFork] - epoch.startBlockNumber + 1;
 
@@ -241,6 +244,7 @@ contract RootChain {
     onlyOperator
     onlyState(State.AcceptingORB)
     onlyValidCost(COST_ORB)
+    finalizeBlocks
     returns (bool)
   {
     uint blockNumber = _storeBlock(
@@ -252,11 +256,14 @@ contract RootChain {
       false
     );
 
-    Epoch storage epoch = epochs[currentFork][currentEpoch];
+    Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
+
+    require(epoch.isRequest);
+
     uint numBlocks = epoch.getNumBlocks();
     uint submittedBlocks = highestBlockNumber[currentFork] - epoch.startBlockNumber + 1;
 
-    // TODO: verify merkle root
+    // TODO: verify transactionsRoot
 
     if (submittedBlocks == numBlocks) {
       _prepareToSubmitNRB();
@@ -277,7 +284,7 @@ contract RootChain {
     onlyValidCost(COST_URB)
     returns (bool)
   {
-    bool firstURB = !blocks[currentFork][highestBlock[current]].request;
+    bool firstURB = !blocks[currentFork][highestBlockNumber[currentFork]].isRequest;
 
     uint blockNumber = _storeBlock(
       _statesRoot,
@@ -289,11 +296,11 @@ contract RootChain {
     );
 
     if (blockNumber != 0) {
-      Epoch storage epoch = epochs[currentFork][currentEpoch];
+      Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
       uint numBlocks = epoch.getNumBlocks();
       uint submittedURBs = highestBlockNumber[currentFork] - epoch.startBlockNumber + 1;
 
-      // TODO: verify merkle root
+      // TODO: verify transactionsRoot
 
       if (submittedURBs == numBlocks) {
         _prepareToSubmitNRB();
@@ -315,9 +322,9 @@ contract RootChain {
   }
 
   /**
-   * @notice It challenges on NRBs containing Null Address transaction.
+   * @notice It challenges on NRBs containing null address transaction.
    */
-  function challengeNATX(uint _blockNumber, bytes _key, bytes _txData, uint _branchMask, bytes32[] _siblings) external {
+  function challengeNullAddress(uint _blockNumber, bytes _key, bytes _txData, uint _branchMask, bytes32[] _siblings) external {
     Data.PlasmaBlock storage pb = blocks[currentFork][_blockNumber];
 
     // check the plasma block is NRB
@@ -411,7 +418,7 @@ contract RootChain {
   /**
    * @notice return true if the request is finalized
    */
-  function getRequestFinalized(uint _requestId, uint _userActivated) public view returns (bool) {
+  function getRequestFinalized(uint _requestId, bool _userActivated) public view returns (bool) {
     if (_userActivated) {
       ERUs[_requestId].finalized;
     }
@@ -428,30 +435,31 @@ contract RootChain {
     bytes32 _transactionsRoot,
     bytes32 _intermediateStatesRoot,
     bool _isRequest,
-    bool _userActivated
+    bool _userActivated,
+    bool _firstURB
   )
     internal
     returns (uint blockNumber)
   {
+    // when first URB is submitted
     if (_isRequest && _userActivated && _firstURB) {
       uint nextFork = currentFork.add(1);
+      uint forkEpochNumber = firstEpoch[nextFork];
 
-      // NOTE: can targetEpoch be 0?
-      uint forkEpochNumber = blocks[currentEpoch][lastFinalizedBlock[currentFork] + 1].epochNumber;
-
+      // newEpoch is already set up in preparing step
       Data.Epoch storage newEpoch = epochs[nextFork][forkEpochNumber];
 
       // URB submission is out of time
       if (newEpoch.isRequest && newEpoch.timestamp + PREPARE_TIMEOUT < block.timestamp) {
+        delete epochs[nextFork][forkEpochNumber];
         firstEpoch[nextFork] = 0;
-        delete epochs[nextFork];
         return;
       }
 
       // update storage
       currentFork = nextFork;
-      blockNumber = epochs[currentFork].startBlockNumber;
-      epochs[currentFork - 1][forkEpochNumber].forkedBlockNumber = blockNumber;
+      blockNumber = epochs[currentFork][firstEpoch[nextFork]].startBlockNumber;
+      epochs[currentFork - 1][forkEpochNumber].forkedBlockNumber = uint64(blockNumber);
 
       emit Forked(nextFork, blockNumber);
     } else {
@@ -511,7 +519,7 @@ contract RootChain {
 
     epoch.isRequest = true;
     epoch.requestEnd = uint64(EROs.length.sub(1));
-    epoch.startBlockNumber = startBlockNumber;
+    epoch.startBlockNumber = uint64(startBlockNumber);
     epoch.endBlockNumber = uint64(startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + 1).divCeil(MAX_REQUESTS) - 1);
 
     // change state to accept ORBs
@@ -530,7 +538,7 @@ contract RootChain {
     currentEpoch += 1;
     Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
 
-    epoch.startBlockNumber = startBlockNumber;
+    epoch.startBlockNumber = uint64(startBlockNumber);
     epoch.endBlockNumber = uint64(startBlockNumber + NRBEpochLength - 1);
 
     // change state to accept NRBs
@@ -539,10 +547,10 @@ contract RootChain {
   }
 
   function _prepareToSubmitURB() internal {
-    // NOTE: what if no finalized block at this fork?
+    // NOTE: what if no finalized block at this fork? consider URB re-submission
 
     uint lastBlockNumber = lastFinalizedBlock[currentFork];
-    Data.PlasmaBlock storage lastBlock = blocks[lastBlockNumber];
+    Data.PlasmaBlock storage lastBlock = blocks[currentFork][lastBlockNumber];
 
     uint nextFork = currentFork + 1;
     uint forkEpochNumber = lastBlock.epochNumber;
@@ -563,11 +571,19 @@ contract RootChain {
     epoch.isRequest = true;
     epoch.userActivated = true;
     epoch.requestEnd = uint64(ERUs.length.sub(1));
-    epoch.startBlockNumber = lastBlockNumber + 1;
-    epoch.endBlockNumber = uint64(startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + 1).divCeil(MAX_REQUESTS) - 1);
+    epoch.startBlockNumber = uint64(lastBlockNumber + 1);
+    epoch.endBlockNumber = uint64(epoch.startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + 1).divCeil(MAX_REQUESTS) - 1);
   }
 
-  function _finalizeBlock() internal onlyNotState(State.AcceptingURB) {
+  /**
+   * @notice finalize a block if possible.
+   */
+  function _finalizeBlock() internal {
+    // short circuit if waiting URBs
+    if(state == State.AcceptingURB) {
+      return;
+    }
+
     uint blockNumber = lastFinalizedBlock[currentFork] + 1;
 
     // short circuit if all blocks are finalized
@@ -661,7 +677,7 @@ contract RootChain {
    * @notice finalize a block
    */
   function _doFinalize(Data.PlasmaBlock storage _pb, uint _blockNumber) internal {
-    pb.finalized = true;
+    _pb.finalized = true;
     lastFinalizedBlock[currentFork] = _blockNumber;
 
     emit BlockFinalized(currentFork, _blockNumber);
@@ -685,16 +701,28 @@ contract RootChain {
       }
 
       pb.finalized = true;
+      // BlockFinalized event is not fired to reduce the gas cost.
     }
 
     uint lastBlockNumber = stopped ? i - 1 : i;
 
     if (lastBlockNumber >= epoch.startBlockNumber) {
       lastFinalizedBlock[currentFork] = lastBlockNumber;
+
+      // a single EpochFinalized event replaces lots of BlockFinalized events.
       emit EpochFinalized(currentFork, _epochNumber, epoch.startBlockNumber, lastBlockNumber);
     }
 
     return;
+  }
+
+
+  /**
+   * @notice finalize EROs in the first epoch of current fork.
+   *         return true if an ERU is finalized.
+   */
+  function _finalizeERO() internal returns (bool) {
+    /* Data.PlasmaBlock storage ORB = */
   }
 
   /**
@@ -702,7 +730,7 @@ contract RootChain {
    *         return true if an ERU is finalized.
    */
   function _finalizeERU() internal returns (bool) {
-    // short circuit if not forked yet
+    /* // short circuit if not forked yet
     if (currentFork != 0) {
       return false;
     }
@@ -715,7 +743,7 @@ contract RootChain {
     }
 
     Data.Epoch storage e2 = epoch[currentFork - 1][firstEpoch[currentFork] - 2];
-    return _finalizeERUWithEpoch(epoch, e2);
+    return _finalizeERUWithEpoch(epoch, e2); */
   }
 
   function _finalizeERUWithEpoch(
@@ -725,7 +753,7 @@ contract RootChain {
     internal
     returns (bool)
   {
-    // short circuit if EROs are not finalized yet
+    /* // short circuit if EROs are not finalized yet
     if (lastFinalizedERO < ORBEpoch.requestStart) {
       return false;
     }
@@ -736,19 +764,11 @@ contract RootChain {
     }
 
     uint requestId = lastFinalizedERU + 1;
-    uint blockNumber = epoch.getBlockNumber(requestId)
+    uint blockNumber = epoch.getBlockNumber(requestId);
 
     Data.PlasmaBlock storage pb = blocks[blockNumber];
     Data.Request storage ERU = ERUs[requestId];
 
-    return true;
-  }
-
-  /**
-   * @notice finalize ERUs in the first epoch of current fork.
-   *         return true if an ERU is finalized.
-   */
-  function _finalizeERO() internal returns (bool) {
-
+    return true; */
   }
 }

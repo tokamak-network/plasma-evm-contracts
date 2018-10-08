@@ -9,36 +9,6 @@ library Data {
   using Math for *;
   using RLPEncode for *;
 
-  struct PlasmaBlock {
-    bytes32 statesRoot;
-    bytes32 transactionsRoot;
-    bytes32 intermediateStatesRoot;
-    uint64 forkNumber;
-    uint64 epochNumber;
-    uint64 timestamp;
-    bool isRequest;           // true in case of URB & ORB
-    bool userActivated;       // true in case of URB
-    bool challenged;          // true if it is challenged
-    bool challenging;         // true if it is being challenged
-  }
-
-  struct Request {
-    uint64 timestamp;
-    bool isExit;
-    bool finalized;
-    bool challenged;
-    address requestor;
-    address to;
-    bytes32 trieKey;
-    bytes32 trieValue;
-    bytes32 txHash;           // request trasaction hash
-  }
-
-  struct RequestBlock {
-    uint64 requestStart;      // first request id
-    uint64 requestEnd;        // last request id
-  }
-
   struct Epoch {
     uint64 requestStart;      // first request id
     uint64 requestEnd;        // last request id
@@ -58,6 +28,45 @@ library Data {
     bool challenged;          // true if a block in the epoch is challenged
     bool challenging;         // true if a block in the epoch is being challenged
     bool finalized;           // true if it is successfully finalized
+  }
+
+  struct PlasmaBlock {
+    bytes32 statesRoot;
+    bytes32 transactionsRoot;
+    bytes32 intermediateStatesRoot;
+    uint64 forkNumber;
+    uint64 epochNumber;
+    uint64 timestamp;
+    bool isRequest;           // true in case of URB & ORB
+    bool userActivated;       // true in case of URB
+    bool challenged;          // true if it is challenged
+    bool challenging;         // true if it is being challenged
+    bool finalized;           // true if it is successfully finalized
+  }
+
+  struct Request {
+    uint64 timestamp;
+    bool isExit;
+    bool finalized;
+    bool challenged;
+    address requestor;
+    address to;
+    bytes32 trieKey;
+    bytes32 trieValue;
+    bytes32 txHash;           // request trasaction hash
+  }
+
+  struct RequestBlock {
+    uint64 requestStart;      // first request id
+    uint64 requestEnd;        // last request id
+    address trie;             // patricia tree contract address
+    bytes32 transactionsRoot;
+  }
+
+  struct RequestFinalization {
+    uint64 forkNumber;
+    uint64 blockNumber;
+    uint64 requestId;
   }
 
   function getNumBlocks(Epoch _e) internal returns (uint) {
