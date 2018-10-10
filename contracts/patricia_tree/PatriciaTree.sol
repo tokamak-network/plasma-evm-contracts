@@ -2,7 +2,7 @@ pragma solidity ^0.4.24;
 pragma experimental "v0.5.0";
 pragma experimental "ABIEncoderV2";
 
-import {Data} from "./Data.sol";
+import {PatriciaTreeData} from "./PatriciaTreeData.sol";
 import {Bits} from "./Bits.sol";
 import {PatriciaTreeFace} from "./PatriciaTreeFace.sol";
 
@@ -14,13 +14,13 @@ import {PatriciaTreeFace} from "./PatriciaTreeFace.sol";
  */
 contract PatriciaTree is PatriciaTreeFace {
 
-    using Data for Data.Tree;
-    using Data for Data.Node;
-    using Data for Data.Edge;
-    using Data for Data.Label;
+    using PatriciaTreeData for PatriciaTreeData.Tree;
+    using PatriciaTreeData for PatriciaTreeData.Node;
+    using PatriciaTreeData for PatriciaTreeData.Edge;
+    using PatriciaTreeData for PatriciaTreeData.Label;
     using Bits for uint;
 
-    Data.Tree internal tree;
+    PatriciaTreeData.Tree internal tree;
 
     // Get the root hash.
     function getRootHash() public view returns (bytes32) {
@@ -28,13 +28,13 @@ contract PatriciaTree is PatriciaTreeFace {
     }
 
     // Get the root edge.
-    function getRootEdge() public view returns (Data.Edge e) {
+    function getRootEdge() public view returns (PatriciaTreeData.Edge e) {
         e = tree.rootEdge;
     }
 
     // Get the node with the given key. The key needs to be
     // the keccak256 hash of the actual key.
-    function getNode(bytes32 hash) public view returns (Data.Node n) {
+    function getNode(bytes32 hash) public view returns (PatriciaTreeData.Node n) {
         n = tree.nodes[hash];
     }
 
@@ -45,17 +45,17 @@ contract PatriciaTree is PatriciaTreeFace {
     //  - bytes32[] _siblings - hashes of sibling edges
     function getProof(bytes key) public view returns (uint branchMask, bytes32[] _siblings) {
         require(tree.root != 0);
-        Data.Label memory k = Data.Label(keccak256(key), 256);
-        Data.Edge memory e = tree.rootEdge;
+        PatriciaTreeData.Label memory k = PatriciaTreeData.Label(keccak256(key), 256);
+        PatriciaTreeData.Edge memory e = tree.rootEdge;
         bytes32[256] memory siblings;
         uint length;
         uint numSiblings;
 
-        Data.Label memory prefix;
-        Data.Label memory suffix;
+        PatriciaTreeData.Label memory prefix;
+        PatriciaTreeData.Label memory suffix;
 
         uint head;
-        Data.Label memory tail;
+        PatriciaTreeData.Label memory tail;
 
         while (true) {
             (prefix, suffix) = k.splitCommonPrefix(e.label);
@@ -81,8 +81,8 @@ contract PatriciaTree is PatriciaTreeFace {
     }
 
     function verifyProof(bytes32 rootHash, bytes key, bytes value, uint branchMask, bytes32[] siblings) public view returns (bool) {
-        Data.Label memory k = Data.Label(keccak256(key), 256);
-        Data.Edge memory e;
+        PatriciaTreeData.Label memory k = PatriciaTreeData.Label(keccak256(key), 256);
+        PatriciaTreeData.Edge memory e;
         e.node = keccak256(value);
         for (uint i = 0; branchMask != 0; i++) {
             uint bitSet = branchMask.lowestBitSet();

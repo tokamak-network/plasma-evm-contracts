@@ -6,11 +6,11 @@ import {Bits} from "./Bits.sol";
 
 
 /*
- * Data structures and utilities used in the Patricia Tree.
+ * PatriciaTreeData structures and utilities used in the Patricia Tree.
  *
  * More info at: https://github.com/chriseth/patricia-trie
  */
-library Data {
+library PatriciaTreeData {
 
     struct Label {
         bytes32 data;
@@ -28,8 +28,8 @@ library Data {
 
     struct Tree {
         bytes32 root;
-        Data.Edge rootEdge;
-        mapping(bytes32 => Data.Node) nodes;
+        PatriciaTreeData.Edge rootEdge;
+        mapping(bytes32 => PatriciaTreeData.Node) nodes;
     }
 
     // Returns a label containing the longest common prefix of `self` and `label`,
@@ -98,23 +98,23 @@ library Data {
         return (uint(self.data >> 255), Label(self.data << 1, self.length - 1));
     }
 
-    function edgeHash(Data.Edge memory self) internal pure returns (bytes32) {
+    function edgeHash(PatriciaTreeData.Edge memory self) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(self.node, self.label.length, self.label.data));
     }
 
     // Returns the hash of the encoding of a node.
-    function hash(Data.Node memory self) internal pure returns (bytes32) {
+    function hash(PatriciaTreeData.Node memory self) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(edgeHash(self.children[0]), edgeHash(self.children[1])));
     }
 
-    function insertNode(Data.Tree storage tree, Data.Node memory n) internal returns (bytes32 newHash) {
+    function insertNode(PatriciaTreeData.Tree storage tree, PatriciaTreeData.Node memory n) internal returns (bytes32 newHash) {
         bytes32 h = hash(n);
         tree.nodes[h].children[0] = n.children[0];
         tree.nodes[h].children[1] = n.children[1];
         return h;
     }
 
-    function replaceNode(Data.Tree storage self, bytes32 oldHash, Data.Node memory n) internal returns (bytes32 newHash) {
+    function replaceNode(PatriciaTreeData.Tree storage self, bytes32 oldHash, PatriciaTreeData.Node memory n) internal returns (bytes32 newHash) {
         delete self.nodes[oldHash];
         return insertNode(self, n);
     }

@@ -3,11 +3,23 @@ pragma solidity ^0.4.24;
 import "./SafeMath.sol";
 import "./Math.sol";
 import "./RLPEncode.sol";
+import "../patricia_tree/PatriciaTree.sol";
+import {RequestableContractI} from "../RequestableContractI.sol";
 
 library Data {
   using SafeMath for *;
   using Math for *;
   using RLPEncode for *;
+
+  // signature of function applyRequestInChildChain(bool isExit,uint256 requestId,address requestor,bytes32 trieKey,bytes32 trieValue)
+  bytes4 public constant APPLY_IN_CHILDCHAIN_SIGNATURE = 0xdeaddead;
+
+  // signature of function applyRequestInRootChain(bool isExit,uint256 requestId,address requestor,bytes32 trieKey,bytes32 trieValue)
+  bytes4 public constant APPLY_IN_ROOTCHAIN_SIGNATURE = 0xdeaddead;
+
+  address public constant NA = address(0);
+  uint public constant NA_TX_GAS_PRICE = 1;
+  uint public constant NA_TX_GAS_LIMIT = 100000;
 
   struct Epoch {
     uint64 requestStart;      // first request id
@@ -28,45 +40,6 @@ library Data {
     bool challenged;          // true if a block in the epoch is challenged
     bool challenging;         // true if a block in the epoch is being challenged
     bool finalized;           // true if it is successfully finalized
-  }
-
-  struct PlasmaBlock {
-    bytes32 statesRoot;
-    bytes32 transactionsRoot;
-    bytes32 intermediateStatesRoot;
-    uint64 forkNumber;
-    uint64 epochNumber;
-    uint64 timestamp;
-    bool isRequest;           // true in case of URB & ORB
-    bool userActivated;       // true in case of URB
-    bool challenged;          // true if it is challenged
-    bool challenging;         // true if it is being challenged
-    bool finalized;           // true if it is successfully finalized
-  }
-
-  struct Request {
-    uint64 timestamp;
-    bool isExit;
-    bool finalized;
-    bool challenged;
-    address requestor;
-    address to;
-    bytes32 trieKey;
-    bytes32 trieValue;
-    bytes32 txHash;           // request trasaction hash
-  }
-
-  struct RequestBlock {
-    uint64 requestStart;      // first request id
-    uint64 requestEnd;        // last request id
-    address trie;             // patricia tree contract address
-    bytes32 transactionsRoot;
-  }
-
-  struct RequestFinalization {
-    uint64 forkNumber;
-    uint64 blockNumber;
-    uint64 requestId;
   }
 
   function getNumBlocks(Epoch _e) internal returns (uint) {
@@ -106,6 +79,139 @@ library Data {
     return;
   }
 
+  struct PlasmaBlock {
+    bytes32 statesRoot;
+    bytes32 transactionsRoot;
+    bytes32 intermediateStatesRoot;
+    uint64 forkNumber;
+    uint64 epochNumber;
+    uint64 timestamp;
+    uint64 requestBlockId;    // id of RequestBlock[]
+    bool isRequest;           // true in case of URB & ORB
+    bool userActivated;       // true in case of URB
+    bool challenged;          // true if it is challenged
+    bool challenging;         // true if it is being challenged
+    bool finalized;           // true if it is successfully finalized
+  }
+
+  struct Request {
+    uint64 nextExitId;        // id to next exit request id
+    uint64 timestamp;
+    bool isExit;
+    bool applied;             // true if the *EXIT* request is applied
+    bool challenged;
+    address requestor;
+    address to;               // requestable contract in root chain
+    bytes32 trieKey;
+    bytes32 trieValue;
+  }
+
+  function applyRequestInRootChain(
+    Request memory self,
+    uint _requestId
+  )
+    internal
+    returns (bool)
+  {
+    return RequestableContractI(self.to).applyRequestInRootChain(
+      self.isExit,
+      _requestId,
+      self.requestor,
+      self.trieKey,
+      self.trieValue
+    );
+  }
+
+  function toChildChainRequest(
+    Request memory self,
+    address _to
+  )
+    internal
+    returns (Request memory out)
+  {
+    out.isExit = self.isExit;
+    out.requestor = self.requestor;
+    out.trieKey = self.trieKey;
+    out.trieValue = self.trieValue;
+
+    out.to = _to;
+  }
+
+  /**
+   * @notice return tx.data
+   */
+  function getData(
+    Request memory self,
+    uint _requestId,
+    bool _rootchain
+  )
+    internal
+    returns (bytes memory out)
+  {
+    bytes8 funcSig = _rootchain ? APPLY_IN_ROOTCHAIN_SIGNATURE : APPLY_IN_CHILDCHAIN_SIGNATURE;
+
+    out = abi.encodePacked(
+      funcSig,
+      self.isExit,
+      _requestId,
+      self.requestor,
+      self.trieKey,
+      self.trieValue
+    );
+  }
+
+  /**
+   * @notice convert Request to TX
+   */
+  function toTX(
+    Request memory self,
+    uint _requestId,
+    bool _rootchain
+  )
+    internal
+    returns (TX memory out)
+  {
+    out.gasPrice = NA_TX_GAS_PRICE;
+    out.gasLimit = uint64(NA_TX_GAS_LIMIT);
+    out.data = getData(self, _requestId, _rootchain);
+  }
+
+  struct RequestBlock {
+    uint64 requestStart;      // first request id
+    uint64 requestEnd;        // last request id
+    address trie;             // patricia tree contract address
+    bytes32 transactionsRoot;
+  }
+
+  function init(RequestBlock storage self) internal {
+    if (self.trie == address(0)) {
+      self.trie = address(new PatriciaTree());
+    }
+  }
+
+  function addRequest(
+    RequestBlock storage self,
+    Request memory _request, // should be child chain request
+    uint _requestId
+  ) internal {
+    require(self.trie != address(0));
+
+    bytes32 requestHash = hash(toTX(_request, _requestId, false));
+    uint txIndex = self.requestStart.sub(_requestId);
+
+    bytes memory key;
+    bytes memory value;
+
+    assembly {
+      mstore(add(key, 0x20), txIndex)
+      mstore(add(value, 0x20), requestHash)
+    }
+
+    PatriciaTree(self.trie).insert(key, value);
+    self.transactionsRoot = PatriciaTree(self.trie).getRootHash();
+  }
+
+
 
   /*
    * TX for Ethereum transaction
@@ -135,31 +241,17 @@ library Data {
   )
     internal
     pure
-    returns (TX memory tx)
+    returns (TX memory out)
   {
-    tx.nonce = _nonce;
-    tx.gasPrice = _gasPrice;
-    tx.gasLimit = _gasLimit;
-    tx.to = _to;
-    tx.value = _value;
-    tx.data = _data;
-    tx.v = _v;
-    tx.r = _r;
-    tx.s = _s;
-  }
-
-  /**
-   * @notice convert Request to TX
-   *         data = func sig + trie key + value
-   */
-  function toTX(
-    Request _request
-  )
-    internal
-    pure
-    returns (TX memory tx)
-  {
-
+    out.nonce = _nonce;
+    out.gasPrice = _gasPrice;
+    out.gasLimit = _gasLimit;
+    out.to = _to;
+    out.value = _value;
+    out.data = _data;
+    out.v = _v;
+    out.r = _r;
+    out.s = _s;
   }
 
   function hash(TX memory _tx) internal pure returns (bytes32) {
