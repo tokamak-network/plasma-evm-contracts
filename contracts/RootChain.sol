@@ -378,7 +378,7 @@ contract RootChain {
     onlyValidCost(COST_ERO)
     returns (bool)
   {
-    uint requestId = _storeRequest(EROs, _to, _trieKey, _trieValue, true);
+    uint requestId = _storeRequest(EROs, ORBs, _to, _trieKey, _trieValue, true);
 
     emit RequestCreated(requestId, msg.sender, _to, _trieKey, _trieValue, true);
     return true;
@@ -392,7 +392,7 @@ contract RootChain {
     public
     returns (bool)
   {
-    uint requestId = _storeRequest(EROs, _to, _trieKey, _trieValue, false);
+    uint requestId = _storeRequest(EROs, ORBs, _to, _trieKey, _trieValue, false);
 
     emit RequestCreated(requestId, msg.sender, _to, _trieKey, _trieValue, false);
     return true;
@@ -407,7 +407,7 @@ contract RootChain {
     onlyValidCost(COST_ERU)
     returns (bool)
   {
-    uint requestId = _storeRequest(ERUs, _to, _trieKey, _trieValue, true);
+    uint requestId = _storeRequest(ERUs, URBs, _to, _trieKey, _trieValue, true);
 
     emit ERUCreated(requestId, msg.sender, _to, _trieKey, _trieValue);
     return true;
@@ -498,6 +498,7 @@ contract RootChain {
 
   function _storeRequest(
     Data.Request[] storage _requests,
+    Data.RequestBlock[] storage _rbs,
     address _to,
     bytes32 _trieKey,
     bytes32 _trieValue,
@@ -506,6 +507,8 @@ contract RootChain {
     internal
     returns (uint requestId)
   {
+    require(requestableContracts[_to] != address(0));
+
     requestId = _requests.length++;
     Data.Request storage r = _requests[requestId];
 
@@ -515,6 +518,23 @@ contract RootChain {
     r.trieValue = _trieValue;
     r.timestamp = uint64(block.timestamp);
     r.isExit = _isExit;
+
+    // apply request in root chain
+    if (!_isExit) {
+      require(r.applyRequestInRootChain(requestId));
+    }
+
+    Data.RequestBlock storage rb = _rbs[_rbs.length - 1];
+
+    // make new RequestBlock
+    if (rb.requestEnd - rb.requestStart + 1 == MAX_REQUESTS) {
+      rb = _rbs[_rbs.length++];
+      rb.requestStart = uint64(requestId);
+      rb.init();
+    }
+
+    rb.requestEnd = uint64(requestId);
+    rb.addRequest(r.toChildChainRequest(requestableContracts[_to]), requestId);
   }
 
   /**
