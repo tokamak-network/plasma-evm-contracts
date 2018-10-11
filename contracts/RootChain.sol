@@ -66,6 +66,12 @@ contract RootChain {
   // Last request block containing lastFinalizedERO / lastFinalizedERU
   uint public lastEROBlockNumber;
   uint public lastERUBlockNumber;
+  // Requestable contracts in child chain
+  mapping (address => address) public requestableContracts;
+
+  /*
+   * Constant
+   */
 
   // TODO: develop cost function model
   // Simple cost parameters
@@ -181,6 +187,18 @@ contract RootChain {
   /*
    * External Functions
    */
+
+  /**
+   * @notice map requestable contract in child chain
+   * NOTE: only operator?
+   */
+  function mapRequestableContract(address _target) external returns (bool) {
+    require(msg.sender.isContract());
+    require(requestableContracts[msg.sender] == address(0));
+
+    requestableContracts[msg.sender] = _target;
+    return true;
+  }
 
   /**
    * @notice Declare to submit URB.
