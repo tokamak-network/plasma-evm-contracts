@@ -99,6 +99,7 @@ library Data {
     uint64 timestamp;
     bool isExit;
     bool applied;             // true if request is applied
+    bool finalized;           // true if request is finalized
     bool challenged;
     address requestor;
     address to;               // requestable contract in root chain

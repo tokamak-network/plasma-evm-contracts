@@ -534,6 +534,17 @@ contract RootChain {
   }
 
   /**
+   * @notice return true if the request is applied
+   */
+  function getRequestApplied(uint _requestId, bool _userActivated) public view returns (bool) {
+    if (_userActivated) {
+      ERUs[_requestId].applied;
+    }
+
+    return EROs[_requestId].applied;
+  }
+
+  /**
    * @notice return true if the request is finalized
    */
   function getRequestFinalized(uint _requestId, bool _userActivated) public view returns (bool) {
