@@ -62,14 +62,13 @@ contract RootChain {
   Data.RequestBlock[] public ORBs;
   Data.RequestBlock[] public URBs;
 
-  // Last finalize request
-  uint public lastFinalizedERO;
-  uint public lastFinalizedERU;
+  // Last applied request
+  uint public lastAppliedForkNumber;
+  uint public lastAppliedBlockNumber;
+  uint public lastAppliedERO;
+  uint public lastAppliedERU;
 
-  // Last request block containing lastFinalizedERO / lastFinalizedERU
-  uint public lastEROBlockNumber;
-  uint public lastERUBlockNumber;
-  // Requestable contracts in child chain
+  // Requestable contract address in child chain
   mapping (address => address) public requestableContracts;
 
   /*
@@ -131,7 +130,7 @@ contract RootChain {
   event EpochFinalized(uint _forkNumber, uint _epochNumber, uint _firstBlockNumber, uint _lastBlockNumber);
 
   // emit when exit is finalized. _userActivated is true for ERU
-  event ExitFinalized(uint _requestId, uint _userActivated);
+  event RequestFinalized(uint _requestId, uint _userActivated);
 
   /*
    * Modifier
@@ -334,6 +333,11 @@ contract RootChain {
     return false;
   }
 
+  function finalizeBlock() external returns (bool) {
+    require(_fianlizeBlock());
+    return true;
+  }
+
   /**
    * @notice Computation verifier contract reverts the block in case of wrong
    *         computation.
@@ -364,7 +368,6 @@ contract RootChain {
     require(root.verifyProof(bytes _key, _txData, _branchMask, _siblings));
 
     */
-
 
     // TODO: fork? penalize?
   }
@@ -417,14 +420,108 @@ contract RootChain {
   }
 
   /**
+   * @notice Apply last exit request. this returns the bond in both of
+   *         request types.
+   * @notice Apply a request in root chain if request block including it
+   *         is finalized.
+   * @TODO: refactor implementation
+   */
+  function applyRequest() external returns (bool) {
+    uint forkNumber = lastAppliedForkNumber;
+    uint epochNumber;
+    uint blockNumber = lastAppliedBlockNumber;
+
+    require(blockNumber <= highestBlock[forkNumber]);
+
+    Data.PlasmaBlock storage pb = blocks[forkNumber][blockNumber];
+    epochNumber = pb.epochNumber;
+
+    Data.Epoch storage epoch = epochs[forkNumber][pb.epochNumber];
+
+    // find next request block
+    if (!pb.isRequest) {
+      while (!epochs[forkNumber][epochNumber].isRequest) {
+        require(epochs[forkNumber][epochNumber].initialized);
+        epochNumber = epochNumber + 1;
+      }
+
+      blockNumber = epoch.startBlockNumber;
+
+      epoch = epochs[forkNumber][epochNumber];
+      pb = blocks[forkNumber][blockNumber];
+    }
+
+    require(pb.finalized);
+
+    // apply ERU
+    if (pb.userActivated) {
+      uint requestId = lastAppliedERU;
+
+      require(ERUs.length < requestId);
+
+      Data.Request storage request = ERUs[requestId];
+      Data.RequestBlock storage requestBlock = URBs[pb.requestBlockId];
+
+      // check next block
+      if (requestId == requestBlock.requestEnd) {
+        if (epoch.forkedBlockNumber > 0 && blockNumber == epoch.forkedBlockNumber - 1) {
+          lastAppliedForkNumber = forkNumber + 1;
+        }
+
+        lastAppliedBlockNumber = blockNumber + 1;
+      }
+
+      lastAppliedERU = requestId + 1;
+
+      if (request.isExit && !request.applied) {
+        request.applied = true;
+
+        // NOTE: do not check it reverted or not?
+        request.to.call(request.getData(requestId, true));
+      }
+
+      emit RequestFinalized(requestId, true);
+      return true;
+    }
+
+    // apply ERO
+    uint requestId = lastAppliedERO;
+
+    require(EROs.length < requestId);
+
+    Data.Request storage request = EROs[requestId];
+    Data.RequestBlock storage requestBlock = ORBs[pb.requestBlockId];
+
+    // check next block
+    if (requestId == requestBlock.requestEnd) {
+      if (epoch.forkedBlockNumber > 0 && blockNumber == epoch.forkedBlockNumber - 1) {
+        lastAppliedForkNumber = forkNumber + 1;
+      }
+
+      lastAppliedBlockNumber = blockNumber + 1;
+    }
+
+    lastAppliedERO = requestId + 1;
+
+    if (request.isExit && !request.applied) {
+      request.applied = true;
+
+      // NOTE: do not check it reverted or not?
+      request.to.call(request.getData(requestId, true));
+    }
+
+    emit RequestFinalized(requestId, false);
+    return true;
+  }
+
+
+  /**
    * @notice finalize last Enter or Exit request. this returns the bond in both of
    *         request types. For exit request, this calls applyRequestInRootChain
    *         function of the requestable contract in root chain.
    */
   function finalizeRequest() public returns (bool) {
-    if (!_finalizeERU()) {
-      return _finalizeERO();
-    }
+
 
     return true;
   }
@@ -524,6 +621,7 @@ contract RootChain {
 
     // apply request in root chain
     if (!_isExit) {
+      r.applied = true;
       require(r.applyRequestInRootChain(requestId));
     }
 
@@ -755,61 +853,5 @@ contract RootChain {
     }
 
     return;
-  }
-
-
-  /**
-   * @notice finalize EROs in the first epoch of current fork.
-   *         return true if an ERU is finalized.
-   */
-  function _finalizeERO() internal returns (bool) {
-    /* Data.PlasmaBlock storage ORB = */
-  }
-
-  /**
-   * @notice finalize ERUs in the first epoch of current fork.
-   *         return true if an ERU is finalized.
-   */
-  function _finalizeERU() internal returns (bool) {
-    /* // short circuit if not forked yet
-    if (currentFork != 0) {
-      return false;
-    }
-
-    Data.Epoch storage e1 = epoch[currentFork - 1][firstEpoch[currentFork] - 1];
-    Data.Epoch storage epoch = epoch[currentFork][firstEpoch[currentFork]];
-
-    if (e1.isRequest) {
-      return _finalizeERUWithEpoch(epoch, e1);
-    }
-
-    Data.Epoch storage e2 = epoch[currentFork - 1][firstEpoch[currentFork] - 2];
-    return _finalizeERUWithEpoch(epoch, e2); */
-  }
-
-  function _finalizeERUWithEpoch(
-    Data.Epoch storage _epoch,
-    Data.Epoch storage _lastRequestEpoch
-  )
-    internal
-    returns (bool)
-  {
-    /* // short circuit if EROs are not finalized yet
-    if (lastFinalizedERO < ORBEpoch.requestStart) {
-      return false;
-    }
-
-    // short circuit if all ERUs is finalized
-    if (lastFinalizedERU == ERUs.length - 1) {
-      return false;
-    }
-
-    uint requestId = lastFinalizedERU + 1;
-    uint blockNumber = epoch.getBlockNumber(requestId);
-
-    Data.PlasmaBlock storage pb = blocks[blockNumber];
-    Data.Request storage ERU = ERUs[requestId];
-
-    return true; */
   }
 }
