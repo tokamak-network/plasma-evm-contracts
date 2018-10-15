@@ -35,6 +35,7 @@ library Data {
     uint64 timestamp;         // timestamp when the epoch is initialized.
                               // required for URB / ORB
 
+    bool initialized;         // true if epoch is initialized
     bool isRequest;           // true in case of URB / ORB
     bool userActivated;       // true in case of URB
     bool challenged;          // true if a block in the epoch is challenged
@@ -95,10 +96,9 @@ library Data {
   }
 
   struct Request {
-    uint64 nextExitId;        // id to next exit request id
     uint64 timestamp;
     bool isExit;
-    bool applied;             // true if the *EXIT* request is applied
+    bool applied;             // true if request is applied
     bool challenged;
     address requestor;
     address to;               // requestable contract in root chain
@@ -113,6 +113,7 @@ library Data {
     internal
     returns (bool)
   {
+    // TODO: ignore it is reverted?
     return RequestableContractI(self.to).applyRequestInRootChain(
       self.isExit,
       _requestId,
