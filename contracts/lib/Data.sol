@@ -1,7 +1,9 @@
 pragma solidity ^0.4.24;
+pragma experimental ABIEncoderV2;
 
 import "./SafeMath.sol";
 import "./Math.sol";
+import "./RLP.sol";
 import "./RLPEncode.sol";
 import "../patricia_tree/PatriciaTree.sol";
 import {RequestableContractI} from "../RequestableContractI.sol";
@@ -9,6 +11,7 @@ import {RequestableContractI} from "../RequestableContractI.sol";
 library Data {
   using SafeMath for *;
   using Math for *;
+  using RLP for *;
   using RLPEncode for *;
 
   // signature of function applyRequestInChildChain(bool isExit,uint256 requestId,address requestor,bytes32 trieKey,bytes32 trieValue)
@@ -182,7 +185,7 @@ library Data {
     uint64 requestStart;      // first request id
     uint64 requestEnd;        // last request id
     address trie;             // patricia tree contract address
-    bytes32 transactionsRoot;
+    bytes32 transactionsRoot; // duplicated?
   }
 
   function init(RequestBlock storage self) internal {
@@ -213,8 +216,6 @@ library Data {
     self.transactionsRoot = PatriciaTree(self.trie).getRootHash();
   }
 
-
-
   /*
    * TX for Ethereum transaction
    */
@@ -228,6 +229,24 @@ library Data {
     uint256 v;
     uint256 r;
     uint256 s;
+  }
+
+  function isNATX(TX memory self) internal returns (bool) {
+    return self.v == 0 && self.r == 0 && self.s == 0;
+  }
+
+  function fromBytes(bytes memory self) internal returns (TX memory out) {
+    RLP.RLPItem[] memory packArr = self.toRLPItem().toList(9);
+
+    out.nonce = uint64(packArr[0].toUint());
+    out.gasPrice = packArr[1].toUint();
+    out.gasLimit = uint64(packArr[2].toUint());
+    out.to = packArr[3].toAddress();
+    out.value = packArr[4].toUint();
+    out.data = packArr[5].toBytes();
+    out.v = packArr[6].toUint();
+    out.r = packArr[7].toUint();
+    out.s = packArr[8].toUint();
   }
 
   function toTX(

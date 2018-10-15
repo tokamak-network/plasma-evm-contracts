@@ -4,10 +4,10 @@ import "./lib/SafeMath.sol";
 import "./lib/Math.sol";
 import "./lib/Data.sol";
 import "./lib/Address.sol";
+import "./patricia_tree/PatriciaTreeFace.sol";
 
 
 // TODO: use SafeMath
-// TODO: make patricia tree for each request block
 contract RootChain {
   using SafeMath for uint;
   using Math for *;
@@ -20,6 +20,11 @@ contract RootChain {
     // TODO: remove AcceptingURB
     AcceptingURB
   }
+
+  /*
+   * Constant
+   */
+  address constant public NULL_ADDRESS = 0x0000000000000000000000000000000000000000;
 
   /*
    * Storage
@@ -96,7 +101,6 @@ contract RootChain {
 
   // Gas limit for request trasaction
   uint public constant REQUEST_GAS = 100000;
-
 
   /*
    * Event
@@ -184,7 +188,6 @@ contract RootChain {
     _doFinalize(genesis, 0);
     _prepareToSubmitNRB();
   }
-
 
   /*
    * External Functions
@@ -352,28 +355,30 @@ contract RootChain {
   function challengeNullAddress(
     uint _blockNumber,
     bytes _key,
-    bytes _txData,
+    bytes _txByte, // RLP encoded transaction
     uint _branchMask,
     bytes32[] _siblings
   ) external {
     Data.PlasmaBlock storage pb = blocks[currentFork][_blockNumber];
 
-    // check the plasma block is NRB
+    // check if the plasma block is NRB
     require(!pb.isRequest);
 
-    // check the challenge period
+    // check if challenge period ends
     require(pb.timestamp + CP_COMPUTATION > block.timestamp);
 
-    bytes32 root = pb.transactionsRoot;
-    bytes32 txHash;
+    PatriciaTreeFace trie;
+    if (pb.userActivated) {
+      trie = PatriciaTreeFace(URBs[pb.requestBlockId].trie);
+    } else {
+      trie = PatriciaTreeFace(ORBs[pb.requestBlockId].trie);
+    }
 
-    /* TODO: implement Data.Transaction, MPT
+    Data.TX memory txData = Data.fromBytes(_txByte);
+    require(txData.isNATX());
 
-    Data.Transaction memory tx = _txData().toTransaction();
-    require(tx.from == NullAddress);
-    require(root.verifyProof(bytes _key, _txData, _branchMask, _siblings));
-
-    */
+    // TODO: use patricia verify library
+    require(trie.verifyProof(pb.transactionsRoot, _key, _txByte, _branchMask, _siblings));
 
     // TODO: fork? penalize?
   }
