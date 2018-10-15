@@ -12,10 +12,10 @@ library Data {
   using RLPEncode for *;
 
   // signature of function applyRequestInChildChain(bool isExit,uint256 requestId,address requestor,bytes32 trieKey,bytes32 trieValue)
-  bytes4 public constant APPLY_IN_CHILDCHAIN_SIGNATURE = 0xdeaddead;
+  bytes4 public constant APPLY_IN_CHILDCHAIN_SIGNATURE = 0xe904e3d9;
 
   // signature of function applyRequestInRootChain(bool isExit,uint256 requestId,address requestor,bytes32 trieKey,bytes32 trieValue)
-  bytes4 public constant APPLY_IN_ROOTCHAIN_SIGNATURE = 0xdeaddead;
+  bytes4 public constant APPLY_IN_ROOTCHAIN_SIGNATURE = 0xd9afd3a9;
 
   address public constant NA = address(0);
   uint public constant NA_TX_GAS_PRICE = 1;
