@@ -197,7 +197,7 @@ contract RootChain {
    * @notice map requestable contract in child chain
    * NOTE: only operator?
    */
-  function mapRequestableContract(address _target) external returns (bool) {
+  function mapRequestableContract(address _target) external returns (bool success) {
     require(msg.sender.isContract());
     require(requestableContracts[msg.sender] == address(0));
 
@@ -213,7 +213,7 @@ contract RootChain {
     onlyOperator
     onlyNotState(State.AcceptingURB)
     // finalizeBlocks
-    returns (bool)
+    returns (bool success)
   {
     state = State.AcceptingURB;
     _prepareToSubmitURB();
@@ -231,7 +231,7 @@ contract RootChain {
     onlyState(State.AcceptingNRB)
     onlyValidCost(COST_NRB)
     finalizeBlocks
-    returns (bool)
+    returns (bool success)
   {
     uint blockNumber = _storeBlock(
       _statesRoot,
@@ -268,7 +268,7 @@ contract RootChain {
     onlyState(State.AcceptingORB)
     onlyValidCost(COST_ORB)
     finalizeBlocks
-    returns (bool)
+    returns (bool success)
   {
     uint blockNumber = _storeBlock(
       _statesRoot,
@@ -305,7 +305,7 @@ contract RootChain {
     payable
     onlyState(State.AcceptingURB)
     onlyValidCost(COST_URB)
-    returns (bool)
+    returns (bool success)
   {
     bool firstURB = !blocks[currentFork][highestBlockNumber[currentFork]].isRequest;
 
@@ -336,7 +336,7 @@ contract RootChain {
     return false;
   }
 
-  function finalizeBlock() external returns (bool) {
+  function finalizeBlock() external returns (bool success) {
     require(_finalizeBlock());
     return true;
   }
@@ -393,7 +393,7 @@ contract RootChain {
   )
     public
     onlyValidCost(COST_ERO)
-    returns (bool)
+    returns (bool success)
   {
     uint requestId = _storeRequest(EROs, ORBs, _to, _trieKey, _trieValue, true);
 
@@ -407,7 +407,7 @@ contract RootChain {
     bytes32 _trieValue
   )
     public
-    returns (bool)
+    returns (bool success)
   {
     uint requestId = _storeRequest(EROs, ORBs, _to, _trieKey, _trieValue, false);
 
@@ -422,7 +422,7 @@ contract RootChain {
   )
     public
     onlyValidCost(COST_ERU)
-    returns (bool)
+    returns (bool success)
   {
     uint requestId = _storeRequest(ERUs, URBs, _to, _trieKey, _trieValue, true);
 
@@ -437,7 +437,7 @@ contract RootChain {
    *         is finalized.
    * TODO: refactor implementation
    */
-  function applyRequest() external returns (bool) {
+  function applyRequest() external returns (bool success) {
     uint forkNumber = lastAppliedForkNumber;
     uint epochNumber;
     uint blockNumber = lastAppliedBlockNumber;
@@ -532,7 +532,7 @@ contract RootChain {
    *         request types. For exit request, this calls applyRequestInRootChain
    *         function of the requestable contract in root chain.
    */
-  function finalizeRequest() public returns (bool) {
+  function finalizeRequest() public returns (bool success) {
 
 
     return true;
@@ -541,14 +541,14 @@ contract RootChain {
   /**
    * @notice return true if the chain is forked by URB
    */
-  function forked(uint _forkNumber) public returns (bool) {
+  function forked(uint _forkNumber) public returns (bool forked) {
     return _forkNumber != currentFork;
   }
 
   /**
    * @notice return true if the request is applied
    */
-  function getRequestApplied(uint _requestId, bool _userActivated) public view returns (bool) {
+  function getRequestApplied(uint _requestId, bool _userActivated) public view returns (bool applied) {
     if (_userActivated) {
       ERUs[_requestId].applied;
     }
@@ -559,7 +559,7 @@ contract RootChain {
   /**
    * @notice return true if the request is finalized
    */
-  function getRequestFinalized(uint _requestId, bool _userActivated) public view returns (bool) {
+  function getRequestFinalized(uint _requestId, bool _userActivated) public view returns (bool finalized) {
     if (_userActivated) {
       ERUs[_requestId].finalized;
     }

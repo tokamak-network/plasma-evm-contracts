@@ -23,19 +23,34 @@ contract PatriciaTree is PatriciaTreeFace {
     PatriciaTreeData.Tree internal tree;
 
     // Get the root hash.
-    function getRootHash() public view returns (bytes32) {
+    function getRootHash() public view returns (bytes32 h) {
         return tree.root;
     }
 
     // Get the root edge.
-    function getRootEdge() public view returns (PatriciaTreeData.Edge e) {
-        e = tree.rootEdge;
+    // function getRootEdge() public view returns (PatriciaTreeData.Edge e) {
+    function getRootEdge() public view returns (bytes32 node, bytes32 labelData, uint labelLength) {
+        PatriciaTreeData.Edge memory e = tree.rootEdge;
+        // return e;
+
+        node = e.node;
+        labelData = e.label.data;
+        labelLength = e.label.length;
     }
 
     // Get the node with the given key. The key needs to be
     // the keccak256 hash of the actual key.
-    function getNode(bytes32 hash) public view returns (PatriciaTreeData.Node n) {
-        n = tree.nodes[hash];
+    // function getNode(bytes32 hash) public view returns (PatriciaTreeData.Node n) {
+    function getNode(bytes32 hash) public view returns (bytes32[2] nodes, bytes32[2] labelDatas, uint[2] labelLengths) {
+        PatriciaTreeData.Node memory n = tree.nodes[hash];
+
+        nodes[0] = n.children[0].node;
+        labelDatas[0] = n.children[0].label.data;
+        labelLengths[0] = n.children[0].label.length;
+
+        nodes[1] = n.children[1].node;
+        labelDatas[1] = n.children[1].label.data;
+        labelLengths[1] = n.children[1].label.length;
     }
 
     // Returns the Merkle-proof for the given key
@@ -80,7 +95,7 @@ contract PatriciaTree is PatriciaTreeFace {
         }
     }
 
-    function verifyProof(bytes32 rootHash, bytes key, bytes value, uint branchMask, bytes32[] siblings) public view returns (bool) {
+    function verifyProof(bytes32 rootHash, bytes key, bytes value, uint branchMask, bytes32[] siblings) public view returns (bool success) {
         PatriciaTreeData.Label memory k = PatriciaTreeData.Label(keccak256(key), 256);
         PatriciaTreeData.Edge memory e;
         e.node = keccak256(value);
