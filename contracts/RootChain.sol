@@ -130,7 +130,7 @@ contract RootChain {
   event EpochFinalized(uint _forkNumber, uint _epochNumber, uint _firstBlockNumber, uint _lastBlockNumber);
 
   // emit when exit is finalized. _userActivated is true for ERU
-  event RequestFinalized(uint _requestId, uint _userActivated);
+  event RequestFinalized(uint _requestId, bool _userActivated);
 
   /*
    * Modifier
@@ -334,7 +334,7 @@ contract RootChain {
   }
 
   function finalizeBlock() external returns (bool) {
-    require(_fianlizeBlock());
+    require(_finalizeBlock());
     return true;
   }
 
@@ -349,7 +349,13 @@ contract RootChain {
   /**
    * @notice It challenges on NRBs containing null address transaction.
    */
-  function challengeNullAddress(uint _blockNumber, bytes _key, bytes _txData, uint _branchMask, bytes32[] _siblings) external {
+  function challengeNullAddress(
+    uint _blockNumber,
+    bytes _key,
+    bytes _txData,
+    uint _branchMask,
+    bytes32[] _siblings
+  ) external {
     Data.PlasmaBlock storage pb = blocks[currentFork][_blockNumber];
 
     // check the plasma block is NRB
@@ -424,14 +430,15 @@ contract RootChain {
    *         request types.
    * @notice Apply a request in root chain if request block including it
    *         is finalized.
-   * @TODO: refactor implementation
+   * TODO: refactor implementation
    */
   function applyRequest() external returns (bool) {
     uint forkNumber = lastAppliedForkNumber;
     uint epochNumber;
     uint blockNumber = lastAppliedBlockNumber;
+    uint requestId;
 
-    require(blockNumber <= highestBlock[forkNumber]);
+    require(blockNumber <= highestBlockNumber[forkNumber]);
 
     Data.PlasmaBlock storage pb = blocks[forkNumber][blockNumber];
     epochNumber = pb.epochNumber;
@@ -455,15 +462,15 @@ contract RootChain {
 
     // apply ERU
     if (pb.userActivated) {
-      uint requestId = lastAppliedERU;
+      requestId = lastAppliedERU;
 
       require(ERUs.length < requestId);
 
-      Data.Request storage request = ERUs[requestId];
-      Data.RequestBlock storage requestBlock = URBs[pb.requestBlockId];
+      Data.Request storage ERU = ERUs[requestId];
+      Data.RequestBlock storage URB = URBs[pb.requestBlockId];
 
       // check next block
-      if (requestId == requestBlock.requestEnd) {
+      if (requestId == URB.requestEnd) {
         if (epoch.forkedBlockNumber > 0 && blockNumber == epoch.forkedBlockNumber - 1) {
           lastAppliedForkNumber = forkNumber + 1;
         }
@@ -473,11 +480,11 @@ contract RootChain {
 
       lastAppliedERU = requestId + 1;
 
-      if (request.isExit && !request.applied) {
-        request.applied = true;
+      if (ERU.isExit && !ERU.applied) {
+        ERU.applied = true;
 
         // NOTE: do not check it reverted or not?
-        request.to.call(request.getData(requestId, true));
+        ERU.to.call(ERU.getData(requestId, true));
       }
 
       emit RequestFinalized(requestId, true);
@@ -485,15 +492,15 @@ contract RootChain {
     }
 
     // apply ERO
-    uint requestId = lastAppliedERO;
+    requestId = lastAppliedERO;
 
     require(EROs.length < requestId);
 
-    Data.Request storage request = EROs[requestId];
-    Data.RequestBlock storage requestBlock = ORBs[pb.requestBlockId];
+    Data.Request storage ERO = EROs[requestId];
+    Data.RequestBlock storage ORB = ORBs[pb.requestBlockId];
 
     // check next block
-    if (requestId == requestBlock.requestEnd) {
+    if (requestId == ORB.requestEnd) {
       if (epoch.forkedBlockNumber > 0 && blockNumber == epoch.forkedBlockNumber - 1) {
         lastAppliedForkNumber = forkNumber + 1;
       }
@@ -503,11 +510,11 @@ contract RootChain {
 
     lastAppliedERO = requestId + 1;
 
-    if (request.isExit && !request.applied) {
-      request.applied = true;
+    if (ERO.isExit && !ERO.applied) {
+      ERO.applied = true;
 
       // NOTE: do not check it reverted or not?
-      request.to.call(request.getData(requestId, true));
+      ERO.to.call(ERO.getData(requestId, true));
     }
 
     emit RequestFinalized(requestId, false);
@@ -728,36 +735,36 @@ contract RootChain {
   /**
    * @notice finalize a block if possible.
    */
-  function _finalizeBlock() internal {
+  function _finalizeBlock() internal returns (bool) {
     // short circuit if waiting URBs
     if(state == State.AcceptingURB) {
-      return;
+      return false;
     }
 
     uint blockNumber = lastFinalizedBlock[currentFork] + 1;
 
     // short circuit if all blocks are finalized
     if (blockNumber > highestBlockNumber[currentFork]) {
-      return;
+      return false;
     }
 
     Data.PlasmaBlock storage pb = blocks[currentFork][blockNumber];
 
     // short circuit if the block is under challenge
     if (pb.challenging) {
-      return;
+      return false;
     }
 
     // 1. finalize request block
     if (pb.isRequest) {
       // return if challenge period doesn't end
       if (pb.timestamp + CP_COMPUTATION <= block.timestamp) {
-        return;
+        return false;
       }
 
       // finalize block
       _doFinalize(pb, blockNumber);
-      return;
+      return true;
     }
 
     // 2. finalize non request block
@@ -768,17 +775,17 @@ contract RootChain {
     // blocks of the current non request epoch.
     if (_checkFinalizable(nextEpochNumber)) {
       _doFinalizeEpoch(pb.epochNumber);
-      return;
+      return true;
     }
 
     // short circuit if challenge period doesn't end
     if (pb.timestamp + CP_WITHHOLDING <= block.timestamp) {
-      return;
+      return false;
     }
 
     // finalize block
     _doFinalize(pb, blockNumber);
-    return;
+    return true;
   }
 
   /**
