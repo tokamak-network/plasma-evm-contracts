@@ -114,11 +114,11 @@ library RLPEncode {
         require(length < 256**8, "input too long");
         bytes memory rs = new bytes(1);
         if (length <= 55) {
-            rs[0] = byte(length + offset);
+            rs[0] = byte(uint8(length + offset));
             return rs;
         }
         bytes memory bl = toBinary(length);
-        rs[0] = byte(bl.length + offset + 55);
+        rs[0] = byte(uint8(bl.length + offset + 55));
         return mergeBytes(rs, bl);
     }
 
