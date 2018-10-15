@@ -91,7 +91,8 @@ library RLPEncode {
     function mergeBytes(bytes param1, bytes param2) internal pure returns (bytes) {
         bytes memory merged = new bytes(param1.length + param2.length);
         uint k = 0;
-        for (uint i = 0; i < param1.length; i++) {
+        uint i;
+        for (i = 0; i < param1.length; i++) {
             merged[k] = param1[i];
             k++;
         }
@@ -128,11 +129,12 @@ library RLPEncode {
      * @return RLP encoded bytes
      */
     function toBinary(uint x) internal pure returns (bytes) {
+        uint i;
         bytes memory b = new bytes(32);
         assembly {
             mstore(add(b, 32), x)
         }
-        for (uint i = 0; i < 32; i++) {
+        for (i = 0; i < 32; i++) {
             if (b[i] != 0) {
                 break;
             }
