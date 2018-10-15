@@ -3,13 +3,16 @@ pragma solidity ^0.4.24;
 import "./lib/SafeMath.sol";
 import "./lib/Math.sol";
 import "./lib/Data.sol";
+import "./lib/Address.sol";
 
 
 // TODO: use SafeMath
+// TODO: make patricia tree for each request block
 contract RootChain {
   using SafeMath for uint;
   using Math for *;
   using Data for *;
+  using Address for address;
 
   enum State {
     AcceptingNRB,
