@@ -109,6 +109,7 @@ contract RootChain {
   event StateChanged(State state);
 
   event Forked(uint newFork, uint forkedBlockNumber);
+  event EpochPrepared(uint forkNumber, uint epochNumber, bool isRequest, bool userActivated);
 
   event NRBSubmitted(uint fork, uint blockNumber);
   event ORBSubmitted(uint fork, uint blockNumber);
@@ -205,6 +206,50 @@ contract RootChain {
     return true;
   }
 
+  function mapRequestableContractByOperator(address _rootchain, address _childchain)
+    external
+    onlyOperator
+    returns (bool success)
+  {
+    require(_rootchain.isContract());
+    require(requestableContracts[_rootchain] == address(0));
+
+    requestableContracts[_rootchain] = _childchain;
+    return true;
+  }
+
+  function getEpoch(uint _forkNumber, uint _epochNumber)
+    external
+    view
+    returns (
+      uint64 requestStart,
+      uint64 requestEnd,
+      uint64 startBlockNumber,
+      uint64 endBlockNumber,
+      uint64 forkedBlockNumber,
+      bool isEmpty,
+      bool initialized,
+      bool isRequest,
+      bool userActivated,
+      bool finalized
+    )
+  {
+    Data.Epoch epoch = epochs[_forkNumber][_epochNumber];
+
+    requestStart = epoch.requestStart;
+    requestEnd = epoch.requestEnd;
+    startBlockNumber = epoch.startBlockNumber;
+    endBlockNumber = epoch.endBlockNumber;
+    forkedBlockNumber = epoch.forkedBlockNumber;
+    isEmpty = epoch.isEmpty;
+    initialized = epoch.initialized;
+    isRequest = epoch.isRequest;
+    userActivated = epoch.userActivated;
+    /* challenged = epoch.challenged;
+    challenging = epoch.challenging; */
+    finalized = epoch.finalized;
+  }
+
   /**
    * @notice Declare to submit URB.
    */
@@ -227,6 +272,7 @@ contract RootChain {
     bytes32 _intermediateStatesRoot
   )
     external
+    payable
     onlyOperator
     onlyState(State.AcceptingNRB)
     onlyValidCost(COST_NRB)
@@ -264,6 +310,7 @@ contract RootChain {
     bytes32 _intermediateStatesRoot
   )
     external
+    payable
     onlyOperator
     onlyState(State.AcceptingORB)
     onlyValidCost(COST_ORB)
@@ -407,6 +454,7 @@ contract RootChain {
     bytes32 _trieValue
   )
     public
+    payable
     returns (bool success)
   {
     uint requestId = _storeRequest(EROs, ORBs, _to, _trieKey, _trieValue, false);
@@ -541,7 +589,7 @@ contract RootChain {
   /**
    * @notice return true if the chain is forked by URB
    */
-  function forked(uint _forkNumber) public returns (bool forked) {
+  function forked(uint _forkNumber) public returns (bool result) {
     return _forkNumber != currentFork;
   }
 
@@ -666,46 +714,70 @@ contract RootChain {
    * being included in the request blocks in the just next ORB epoch.
    */
   function _prepareToSubmitORB() internal {
-    uint startBlockNumber = highestBlockNumber[currentEpoch].add(1);
+    uint startBlockNumber = highestBlockNumber[currentFork].add(1);
+    uint requestStart;
 
     currentEpoch += 1;
     Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
 
-    if (currentEpoch == 1) {
-      // first ORB epoch
+    epoch.isRequest = true;
+    epoch.initialized = true;
+
+    if (currentEpoch == 2) {
+      // for the first ORB epoch
       epoch.requestStart = 0;
+
+      if (EROs.length == 0) {
+        epoch.isEmpty = true;
+      }
     } else {
       // last request id of previous ORB epoch + 1
-      epoch.requestStart = epochs[currentFork][currentEpoch - 2].requestEnd + 1;
+      requestStart = epochs[currentFork][currentEpoch - 2].requestEnd + 1;
+
+      if (EROs.length + 1 == uint256(requestStart)) {
+        epoch.isEmpty = true;
+      } else {
+        epoch.requestStart = uint64(requestStart - 1);
+      }
     }
 
-    epoch.isRequest = true;
-    epoch.requestEnd = uint64(EROs.length.sub(1));
-    epoch.startBlockNumber = uint64(startBlockNumber);
-    epoch.endBlockNumber = uint64(startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + 1).divCeil(MAX_REQUESTS) - 1);
+    if (epoch.isEmpty) {
+      epoch.requestEnd = epoch.requestStart;
+      epoch.startBlockNumber = uint64(startBlockNumber - 1);
+      epoch.endBlockNumber = uint64(startBlockNumber - 1);
+    } else {
+      epoch.requestEnd = uint64(EROs.length.sub(1));
+      epoch.startBlockNumber = uint64(startBlockNumber);
+      epoch.endBlockNumber = uint64(startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + 1)
+        .divCeil(MAX_REQUESTS) - 1);
+    }
+
 
     // change state to accept ORBs
     state = State.AcceptingORB;
     emit StateChanged(state);
+    emit EpochPrepared(currentFork, currentEpoch, true, false);
 
     // no ORB to submit
-    if (epoch.getNumBlocks() == 0) {
+    if (epoch.isEmpty) {
       _prepareToSubmitNRB();
     }
   }
 
   function _prepareToSubmitNRB() internal {
-    uint startBlockNumber = highestBlockNumber[currentEpoch].add(1);
+    uint startBlockNumber = highestBlockNumber[currentFork].add(1);
 
     currentEpoch += 1;
     Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
 
+    epoch.initialized = true;
     epoch.startBlockNumber = uint64(startBlockNumber);
     epoch.endBlockNumber = uint64(startBlockNumber + NRBEpochLength - 1);
 
     // change state to accept NRBs
     state = State.AcceptingNRB;
     emit StateChanged(state);
+    emit EpochPrepared(currentFork, currentEpoch, false, false);
   }
 
   function _prepareToSubmitURB() internal {

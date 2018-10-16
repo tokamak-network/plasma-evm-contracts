@@ -38,6 +38,10 @@ library Data {
     uint64 timestamp;         // timestamp when the epoch is initialized.
                               // required for URB / ORB
 
+    bool isEmpty;             // true if request epoch has no request block
+                              // and requestStart == requestEnd == previousEpoch.requestEnd
+                              //     startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
+
     bool initialized;         // true if epoch is initialized
     bool isRequest;           // true in case of URB / ORB
     bool userActivated;       // true in case of URB
@@ -104,6 +108,7 @@ library Data {
     bool applied;             // true if request is applied
     bool finalized;           // true if request is finalized
     bool challenged;
+    uint128 value;            // ether amount in wei
     address requestor;
     address to;               // requestable contract in root chain
     bytes32 trieKey;
@@ -201,16 +206,14 @@ library Data {
   ) internal {
     require(self.trie != address(0));
 
-    bytes32 requestHash = hash(toTX(_request, _requestId, false));
+    bytes memory key = new bytes(32);
     uint txIndex = self.requestStart.sub(_requestId);
-
-    bytes memory key;
-    bytes memory value;
 
     assembly {
       mstore(add(key, 0x20), txIndex)
-      mstore(add(value, 0x20), requestHash)
     }
+
+    bytes memory value = toBytes(toTX(_request, _requestId, false));
 
     PatriciaTree(self.trie).insert(key, value);
     self.transactionsRoot = PatriciaTree(self.trie).getRootHash();
@@ -231,11 +234,11 @@ library Data {
     uint256 s;
   }
 
-  function isNATX(TX memory self) internal returns (bool) {
+  function isNATX(TX memory self) internal pure returns (bool) {
     return self.v == 0 && self.r == 0 && self.s == 0;
   }
 
-  function fromBytes(bytes memory self) internal returns (TX memory out) {
+  function fromBytes(bytes memory self) internal pure returns (TX memory out) {
     RLP.RLPItem[] memory packArr = self.toRLPItem().toList(9);
 
     out.nonce = uint64(packArr[0].toUint());
@@ -247,6 +250,25 @@ library Data {
     out.v = packArr[6].toUint();
     out.r = packArr[7].toUint();
     out.s = packArr[8].toUint();
+  }
+
+  /**
+   * @notice Convert TX to RLP-encoded bytes
+   */
+  function toBytes(TX memory self) internal pure returns (bytes memory out) {
+    bytes[] memory packArr = new bytes[](9);
+
+    packArr[0] = self.nonce.encodeUint();
+    packArr[1] = self.gasPrice.encodeUint();
+    packArr[2] = self.gasLimit.encodeUint();
+    packArr[3] = self.to.encodeAddress();
+    packArr[4] = self.value.encodeUint();
+    packArr[5] = self.data.encodeBytes();
+    packArr[6] = self.v.encodeUint();
+    packArr[7] = self.r.encodeUint();
+    packArr[8] = self.s.encodeUint();
+
+    return packArr.encodeList();
   }
 
   function toTX(
@@ -275,19 +297,8 @@ library Data {
     out.s = _s;
   }
 
-  function hash(TX memory _tx) internal pure returns (bytes32) {
-    bytes[] memory packArr = new bytes[](9);
-
-    packArr[0] = _tx.nonce.encodeUint();
-    packArr[1] = _tx.gasPrice.encodeUint();
-    packArr[2] = _tx.gasLimit.encodeUint();
-    packArr[3] = _tx.to.encodeAddress();
-    packArr[4] = _tx.value.encodeUint();
-    packArr[5] = _tx.data.encodeBytes();
-    packArr[6] = _tx.v.encodeUint();
-    packArr[7] = _tx.r.encodeUint();
-    packArr[8] = _tx.s.encodeUint();
-
-    return keccak256(packArr.encodeList());
+  function hash(TX memory self) internal pure returns (bytes32) {
+    bytes memory txBytes = toBytes(self);
+    return keccak256(txBytes);
   }
 }
