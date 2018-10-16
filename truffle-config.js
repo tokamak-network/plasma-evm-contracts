@@ -1,26 +1,17 @@
-// require('dotenv').config();
-//
-// const HDWalletProvider = require('truffle-hdwallet-provider');
-//
-// const providerWithMnemonic = (mnemonic, rpcEndpoint) =>
-//   new HDWalletProvider(mnemonic, rpcEndpoint);
-//
-// const infuraProvider = network => providerWithMnemonic(
-//   process.env.MNEMONIC || '',
-//   `https://${network}.infura.io/${process.env.INFURA_API_KEY}`
-// );
+require('dotenv').config();
 
-// const ropstenProvider = process.env.SOLIDITY_COVERAGE
-//   ? undefined
-//   : infuraProvider('ropsten');
+const PrivateKeyProvider = require('truffle-privatekey-provider');
+const privateKey = process.env.OPERATOR_PRIV_KEY || '';
+
+const providerUrl = 'http://localhost:8545';
 
 module.exports = {
   networks: {
     development: {
-      host: 'localhost',
-      port: 8545,
-      // gas: 100000000000,
-      // gasPrice: 0x01,
+      provider: new PrivateKeyProvider(privateKey, providerUrl),
+      gas: 6500000,
+      // gas: 10000000,
+      gasPrice: 1e9,
       network_id: '*', // eslint-disable-line camelcase
     },
   //   ropsten: {
@@ -47,4 +38,10 @@ module.exports = {
       gasPrice: 21,
     },
   },
-}
+  solc: {
+    optimizer: {
+      enabled: true,
+      runs: 200,
+    },
+  },
+};
