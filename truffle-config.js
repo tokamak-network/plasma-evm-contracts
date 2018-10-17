@@ -7,7 +7,7 @@ module.exports = {
     development: {
       host: 'localhost',
       port: 8545,
-      gas: 7500000,]
+      gas: 7500000,
       gasPrice: 1e9,
       network_id: '*', // eslint-disable-line camelcase
     },
