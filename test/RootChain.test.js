@@ -1,4 +1,6 @@
 const { range } = require('lodash');
+const expectEvent = require('openzeppelin-solidity/test/helpers/expectEvent');
+
 const RootChain = artifacts.require('RootChain.sol');
 const RequestableSimpleToken = artifacts.require('RequestableSimpleToken.sol');
 
@@ -38,6 +40,7 @@ contract('RootChain', async ([
   let currentEpoch = 1;
   let currentBlockNumber = 0;
   let numRequests = 0;
+  let requestIdToApply = 0;
 
   // rootchain.State
   const State = {
@@ -96,6 +99,43 @@ contract('RootChain', async ([
     currentBlockNumber += 1;
 
     await checkBlockNumber();
+  }
+
+  async function applyRequests () {
+    // finalize blocks until all blocks are fianlized
+    while (true) {
+      const lastFinalizedBlock = await rootchain.lastFinalizedBlock(currentFork);
+      if (lastFinalizedBlock.equals(currentBlockNumber)) {
+        break;
+      }
+      await timeout(CP_COMPUTATION);
+      await rootchain.finalizeBlock();
+    }
+
+    for (const requestId of range(requestIdToApply, numRequests)) {
+      const [ , isExit, applied1, finalized1, , value, requestor, to, , ] = await rootchain.EROs(requestId);
+
+      if (!isExit) {
+        applied1.should.be.equal(true);
+      }
+      finalized1.should.be.equal(false);
+
+      const etherAmount1 = await web3.eth.getBalance(to);
+
+      const e = await expectEvent.inTransaction(rootchain.applyRequest(), 'RequestFinalized');
+
+      const [ , , applied2, finalized2, , , , , , ] = await rootchain.EROs(requestId);
+
+      applied2.should.be.equal(true);
+      finalized2.should.be.equal(true);
+
+      const etherAmount2 = await web3.eth.getBalance(to);
+
+      if (isExit) {
+        etherAmount2.should.be.bignumber.equal(etherAmount1.add(value));
+      }
+      requestIdToApply = e.args.requestId.toNumber() + 1;
+    }
   }
 
   const testEpochsWithoutRequest = (NRBEPochNumber) => {
@@ -180,6 +220,8 @@ contract('RootChain', async ([
 
       (await rootchain.lastFinalizedBlock(currentFork)).should.be.bignumber.gt(lastFinalizedBlock);
     });
+
+    it('should finalize requests', applyRequests);
   };
 
   const testEpochsWithExitRequest = (NRBEPochNumber) => {
@@ -190,6 +232,20 @@ contract('RootChain', async ([
 
       await Promise.all(others.map(other =>
         rootchain.startEnter(other, emptyBytes32, emptyBytes32, { from: other, value: etherAmount })
+      ));
+
+      numRequests += others.length;
+
+      (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
+    });
+
+    it(`NRBEpoch#${NRBEPochNumber}: user can make a exit request`, async () => {
+      const exitAmount = etherAmount.add(COST_ERO);
+
+      (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
+
+      await Promise.all(others.map(other =>
+        rootchain.startExit(other, emptyBytes32, emptyBytes32, { from: other, value: exitAmount })
       ));
 
       numRequests += others.length;
@@ -226,47 +282,47 @@ contract('RootChain', async ([
     });
   };
 
-  describe('Epoch#1', async () => {
+  describe('Epoch#1', () => {
     const epochNumber = 1;
     testEpochsWithoutRequest(epochNumber);
   });
 
-  describe('Epoch#3', async () => {
+  describe('Epoch#3', () => {
     const epochNumber = 3;
     testEpochsWithoutRequest(epochNumber);
   });
 
-  describe('Epoch#5', async () => {
+  describe('Epoch#5', () => {
     const epochNumber = 5;
     testEpochsWithoutRequest(epochNumber);
   });
 
-  describe('Epoch#7', async () => {
+  describe('Epoch#7', () => {
     const epochNumber = 7;
     testEpochsWithRequest(epochNumber);
   });
 
-  describe('Epoch#9', async () => {
+  describe('Epoch#9', () => {
     const epochNumber = 9;
     testEpochsWithRequest(epochNumber);
   });
 
-  describe('Epoch#11', async () => {
+  describe('Epoch#11', () => {
     const epochNumber = 11;
     testEpochsWithRequest(epochNumber);
   });
 
-  describe('Epoch#13', async () => {
+  describe('Epoch#13', () => {
     const epochNumber = 13;
     testEpochsWithoutRequest(epochNumber);
   });
 
-  describe('Epoch#15', async () => {
+  describe('Epoch#15', () => {
     const epochNumber = 15;
     testEpochsWithRequest(epochNumber);
   });
 
-  describe('Epoch#17', async () => {
+  describe('Epoch#17', () => {
     const epochNumber = 17;
     testEpochsWithExitRequest(epochNumber);
   });
