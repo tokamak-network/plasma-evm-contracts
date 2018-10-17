@@ -25,29 +25,31 @@ library Data {
   uint public constant NA_TX_GAS_LIMIT = 100000;
 
   struct Epoch {
-    uint64 requestStart;      // first request id
-    uint64 requestEnd;        // last request id
-    uint64 startBlockNumber;  // first block number of the epoch
-    uint64 endBlockNumber;    // last block number of the epoch
-    uint64 forkedBlockNumber; // forked block number due to URB or challenge
-                              // last finalized block is forkedBlockNumber - 1
+    uint64 requestStart;        // first request id
+    uint64 requestEnd;          // last request id
+    uint64 startBlockNumber;    // first block number of the epoch
+    uint64 endBlockNumber;      // last block number of the epoch
+    uint64 forkedBlockNumber;   // forked block number due to URB or challenge
+                                // last finalized block is forkedBlockNumber - 1
 
-    uint64 limit;             // the maximum number of request transactions in
-                              // a request block
+    uint64 firstRequestBlockId; // first id of RequestBlock[]
 
-    uint64 timestamp;         // timestamp when the epoch is initialized.
-                              // required for URB / ORB
+    uint64 limit;               // the maximum number of request transactions in
+                                // a request block
 
-    bool isEmpty;             // true if request epoch has no request block
-                              // and requestStart == requestEnd == previousEpoch.requestEnd
-                              //     startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
+    uint64 timestamp;           // timestamp when the epoch is initialized.
+                                // required for URB / ORB
 
-    bool initialized;         // true if epoch is initialized
-    bool isRequest;           // true in case of URB / ORB
-    bool userActivated;       // true in case of URB
-    bool challenged;          // true if a block in the epoch is challenged
-    bool challenging;         // true if a block in the epoch is being challenged
-    bool finalized;           // true if it is successfully finalized
+    bool isEmpty;               // true if request epoch has no request block
+                                // and requestStart == requestEnd == previousEpoch.requestEnd
+                                //     startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
+
+    bool initialized;           // true if epoch is initialized
+    bool isRequest;             // true in case of URB / ORB
+    bool userActivated;         // true in case of URB
+    // bool challenged;            // true if a block in the epoch is challenged
+    // bool challenging;           // true if a block in the epoch is being challenged
+    bool finalized;             // true if it is successfully finalized
   }
 
   function getNumBlocks(Epoch _e) internal returns (uint) {
