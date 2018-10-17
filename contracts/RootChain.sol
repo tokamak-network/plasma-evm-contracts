@@ -22,11 +22,6 @@ contract RootChain {
   }
 
   /*
-   * Constant
-   */
-  address constant public NULL_ADDRESS = 0x0000000000000000000000000000000000000000;
-
-  /*
    * Storage
    */
   bool public development = true; // dev mode
@@ -80,6 +75,7 @@ contract RootChain {
   /*
    * Constant
    */
+  address constant public NULL_ADDRESS = 0x0000000000000000000000000000000000000000;
 
   // TODO: develop cost function model
   // Simple cost parameters
@@ -94,8 +90,10 @@ contract RootChain {
   uint public constant PREPARE_TIMEOUT = 1 hours;
 
   // Challenge periods for computation and withholding
-  uint public constant CP_COMPUTATION = 1 days;
-  uint public constant CP_WITHHOLDING = 7 days;
+  // uint public constant CP_COMPUTATION = 1 days;
+  // uint public constant CP_WITHHOLDING = 7 days;
+  uint public constant CP_COMPUTATION = 1; // 1 sec for dev
+  uint public constant CP_WITHHOLDING = 3; // 3 sec for dev
 
   // How many requests can be included in a single request block
   uint public constant MAX_REQUESTS = 1000;
@@ -172,6 +170,7 @@ contract RootChain {
    * Constructor
    */
   constructor(
+    bool _development,
     uint _NRBEpochLength,
 
     // genesis block state
@@ -181,6 +180,7 @@ contract RootChain {
   )
     public
   {
+    development = _development;
     operator = msg.sender;
     NRBEpochLength = _NRBEpochLength;
 
@@ -338,7 +338,10 @@ contract RootChain {
 
     require(epoch.isRequest);
 
-    // TODO: verify transactionsRoot
+    if (!development) {
+      Data.RequestBlock ORB = ORBs[blocks[currentFork][blockNumber].requestBlockId];
+      require(_transactionsRoot == ORB.transactionsRoot);
+    }
 
     if (epoch.endBlockNumber == highestBlockNumber[currentFork]) {
       _prepareToSubmitNRB();
@@ -665,11 +668,15 @@ contract RootChain {
       blockNumber = highestBlockNumber[currentFork].add(1);
     }
 
+    assert(epochs[currentFork][currentEpoch].isRequest == _isRequest);
+
     Data.PlasmaBlock storage b = blocks[currentFork][blockNumber];
 
     b.statesRoot = _statesRoot;
     b.transactionsRoot = _transactionsRoot;
     b.intermediateStatesRoot = _intermediateStatesRoot;
+    b.timestamp = uint64(block.timestamp);
+    b.epochNumber = uint64(currentEpoch);
     b.isRequest = _isRequest;
     b.userActivated = _userActivated;
 
@@ -711,7 +718,7 @@ contract RootChain {
     if (!_isExit) {
       r.applied = true;
 
-      // apply message call
+      // apply message-call
       if (_to != msg.sender) {
         require(r.applyRequestInRootChain(requestId));
       }
@@ -830,6 +837,7 @@ contract RootChain {
     epoch.initialized = true;
     epoch.startBlockNumber = uint64(startBlockNumber);
     epoch.endBlockNumber = uint64(startBlockNumber + NRBEpochLength - 1);
+    epoch.timestamp = uint64(block.timestamp);
 
     // change state to accept NRBs
     state = State.AcceptingNRB;
@@ -861,6 +869,7 @@ contract RootChain {
 
     epoch.isRequest = true;
     epoch.userActivated = true;
+    epoch.timestamp = uint64(block.timestamp);
     epoch.requestEnd = uint64(ERUs.length.sub(1));
     epoch.startBlockNumber = uint64(lastBlockNumber + 1);
     epoch.endBlockNumber = uint64(epoch.startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + 1).divCeil(MAX_REQUESTS) - 1);
@@ -877,7 +886,7 @@ contract RootChain {
 
     uint blockNumber = lastFinalizedBlock[currentFork] + 1;
 
-    // short circuit if all blocks are finalized
+    // short circuit if all blocks are submitted yet
     if (blockNumber > highestBlockNumber[currentFork]) {
       return false;
     }
@@ -891,8 +900,8 @@ contract RootChain {
 
     // 1. finalize request block
     if (pb.isRequest) {
-      // return if challenge period doesn't end
-      if (pb.timestamp + CP_COMPUTATION <= block.timestamp) {
+      // short circuit if challenge period doesn't end
+      if (pb.timestamp + CP_COMPUTATION > block.timestamp) {
         return false;
       }
 
@@ -913,7 +922,7 @@ contract RootChain {
     }
 
     // short circuit if challenge period doesn't end
-    if (pb.timestamp + CP_WITHHOLDING <= block.timestamp) {
+    if (pb.timestamp + CP_WITHHOLDING > block.timestamp) {
       return false;
     }
 
@@ -939,8 +948,13 @@ contract RootChain {
       return false;
     }
 
+    if (epoch.isEmpty) {
+      // return if the epoch has ends challenge period
+      return epoch.timestamp + CP_COMPUTATION > block.timestamp;
+    }
+
     // cannot finalize if the first block was not submitted
-    if (_epochNumber == currentEpoch && epoch.startBlockNumber > highestBlockNumber[currentFork]) {
+    if (epoch.startBlockNumber > highestBlockNumber[currentFork]) {
       return false;
     }
 
@@ -956,12 +970,8 @@ contract RootChain {
       return false;
     }
 
-    // return true if challenge period end
-    if (pb.timestamp + CP_COMPUTATION > block.timestamp) {
-      return true;
-    }
-
-    return false;
+    // return if challenge period end
+    return pb.timestamp + CP_COMPUTATION <= block.timestamp;
   }
 
   /**
@@ -979,6 +989,8 @@ contract RootChain {
    */
   function _doFinalizeEpoch(uint _epochNumber) internal {
     Data.Epoch storage epoch = epochs[currentFork][_epochNumber];
+
+    /* require(!epoch.isRequest); */
 
     uint i;
     bool stopped;
