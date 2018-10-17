@@ -124,12 +124,13 @@ library Data {
     internal
     returns (bool)
   {
-    if (self.value > 0) {
-      return self.to.send(self.value);
+    // TODO: ignore transfer or applyRequestInRootChain?
+
+    if (self.requestor == self.to) {
+      self.to.transfer(self.value);
+      return true;
     }
 
-    // TODO: to.transfer
-    // TODO: ignore it is reverted?
     return RequestableContractI(self.to).applyRequestInRootChain(
       self.isExit,
       _requestId,

@@ -132,11 +132,16 @@ contract RootChain {
     bytes32 trieValue
   );
 
-  event BlockFinalized(uint _forkNumber, uint _blockNumber);
-  event EpochFinalized(uint _forkNumber, uint _epochNumber, uint _firstBlockNumber, uint _lastBlockNumber);
+  event BlockFinalized(uint forkNumber, uint blockNumber);
+  event EpochFinalized(
+    uint forkNumber,
+    uint epochNumber,
+    uint firstBlockNumber,
+    uint lastBlockNumber
+  );
 
   // emit when exit is finalized. _userActivated is true for ERU
-  event RequestFinalized(uint _requestId, bool _userActivated);
+  event RequestFinalized(uint requestId, bool userActivated);
 
   /*
    * Modifier
@@ -188,6 +193,10 @@ contract RootChain {
     genesis.statesRoot = _statesRoot;
     genesis.transactionsRoot = _transactionsRoot;
     genesis.intermediateStatesRoot = _intermediateStatesRoot;
+
+    // set up the genesis epoch
+    epochs[0][0].initialized = true;
+    epochs[0][0].finalized = true;
 
     _doFinalize(genesis, 0);
     _prepareToSubmitNRB();
@@ -446,6 +455,7 @@ contract RootChain {
     bytes32 _trieValue
   )
     public
+    payable
     onlyValidCost(COST_ERO)
     returns (bool success)
   {
@@ -530,7 +540,7 @@ contract RootChain {
     if (pb.userActivated) {
       requestId = lastAppliedERU;
 
-      require(ERUs.length < requestId);
+      require(ERUs.length > requestId);
 
       Data.Request storage ERU = ERUs[requestId];
       Data.RequestBlock storage URB = URBs[pb.requestBlockId];
@@ -550,8 +560,9 @@ contract RootChain {
         ERU.applied = true;
 
         // NOTE: do not check it reverted or not?
-        ERU.to.call(ERU.getData(requestId, true));
+        ERU.applyRequestInRootChain(requestId);
       }
+      ERU.finalized = true;
 
       emit RequestFinalized(requestId, true);
       return true;
@@ -560,7 +571,7 @@ contract RootChain {
     // apply ERO
     requestId = lastAppliedERO;
 
-    require(EROs.length < requestId);
+    require(EROs.length > requestId);
 
     Data.Request storage ERO = EROs[requestId];
     Data.RequestBlock storage ORB = ORBs[pb.requestBlockId];
@@ -580,8 +591,9 @@ contract RootChain {
       ERO.applied = true;
 
       // NOTE: do not check it reverted or not?
-      ERO.to.call(ERO.getData(requestId, true));
+      ERO.applyRequestInRootChain(requestId);
     }
+    ERO.finalized = true;
 
     emit RequestFinalized(requestId, false);
     return true;
@@ -668,7 +680,7 @@ contract RootChain {
       blockNumber = highestBlockNumber[currentFork].add(1);
     }
 
-    assert(epochs[currentFork][currentEpoch].isRequest == _isRequest);
+    require(epochs[currentFork][currentEpoch].isRequest == _isRequest);
 
     Data.PlasmaBlock storage b = blocks[currentFork][blockNumber];
 
