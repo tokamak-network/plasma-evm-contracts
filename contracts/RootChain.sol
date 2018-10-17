@@ -158,7 +158,7 @@ contract RootChain {
   }
 
   modifier onlyValidCost(uint _expected) {
-    require(msg.value == _expected);
+    require(msg.value >= _expected);
     _;
   }
 
@@ -247,9 +247,11 @@ contract RootChain {
     initialized = epoch.initialized;
     isRequest = epoch.isRequest;
     userActivated = epoch.userActivated;
-    /* challenged = epoch.challenged;
-    challenging = epoch.challenging; */
     finalized = epoch.finalized;
+  }
+
+  function getNumEROs() external view returns (uint) {
+    return EROs.length;
   }
 
   /**
@@ -290,6 +292,8 @@ contract RootChain {
       false
     );
 
+    emit NRBSubmitted(currentFork, blockNumber);
+
     Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
 
     require(!epoch.isRequest);
@@ -301,7 +305,6 @@ contract RootChain {
       _prepareToSubmitORB();
     }
 
-    emit NRBSubmitted(currentFork, blockNumber);
     return true;
   }
 
@@ -328,20 +331,18 @@ contract RootChain {
       false
     );
 
+    emit ORBSubmitted(currentFork, blockNumber);
+
     Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
 
     require(epoch.isRequest);
 
-    uint numBlocks = epoch.getNumBlocks();
-    uint submittedBlocks = highestBlockNumber[currentFork] - epoch.startBlockNumber + 1;
-
     // TODO: verify transactionsRoot
 
-    if (submittedBlocks == numBlocks) {
+    if (epoch.endBlockNumber == highestBlockNumber[currentFork]) {
       _prepareToSubmitNRB();
     }
 
-    emit ORBSubmitted(currentFork, blockNumber);
     return true;
   }
 
@@ -690,11 +691,9 @@ contract RootChain {
     weiAmount = !_isExit ? msg.value :
                 _userActivated ? msg.value.sub(COST_ERU) : msg.value.sub(COST_ERO);
 
-    // message call
-    require(weiAmount == 0 || requestableContracts[_to] != address(0));
-
-    // deposit ether
-    require(!_isExit && weiAmount != 0 || _to != msg.sender);
+    // check parameters for simple ether transfer and message-call
+    require(_to == msg.sender && weiAmount != 0 && _trieKey == bytes32(0) && _trieValue == bytes32(0) ||
+      requestableContracts[_to] != address(0) && _trieKey != bytes32(0) && _trieValue != bytes32(0));
 
     requestId = _requests.length++;
     Data.Request storage r = _requests[requestId];
@@ -710,20 +709,38 @@ contract RootChain {
     // apply request in root chain
     if (!_isExit) {
       r.applied = true;
-      require(r.applyRequestInRootChain(requestId));
+
+      // apply message call
+      if (_to != msg.sender) {
+        require(r.applyRequestInRootChain(requestId));
+      }
     }
 
-    Data.RequestBlock storage rb = _rbs[_rbs.length - 1];
+    uint requestBlockId;
+    if (_rbs.length == 0) {
+      _rbs.length++;
+      requestBlockId = 0;
+    } else {
+      requestBlockId = _rbs.length - 1;
+    }
+
+    Data.RequestBlock storage rb = _rbs[requestBlockId];
+    rb.init();
 
     // make new RequestBlock
-    if (rb.requestEnd - rb.requestStart + 1 == MAX_REQUESTS) {
+    if (rb.sealed || rb.requestEnd - rb.requestStart + 1 == MAX_REQUESTS) {
       rb = _rbs[_rbs.length++];
       rb.requestStart = uint64(requestId);
       rb.init();
     }
 
     rb.requestEnd = uint64(requestId);
-    rb.addRequest(r.toChildChainRequest(requestableContracts[_to]), requestId);
+
+    if (_to == msg.sender) {
+      rb.addRequest(r.toChildChainRequest(_to), requestId);
+    } else {
+      rb.addRequest(r.toChildChainRequest(requestableContracts[_to]), requestId);
+    }
   }
 
   /**
@@ -731,44 +748,26 @@ contract RootChain {
    * being included in the request blocks in the just next ORB epoch.
    */
   function _prepareToSubmitORB() internal {
-    uint startBlockNumber = highestBlockNumber[currentFork].add(1);
-    uint requestStart;
-
     currentEpoch += 1;
     Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
+
+    epoch.startBlockNumber = uint64(highestBlockNumber[currentFork].add(1));
 
     epoch.isRequest = true;
     epoch.initialized = true;
 
-    if (currentEpoch == 2) {
-      // for the first ORB epoch
-      epoch.requestStart = 0;
-
-      if (EROs.length == 0) {
-        epoch.isEmpty = true;
-      }
-    } else {
-      // last request id of previous ORB epoch + 1
-      requestStart = epochs[currentFork][currentEpoch - 2].requestEnd + 1;
-
-      if (EROs.length + 1 == uint256(requestStart)) {
-        epoch.isEmpty = true;
-      } else {
-        epoch.requestStart = uint64(requestStart - 1);
-      }
-    }
+    _checkPreviousORBEpoch(epoch);
 
     if (epoch.isEmpty) {
       epoch.requestEnd = epoch.requestStart;
-      epoch.startBlockNumber = uint64(startBlockNumber - 1);
-      epoch.endBlockNumber = uint64(startBlockNumber - 1);
+      epoch.startBlockNumber = epoch.startBlockNumber - uint64(1);
+      epoch.endBlockNumber = epoch.startBlockNumber;
     } else {
-      epoch.requestEnd = uint64(EROs.length.sub(1));
-      epoch.startBlockNumber = uint64(startBlockNumber);
-      epoch.endBlockNumber = uint64(startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + 1)
+      epoch.requestEnd = uint64(EROs.length - 1);
+      /* epoch.startBlockNumber = uint64(epoch.startBlockNumber); */
+      epoch.endBlockNumber = uint64(epoch.startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + uint64(1))
         .divCeil(MAX_REQUESTS) - 1);
     }
-
 
     // change state to accept ORBs
     state = State.AcceptingORB;
@@ -778,6 +777,46 @@ contract RootChain {
     // no ORB to submit
     if (epoch.isEmpty) {
       _prepareToSubmitNRB();
+    } else {
+      _initRequestEpoch(epoch);
+    }
+  }
+
+  function _checkPreviousORBEpoch(Data.Epoch storage epoch) internal {
+    // for the first ORB epoch
+    if (currentEpoch == 2) {
+      if (EROs.length == 0) {
+        epoch.isEmpty = true;
+        return;
+      }
+    }
+
+    // for the later ORB epoch
+
+    Data.Epoch storage previousRequestEpoch = epochs[currentFork][currentEpoch - 2];
+
+    if (previousRequestEpoch.isEmpty) {
+      epoch.requestStart = previousRequestEpoch.requestEnd;
+      epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId;
+    } else {
+      epoch.requestStart = previousRequestEpoch.requestEnd + 1;
+      epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId + uint64(previousRequestEpoch.getNumBlocks()) - 1;
+
+      // seal last ORBs
+      ORBs[
+        blocks[currentFork][previousRequestEpoch.endBlockNumber].requestBlockId
+      ].sealed = true;
+    }
+
+    if (EROs.length == uint(epoch.requestStart)) {
+      epoch.isEmpty = true;
+    }
+  }
+
+  function _initRequestEpoch(Data.Epoch storage _epoch) internal {
+    for (uint64 i = 0; i < _epoch.getNumBlocks(); i++) {
+      blocks[currentFork][_epoch.startBlockNumber + i].isRequest = true;
+      blocks[currentFork][_epoch.startBlockNumber + i].requestBlockId = _epoch.firstRequestBlockId + i;
     }
   }
 

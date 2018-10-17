@@ -124,6 +124,11 @@ library Data {
     internal
     returns (bool)
   {
+    if (self.value > 0) {
+      return self.to.send(self.value);
+    }
+
+    // TODO: to.transfer
     // TODO: ignore it is reverted?
     return RequestableContractI(self.to).applyRequestInRootChain(
       self.isExit,
@@ -143,6 +148,7 @@ library Data {
   {
     out.isExit = self.isExit;
     out.requestor = self.requestor;
+    out.value = self.value;
     out.trieKey = self.trieKey;
     out.trieValue = self.trieValue;
 
@@ -189,15 +195,22 @@ library Data {
   }
 
   struct RequestBlock {
+    bool sealed;              // true if no more request can be inserted
+                              // because epoch is initialized
+
     uint64 requestStart;      // first request id
     uint64 requestEnd;        // last request id
     address trie;             // patricia tree contract address
     bytes32 transactionsRoot; // duplicated?
   }
 
+  function getInitialized(RequestBlock memory self) internal pure returns (bool){
+    return self.trie != address(0);
+  }
+
   function init(RequestBlock storage self) internal {
     if (self.trie == address(0)) {
-      self.trie = address(new PatriciaTree());
+      self.trie = new PatriciaTree();
     }
   }
 
@@ -208,8 +221,9 @@ library Data {
   ) internal {
     require(self.trie != address(0));
 
+    // TODO: check if txIndex is left-padded 32 bytes
     bytes memory key = new bytes(32);
-    uint txIndex = self.requestStart.sub(_requestId);
+    uint txIndex = _requestId.sub(self.requestStart);
 
     assembly {
       mstore(add(key, 0x20), txIndex)
