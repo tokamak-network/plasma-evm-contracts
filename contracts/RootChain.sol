@@ -748,7 +748,7 @@ contract RootChain {
     rb.init();
 
     // make new RequestBlock
-    if (rb.sealed || rb.requestEnd - rb.requestStart + 1 == MAX_REQUESTS) {
+    if (rb.submitted || rb.requestEnd - rb.requestStart + 1 == MAX_REQUESTS) {
       rb = _rbs[_rbs.length++];
       rb.requestStart = uint64(requestId);
       rb.init();
@@ -825,7 +825,7 @@ contract RootChain {
       // seal last ORBs
       ORBs[
         blocks[currentFork][previousRequestEpoch.endBlockNumber].requestBlockId
-      ].sealed = true;
+      ].submitted = true;
     }
 
     if (EROs.length == uint(epoch.requestStart)) {

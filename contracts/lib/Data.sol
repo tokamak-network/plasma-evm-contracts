@@ -196,7 +196,7 @@ library Data {
   }
 
   struct RequestBlock {
-    bool sealed;              // true if no more request can be inserted
+    bool submitted;              // true if no more request can be inserted
                               // because epoch is initialized
 
     uint64 requestStart;      // first request id
