@@ -29,6 +29,7 @@ contract RootChain {
   /*
    * Storage
    */
+  bool public development = true; // dev mode
   address public operator;
   State public state;
 
