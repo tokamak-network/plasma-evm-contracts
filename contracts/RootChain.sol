@@ -119,9 +119,11 @@ contract RootChain {
     uint requestId,
     address requestor,
     address to,
+    uint weiAmount,
     bytes32 trieKey,
     bytes32 trieValue,
-    bool isExit
+    bool isExit,
+    bool userActivated
   );
   event ERUCreated(
     uint requestId,
@@ -442,9 +444,11 @@ contract RootChain {
     onlyValidCost(COST_ERO)
     returns (bool success)
   {
-    uint requestId = _storeRequest(EROs, ORBs, _to, _trieKey, _trieValue, true);
+    uint requestId;
+    uint weiAmount;
+    (requestId, weiAmount) = _storeRequest(EROs, ORBs, _to, _trieKey, _trieValue, true, false);
 
-    emit RequestCreated(requestId, msg.sender, _to, _trieKey, _trieValue, true);
+    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, true, false);
     return true;
   }
 
@@ -457,9 +461,11 @@ contract RootChain {
     payable
     returns (bool success)
   {
-    uint requestId = _storeRequest(EROs, ORBs, _to, _trieKey, _trieValue, false);
+    uint requestId;
+    uint weiAmount;
+    (requestId, weiAmount) = _storeRequest(EROs, ORBs, _to, _trieKey, _trieValue, false, false);
 
-    emit RequestCreated(requestId, msg.sender, _to, _trieKey, _trieValue, false);
+    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, false, false);
     return true;
   }
 
@@ -472,9 +478,11 @@ contract RootChain {
     onlyValidCost(COST_ERU)
     returns (bool success)
   {
-    uint requestId = _storeRequest(ERUs, URBs, _to, _trieKey, _trieValue, true);
+    uint requestId;
+    uint weiAmount;
+    (requestId, weiAmount) = _storeRequest(ERUs, URBs, _to, _trieKey, _trieValue, true, true);
 
-    emit ERUCreated(requestId, msg.sender, _to, _trieKey, _trieValue);
+    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, true, true);
     return true;
   }
 
@@ -673,17 +681,26 @@ contract RootChain {
     address _to,
     bytes32 _trieKey,
     bytes32 _trieValue,
-    bool _isExit
+    bool _isExit,
+    bool _userActivated
   )
     internal
-    returns (uint requestId)
+    returns (uint requestId, uint weiAmount)
   {
-    require(requestableContracts[_to] != address(0));
+    weiAmount = !_isExit ? msg.value :
+                _userActivated ? msg.value.sub(COST_ERU) : msg.value.sub(COST_ERO);
+
+    // message call
+    require(weiAmount == 0 || requestableContracts[_to] != address(0));
+
+    // deposit ether
+    require(!_isExit && weiAmount != 0 || _to != msg.sender);
 
     requestId = _requests.length++;
     Data.Request storage r = _requests[requestId];
 
     r.requestor = msg.sender;
+    r.value = uint128(weiAmount);
     r.to = _to;
     r.trieKey = _trieKey;
     r.trieValue = _trieValue;
