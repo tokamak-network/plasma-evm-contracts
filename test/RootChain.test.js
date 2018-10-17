@@ -8,7 +8,14 @@ require('chai')
 
 const BigNumber = web3.BigNumber;
 
+const etherAmount = new BigNumber(10e18);
 const tokenAmount = new BigNumber(10e18);
+const emptyBytes32 = '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000';
+
+// genesis block merkle roots
+const statesRoot = '0x0ded2f89db1e11454ba4ba90e31850587943ed4a412f2ddf422bd948eae8b164';
+const transactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
+const intermediateStatesRoot = '0x000000000000000000000000000000000000000000000000000000000000dead';
 
 contract('RootChain', async ([
   operator,
@@ -17,6 +24,9 @@ contract('RootChain', async ([
   let rootchain;
   let token;
   const tokenInChildChain = '0x000000000000000000000000000000000000dead';
+
+  // account parameters
+  others = others.slice(0, 4);
 
   // rootchain parameters
   let MAX_REQUESTS;
@@ -66,13 +76,18 @@ contract('RootChain', async ([
   }
 
   async function submitDummyNRB () {
-    const statesRoot = '0x0ded2f89db1e11454ba4ba90e31850587943ed4a412f2ddf422bd948eae8b164';
-    const transactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
-    const intermediateStatesRoot = '0x000000000000000000000000000000000000000000000000000000000000dead';
-
     await checkBlockNumber();
 
     await rootchain.submitNRB(statesRoot, transactionsRoot, intermediateStatesRoot, { value: COST_NRB });
+    currentBlockNumber += 1;
+
+    await checkBlockNumber();
+  }
+
+  async function submitDummyORB () {
+    await checkBlockNumber();
+
+    await rootchain.submitORB(statesRoot, transactionsRoot, intermediateStatesRoot, { value: COST_ORB });
     currentBlockNumber += 1;
 
     await checkBlockNumber();
@@ -90,7 +105,7 @@ contract('RootChain', async ([
       endBlockNumber.should.be.bignumber.equal(startBlockNumber.add(NRBEpochLength).sub(1));
     });
 
-    it('Next empty ORB epoch#2 should be prepared', async () => {
+    it('next empty ORB epoch#2 should be prepared', async () => {
       // submits `NRBEpochLength` NRBs
       await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
 
@@ -123,7 +138,7 @@ contract('RootChain', async ([
       endBlockNumber.should.be.bignumber.equal(startBlockNumber.add(NRBEpochLength).sub(1));
     });
 
-    it('Next empty ORB epoch#4 should be prepared', async () => {
+    it('next empty ORB epoch#4 should be prepared', async () => {
       // submits `NRBEpochLength` NRBs
       await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
 
@@ -156,7 +171,7 @@ contract('RootChain', async ([
       endBlockNumber.should.be.bignumber.equal(startBlockNumber.add(NRBEpochLength).sub(1));
     });
 
-    it('Next empty ORB epoch#4 should be prepared', async () => {
+    it('next empty ORB epoch#4 should be prepared', async () => {
       // submits `NRBEpochLength` NRBs
       await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
 
@@ -174,6 +189,37 @@ contract('RootChain', async ([
       startBlockNumber.should.be.bignumber.equal(currentBlockNumber);
       endBlockNumber.should.be.bignumber.equal(endBlockNumber);
       isEmpty.should.be.equal(true);
+    });
+  });
+
+  describe('Epoch#7', async () => {
+    it('user can make a enter request', async () => {
+      (await rootchain.getNumEROs()).should.be.bignumber.equal(0);
+
+      await Promise.all(others.map(other =>
+        rootchain.startEnter(other, emptyBytes32, emptyBytes32, { from: other, value: etherAmount })
+      ));
+
+      (await rootchain.getNumEROs()).should.be.bignumber.equal(others.length);
+    });
+
+    it('operator submits NRBs', async () => {
+      await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
+      currentEpoch += 1;
+      await checkEpochNumber();
+      await checkState(State.AcceptingORB);
+    });
+
+    it('operator submits ORBs', async () => {
+      const [requestStart, requestEnd, startBlockNumber, endBlockNumber, forkedBlockNumber, isEmpty, initialized, isRequest, userActivated, finalized] =
+        await rootchain.getEpoch(currentFork, currentEpoch);
+
+      const numORBs = endBlockNumber.sub(startBlockNumber).add(1);
+      await Promise.all(range(numORBs).map(submitDummyORB));
+
+      currentEpoch += 1;
+      await checkEpochNumber();
+      await checkState(State.AcceptingNRB);
     });
   });
 });
