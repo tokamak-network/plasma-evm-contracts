@@ -246,7 +246,7 @@ contract RootChain {
       bool finalized
     )
   {
-    Data.Epoch epoch = epochs[_forkNumber][_epochNumber];
+    Data.Epoch storage epoch = epochs[_forkNumber][_epochNumber];
 
     requestStart = epoch.requestStart;
     requestEnd = epoch.requestEnd;
@@ -348,7 +348,7 @@ contract RootChain {
     require(epoch.isRequest);
 
     if (!development) {
-      Data.RequestBlock ORB = ORBs[blocks[currentFork][blockNumber].requestBlockId];
+      Data.RequestBlock storage ORB = ORBs[blocks[currentFork][blockNumber].requestBlockId];
       require(_transactionsRoot == ORB.transactionsRoot);
     }
 
