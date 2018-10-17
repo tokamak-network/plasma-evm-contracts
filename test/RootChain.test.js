@@ -67,6 +67,10 @@ contract('RootChain', async ([
     COST_NRB = await rootchain.COST_NRB();
     CP_COMPUTATION = await rootchain.CP_COMPUTATION();
     CP_WITHHOLDING = await rootchain.CP_WITHHOLDING();
+
+    console.log(`
+      RootChain contract at ${rootchain.address}
+      `);
   });
 
   async function checkEpochNumber () {
