@@ -805,6 +805,7 @@ contract RootChain {
     emit EpochPrepared(
       currentFork,
       currentEpoch,
+      epoch.isEmpty,
       epoch.startBlockNumber,
       epoch.endBlockNumber,
       epoch.requestStart,
@@ -876,6 +877,7 @@ contract RootChain {
     emit EpochPrepared(
       currentFork,
       currentEpoch,
+      epoch.isEmpty,
       epoch.startBlockNumber,
       epoch.endBlockNumber,
       epoch.requestStart,
