@@ -824,7 +824,7 @@ contract RootChain {
       } else {
         epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId + uint64(previousRequestEpoch.getNumBlocks());
       }
-    } else if (previousRequestEpoch.initialized) {
+    } else {
       // if there is no filled ORB epoch, this is the first one
       if (firstFilledORBEpochNumber[currentFork] == 0) {
         firstFilledORBEpochNumber[currentFork] = currentEpoch;
@@ -840,11 +840,9 @@ contract RootChain {
       }
     }
 
-    if (previousRequestEpoch.initialized && !previousRequestEpoch.isEmpty) {
-      // seal last ORB
-      ORBs[
-        blocks[currentFork][previousRequestEpoch.endBlockNumber].requestBlockId
-      ].submitted = true;
+    // seal last ORB
+    if (ORBs.length > 0) {
+      ORBs[ORBs.length - 1].submitted = true;
     }
   }
 
