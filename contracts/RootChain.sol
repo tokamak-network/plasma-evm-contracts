@@ -110,11 +110,11 @@ contract RootChain {
   event Forked(uint newFork, uint forkedBlockNumber);
   event EpochPrepared(
     uint epochNumber,
-    bool isEmpty,
     uint startBlockNumber,
     uint endBlockNumber,
     uint requestStart,
     uint requestEnd,
+    bool epochIsEmpty,
     bool isRequest,
     bool userActivated
   );
@@ -803,11 +803,11 @@ contract RootChain {
     emit StateChanged(state);
     emit EpochPrepared(
       currentEpoch,
-      epoch.isEmpty,
       epoch.startBlockNumber,
       epoch.endBlockNumber,
       epoch.requestStart,
       epoch.requestEnd,
+      epoch.isEmpty,
       true,
       false
     );
@@ -874,11 +874,11 @@ contract RootChain {
     emit StateChanged(state);
     emit EpochPrepared(
       currentEpoch,
-      epoch.isEmpty,
       epoch.startBlockNumber,
       epoch.endBlockNumber,
       epoch.requestStart,
       epoch.requestEnd,
+      epoch.isEmpty,
       false,
       false
     );
