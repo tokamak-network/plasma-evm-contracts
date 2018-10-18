@@ -109,7 +109,6 @@ contract RootChain {
 
   event Forked(uint newFork, uint forkedBlockNumber);
   event EpochPrepared(
-    uint forkNumber,
     uint epochNumber,
     bool isEmpty,
     uint startBlockNumber,
@@ -803,7 +802,6 @@ contract RootChain {
     state = State.AcceptingORB;
     emit StateChanged(state);
     emit EpochPrepared(
-      currentFork,
       currentEpoch,
       epoch.isEmpty,
       epoch.startBlockNumber,
@@ -875,7 +873,6 @@ contract RootChain {
     state = State.AcceptingNRB;
     emit StateChanged(state);
     emit EpochPrepared(
-      currentFork,
       currentEpoch,
       epoch.isEmpty,
       epoch.startBlockNumber,
