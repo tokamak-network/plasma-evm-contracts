@@ -78,6 +78,61 @@ contract('RootChain', async ([
       .should.be.bignumber.equal(currentEpoch);
   }
 
+  async function checkEpoch (epochNumber) {
+    const [
+      requestStart1, requestEnd1, startBlockNumber1, endBlockNumber1, forkedBlockNumber1, firstRequestBlockId1, limit1, timestamp1, isEmpty1, initialized1, isRequest1, userActivated1, finalized1,
+    ] = await rootchain.epochs(currentFork, epochNumber);
+
+    if (epochNumber == 1) { // first NRB epoch
+      startBlockNumber1.should.be.bignumber.equal(1);
+      endBlockNumber1.should.be.bignumber.equal(NRBEpochLength);
+      isRequest1.should.be.equal(false);
+      isEmpty1.should.be.equal(false);
+    } else if (epochNumber == 2) { // second ORB epoch
+      if (isEmpty1) {
+        startBlockNumber1.should.be.bignumber.equal(NRBEpochLength);
+        endBlockNumber1.should.be.bignumber.equal(startBlockNumber1);
+      } else {
+        startBlockNumber1.should.be.bignumber.equal(NRBEpochLength.add(1));
+        endBlockNumber1.should.be.bignumber.equal(startBlockNumber1.add(NRBEpochLength).sub(1));
+      }
+      isRequest1.should.be.equal(true);
+    } else if (epochNumber > 2 && isRequest1) { // later request epochs
+      // previous non request epoch
+      const [
+        requestStart2, requestEnd2, startBlockNumber2, endBlockNumber2, forkedBlockNumber2, firstRequestBlockId2, limit2, timestamp2, isEmpty2, initialized2, isRequest2, userActivated2, finalized2,
+      ] = await rootchain.epochs(currentFork, epochNumber - 1);
+
+      if (isEmpty1) {
+        startBlockNumber1.should.be.bignumber.equal(endBlockNumber2);
+        endBlockNumber1.should.be.bignumber.equal(startBlockNumber1);
+
+        // previous request epoch
+        const [
+          requestStart3, requestEnd3, startBlockNumber3, endBlockNumber3, forkedBlockNumber3, firstRequestBlockId3, limit3, timestamp3, isEmpty3, initialized3, isRequest3, userActivated3, finalized3,
+        ] = await rootchain.epochs(currentFork, epochNumber - 2);
+
+        requestStart1.should.be.bignumber.equal(requestEnd3);
+        requestStart1.should.be.bignumber.equal(requestEnd1);
+      } else {
+        startBlockNumber1.should.be.bignumber.equal(endBlockNumber2.add(1));
+        requestEnd1.should.be.bignumber.gt(requestStart1);
+        const numBlocks = requestEnd1.sub(requestStart1).add(1).div(MAX_REQUESTS).ceil();
+        endBlockNumber1.sub(startBlockNumber1).add(1).should.be.bignumber.equal(numBlocks);
+      }
+    } else if (epochNumber > 2 && !isRequest1) { // later non request epochs
+      // previous request epoch
+      const [
+        requestStart2, requestEnd2, startBlockNumber2, endBlockNumber2, forkedBlockNumber2, firstRequestBlockId2, limit2, timestamp2, isEmpty2, initialized2, isRequest2, userActivated2, finalized2,
+      ] = await rootchain.epochs(currentFork, epochNumber - 1);
+
+      startBlockNumber1.should.be.bignumber.equal(endBlockNumber2.add(1));
+      endBlockNumber1.sub(startBlockNumber1).add(1).should.be.bignumber.equal(NRBEpochLength);
+      isRequest1.should.be.equal(false);
+      isEmpty1.should.be.equal(false);
+    }
+  }
+
   async function checkBlockNumber () {
     (await rootchain.highestBlockNumber(currentFork))
       .should.be.bignumber.equal(currentBlockNumber);
@@ -148,22 +203,20 @@ contract('RootChain', async ([
     before(`check NRB epoch#${NRBEPochNumber} parameters`, async () => {
       await checkState(State.AcceptingNRB);
       await checkBlockNumber();
+      await checkEpochNumber();
 
-      const [requestStart, requestEnd, startBlockNumber, endBlockNumber, forkedBlockNumber, isEmpty, initialized, isRequest, userActivated, finalized] =
-        await rootchain.getEpoch(currentFork, currentEpoch);
-
-      startBlockNumber.should.be.bignumber.equal(currentBlockNumber + 1);
-      endBlockNumber.should.be.bignumber.equal(startBlockNumber.add(NRBEpochLength).sub(1));
+      await checkEpoch(currentEpoch);
     });
 
     it(`next empty ORB epoch#${ORBEPochNumber} should be prepared`, async () => {
       // submits `NRBEpochLength` NRBs
       await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
 
-      currentEpoch += 2;
-
       // because no ERO, ORB epoch is empty
+      currentEpoch += 2;
       await checkEpochNumber();
+      await checkEpoch(currentEpoch - 1);
+      await checkEpoch(currentEpoch);
       await checkState(State.AcceptingNRB);
     });
 
@@ -171,19 +224,19 @@ contract('RootChain', async ([
       await timeout(CP_COMPUTATION);
       await rootchain.finalizeBlock();
     });
-
-    after(`check ORB epoch#${ORBEPochNumber} parameters`, async () => {
-      const [requestStart, requestEnd, startBlockNumber, endBlockNumber, forkedBlockNumber, isEmpty, initialized, isRequest, userActivated, finalized] =
-        await rootchain.getEpoch(currentFork, currentEpoch - 1);
-
-      startBlockNumber.should.be.bignumber.equal(currentBlockNumber);
-      endBlockNumber.should.be.bignumber.equal(endBlockNumber);
-      isEmpty.should.be.equal(true);
-    });
   };
 
   const testEpochsWithRequest = (NRBEPochNumber) => {
     const ORBEPochNumber = NRBEPochNumber + 1;
+
+    before(`check NRB epoch#${NRBEPochNumber} parameters`, async () => {
+      await checkState(State.AcceptingNRB);
+
+      await checkBlockNumber();
+
+      await checkEpochNumber();
+      await checkEpoch(currentEpoch);
+    });
 
     it(`NRBEpoch#${NRBEPochNumber}: user can make a enter request`, async () => {
       (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
@@ -199,8 +252,11 @@ contract('RootChain', async ([
 
     it(`NRBEpoch#${NRBEPochNumber}: operator submits NRBs`, async () => {
       await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
+
       currentEpoch += 1;
       await checkEpochNumber();
+      await checkEpoch(currentEpoch - 1);
+      await checkEpoch(currentEpoch);
       await checkState(State.AcceptingORB);
     });
 
@@ -213,6 +269,8 @@ contract('RootChain', async ([
 
       currentEpoch += 1;
       await checkEpochNumber();
+      await checkEpoch(currentEpoch - 1);
+      await checkEpoch(currentEpoch);
       await checkState(State.AcceptingNRB);
     });
 
@@ -261,6 +319,8 @@ contract('RootChain', async ([
       await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
       currentEpoch += 1;
       await checkEpochNumber();
+      await checkEpoch(currentEpoch - 1);
+      await checkEpoch(currentEpoch);
       await checkState(State.AcceptingORB);
     });
 
@@ -273,6 +333,8 @@ contract('RootChain', async ([
 
       currentEpoch += 1;
       await checkEpochNumber();
+      await checkEpoch(currentEpoch - 1);
+      await checkEpoch(currentEpoch);
       await checkState(State.AcceptingNRB);
     });
 
