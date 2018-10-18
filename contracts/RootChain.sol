@@ -108,7 +108,17 @@ contract RootChain {
   event StateChanged(State state);
 
   event Forked(uint newFork, uint forkedBlockNumber);
-  event EpochPrepared(uint forkNumber, uint epochNumber, bool isRequest, bool userActivated);
+  event EpochPrepared(
+    uint forkNumber,
+    uint epochNumber,
+    bool isEmpty,
+    uint startBlockNumber,
+    uint endBlockNumber,
+    uint requestStart,
+    uint requestEnd,
+    bool isRequest,
+    bool userActivated
+  );
 
   event NRBSubmitted(uint fork, uint blockNumber);
   event ORBSubmitted(uint fork, uint blockNumber);
@@ -792,7 +802,16 @@ contract RootChain {
     // change state to accept ORBs
     state = State.AcceptingORB;
     emit StateChanged(state);
-    emit EpochPrepared(currentFork, currentEpoch, true, false);
+    emit EpochPrepared(
+      currentFork,
+      currentEpoch,
+      epoch.startBlockNumber,
+      epoch.endBlockNumber,
+      epoch.requestStart,
+      epoch.requestEnd,
+      true,
+      false
+    );
 
     // no ORB to submit
     if (epoch.isEmpty) {
@@ -854,7 +873,17 @@ contract RootChain {
     // change state to accept NRBs
     state = State.AcceptingNRB;
     emit StateChanged(state);
-    emit EpochPrepared(currentFork, currentEpoch, false, false);
+    emit EpochPrepared(
+      currentFork,
+      currentEpoch,
+      epoch.startBlockNumber,
+      epoch.endBlockNumber,
+      epoch.requestStart,
+      epoch.requestEnd,
+      false,
+      false
+    );
+
   }
 
   function _prepareToSubmitURB() internal {
