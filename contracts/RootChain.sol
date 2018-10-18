@@ -780,7 +780,7 @@ contract RootChain {
     currentEpoch += 1;
     Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
 
-    epoch.startBlockNumber = uint64(highestBlockNumber[currentFork].add(1));
+    epoch.startBlockNumber = epochs[currentFork][currentEpoch - 1].endBlockNumber + 1;
 
     epoch.isRequest = true;
     epoch.initialized = true;
@@ -793,7 +793,6 @@ contract RootChain {
       epoch.endBlockNumber = epoch.startBlockNumber;
     } else {
       epoch.requestEnd = uint64(EROs.length - 1);
-      /* epoch.startBlockNumber = uint64(epoch.startBlockNumber); */
       epoch.endBlockNumber = uint64(epoch.startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + uint64(1))
         .divCeil(MAX_REQUESTS) - 1);
     }
@@ -859,10 +858,14 @@ contract RootChain {
   }
 
   function _prepareToSubmitNRB() internal {
-    uint startBlockNumber = highestBlockNumber[currentFork].add(1);
-
     currentEpoch += 1;
     Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
+
+    uint startBlockNumber = 1;
+
+    if (currentEpoch != 1) {
+      startBlockNumber = epochs[currentFork][currentEpoch - 1].endBlockNumber + 1;
+    }
 
     epoch.initialized = true;
     epoch.startBlockNumber = uint64(startBlockNumber);
@@ -876,13 +879,12 @@ contract RootChain {
       currentEpoch,
       epoch.startBlockNumber,
       epoch.endBlockNumber,
-      epoch.requestStart,
-      epoch.requestEnd,
-      epoch.isEmpty,
+      0,
+      0,
+      false,
       false,
       false
     );
-
   }
 
   function _prepareToSubmitURB() internal {
