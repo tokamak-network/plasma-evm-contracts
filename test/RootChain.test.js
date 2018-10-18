@@ -197,6 +197,21 @@ contract('RootChain', async ([
     }
   }
 
+  async function logEpochAndBlock (epochNumber) {
+    console.log(`
+      epoch#${currentEpoch} ${await rootchain.epochs(currentFork, epochNumber)}
+      ORBs.length: ${await rootchain.getNumORBs()}
+      `);
+    const [
+      requestStart1, requestEnd1, startBlockNumber1, endBlockNumber1, forkedBlockNumber1, firstRequestBlockId1, limit1, timestamp1, isEmpty1, initialized1, isRequest1, userActivated1, finalized1,
+    ] = await rootchain.epochs(currentFork, epochNumber);
+
+    for (const i of range(startBlockNumber1.toNumber(), endBlockNumber1.toNumber() + 1)) {
+      console.log(`
+        block#${i} ${await rootchain.blocks(currentFork, i)}`);
+    }
+  }
+
   const testEpochsWithoutRequest = (NRBEPochNumber) => {
     const ORBEPochNumber = NRBEPochNumber + 1;
 
@@ -211,6 +226,8 @@ contract('RootChain', async ([
     it(`next empty ORB epoch#${ORBEPochNumber} should be prepared`, async () => {
       // submits `NRBEpochLength` NRBs
       await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
+      await logEpochAndBlock(currentEpoch - 1);
+      await logEpochAndBlock(currentEpoch);
 
       // because no ERO, ORB epoch is empty
       currentEpoch += 2;
@@ -240,10 +257,13 @@ contract('RootChain', async ([
 
     it(`NRBEpoch#${NRBEPochNumber}: user can make a enter request`, async () => {
       (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
+      const numORBs = await rootchain.getNumORBs();
 
       await Promise.all(others.map(other =>
         rootchain.startEnter(other, emptyBytes32, emptyBytes32, { from: other, value: etherAmount })
       ));
+
+      (await rootchain.getNumORBs()).should.be.bignumber.equal(numORBs.add(1));
 
       numRequests += others.length;
 
@@ -252,6 +272,7 @@ contract('RootChain', async ([
 
     it(`NRBEpoch#${NRBEPochNumber}: operator submits NRBs`, async () => {
       await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
+      await logEpochAndBlock(currentEpoch);
 
       currentEpoch += 1;
       await checkEpochNumber();
@@ -261,8 +282,9 @@ contract('RootChain', async ([
     });
 
     it(`ORBEpoch#${ORBEPochNumber}: operator submits ORBs`, async () => {
-      const [requestStart, requestEnd, startBlockNumber, endBlockNumber, forkedBlockNumber, isEmpty, initialized, isRequest, userActivated, finalized] =
-        await rootchain.getEpoch(currentFork, currentEpoch);
+      const [requestStart, requestEnd, startBlockNumber, endBlockNumber, forkedBlockNumber, firstRequestBlockId, limit, timestamp, isEmpty, initialized, isRequest, userActivated, finalized] =
+        await rootchain.epochs(currentFork, currentEpoch);
+      await logEpochAndBlock(currentEpoch);
 
       const numORBs = endBlockNumber.sub(startBlockNumber).add(1);
       await Promise.all(range(numORBs).map(submitDummyORB));
@@ -289,12 +311,22 @@ contract('RootChain', async ([
   const testEpochsWithExitRequest = (NRBEPochNumber) => {
     const ORBEPochNumber = NRBEPochNumber + 1;
 
+    before(async () => {
+      console.log(`
+        epoch#${currentEpoch - 1} ${await rootchain.epochs(currentFork, currentEpoch - 1)}
+        epoch#${currentEpoch} ${await rootchain.epochs(currentFork, currentEpoch)}
+        `);
+    });
+
     it(`NRBEpoch#${NRBEPochNumber}: user can make a enter request`, async () => {
       (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
+      const numORBs = await rootchain.getNumORBs();
 
       await Promise.all(others.map(other =>
         rootchain.startEnter(other, emptyBytes32, emptyBytes32, { from: other, value: etherAmount })
       ));
+
+      (await rootchain.getNumORBs()).should.be.bignumber.equal(numORBs.add(1));
 
       numRequests += others.length;
 
@@ -325,8 +357,8 @@ contract('RootChain', async ([
     });
 
     it(`ORBEpoch#${ORBEPochNumber}: operator submits ORBs`, async () => {
-      const [requestStart, requestEnd, startBlockNumber, endBlockNumber, forkedBlockNumber, isEmpty, initialized, isRequest, userActivated, finalized] =
-        await rootchain.getEpoch(currentFork, currentEpoch);
+      const [requestStart, requestEnd, startBlockNumber, endBlockNumber, forkedBlockNumber, firstRequestBlockId, limit, timestamp, isEmpty, initialized, isRequest, userActivated, finalized] =
+        await rootchain.epochs(currentFork, currentEpoch);
 
       const numORBs = endBlockNumber.sub(startBlockNumber).add(1);
       await Promise.all(range(numORBs).map(submitDummyORB));

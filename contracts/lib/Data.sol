@@ -41,8 +41,9 @@ library Data {
                                 // required for URB / ORB
 
     bool isEmpty;               // true if request epoch has no request block
-                                // and requestStart == requestEnd == previousEpoch.requestEnd
-                                //     startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
+                                // and also requestStart == requestEnd == previousEpoch.requestEnd
+                                //          startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
+                                //          firstRequestBlockId == previousEpoch.firstRequestBlockId
 
     bool initialized;           // true if epoch is initialized
     bool isRequest;             // true in case of URB / ORB
@@ -53,7 +54,7 @@ library Data {
   }
 
   function getNumBlocks(Epoch _e) internal returns (uint) {
-    if (_e.startBlockNumber == _e.endBlockNumber) return 0;
+    if (_e.isEmpty) return 0;
     return _e.endBlockNumber - _e.startBlockNumber + 1;
   }
 
@@ -90,13 +91,15 @@ library Data {
   }
 
   struct PlasmaBlock {
+    uint64 forkNumber;
+    uint64 epochNumber;
+    uint64 requestBlockId;    // id of RequestBlock[]
+    uint64 timestamp;
+
     bytes32 statesRoot;
     bytes32 transactionsRoot;
     bytes32 intermediateStatesRoot;
-    uint64 forkNumber;
-    uint64 epochNumber;
-    uint64 timestamp;
-    uint64 requestBlockId;    // id of RequestBlock[]
+
     bool isRequest;           // true in case of URB & ORB
     bool userActivated;       // true in case of URB
     bool challenged;          // true if it is challenged
@@ -199,6 +202,7 @@ library Data {
     bool submitted;              // true if no more request can be inserted
                               // because epoch is initialized
 
+    uint64 epochNumber;       // non request epoch number where the request is created
     uint64 requestStart;      // first request id
     uint64 requestEnd;        // last request id
     address trie;             // patricia tree contract address
