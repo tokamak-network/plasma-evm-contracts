@@ -133,6 +133,7 @@ contract RootChain {
     uint weiAmount,
     bytes32 trieKey,
     bytes32 trieValue,
+    bool isTransfer,
     bool isExit,
     bool userActivated
   );
@@ -435,6 +436,7 @@ contract RootChain {
    * Public Functions
    */
   function startExit(
+    bool _isTransfer,
     address _to,
     bytes32 _trieKey,
     bytes32 _trieValue
@@ -446,13 +448,14 @@ contract RootChain {
   {
     uint requestId;
     uint weiAmount;
-    (requestId, weiAmount) = _storeRequest(EROs, ORBs, _to, _trieKey, _trieValue, true, false);
+    (requestId, weiAmount) = _storeRequest(EROs, ORBs, _isTransfer, _to, _trieKey, _trieValue, true, false);
 
-    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, true, false);
+    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, _isTransfer, true, false);
     return true;
   }
 
   function startEnter(
+    bool _isTransfer,
     address _to,
     bytes32 _trieKey,
     bytes32 _trieValue
@@ -463,13 +466,14 @@ contract RootChain {
   {
     uint requestId;
     uint weiAmount;
-    (requestId, weiAmount) = _storeRequest(EROs, ORBs, _to, _trieKey, _trieValue, false, false);
+    (requestId, weiAmount) = _storeRequest(EROs, ORBs, _isTransfer, _to, _trieKey, _trieValue, false, false);
 
-    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, false, false);
+    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, _isTransfer, false, false);
     return true;
   }
 
   function makeERU(
+    bool _isTransfer,
     address _to,
     bytes32 _trieKey,
     bytes32 _trieValue
@@ -480,9 +484,9 @@ contract RootChain {
   {
     uint requestId;
     uint weiAmount;
-    (requestId, weiAmount) = _storeRequest(ERUs, URBs, _to, _trieKey, _trieValue, true, true);
+    (requestId, weiAmount) = _storeRequest(ERUs, URBs, _isTransfer, _to, _trieKey, _trieValue, true, true);
 
-    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, true, true);
+    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, _isTransfer, true, true);
     return true;
   }
 
@@ -541,9 +545,7 @@ contract RootChain {
 
       lastAppliedERU = requestId + 1;
 
-      if (ERU.isExit && !ERU.applied) {
-        ERU.applied = true;
-
+      if (ERU.isExit) {
         // NOTE: do not check it reverted or not?
         ERU.applyRequestInRootChain(requestId);
       }
@@ -572,9 +574,7 @@ contract RootChain {
 
     lastAppliedERO = requestId + 1;
 
-    if (ERO.isExit && !ERO.applied) {
-      ERO.applied = true;
-
+    if (ERO.isExit) {
       // NOTE: do not check it reverted or not?
       ERO.applyRequestInRootChain(requestId);
     }
@@ -601,17 +601,6 @@ contract RootChain {
    */
   function forked(uint _forkNumber) public returns (bool result) {
     return _forkNumber != currentFork;
-  }
-
-  /**
-   * @notice return true if the request is applied
-   */
-  function getRequestApplied(uint _requestId, bool _userActivated) public view returns (bool applied) {
-    if (_userActivated) {
-      ERUs[_requestId].applied;
-    }
-
-    return EROs[_requestId].applied;
   }
 
   /**
@@ -682,6 +671,7 @@ contract RootChain {
   function _storeRequest(
     Data.Request[] storage _requests,
     Data.RequestBlock[] storage _rbs,
+    bool _isTransfer,
     address _to,
     bytes32 _trieKey,
     bytes32 _trieValue,
@@ -694,9 +684,15 @@ contract RootChain {
     weiAmount = !_isExit ? msg.value :
                 _userActivated ? msg.value.sub(COST_ERU) : msg.value.sub(COST_ERO);
 
+
+    // NOTE: issue
     // check parameters for simple ether transfer and message-call
-    require(_to == msg.sender && weiAmount != 0 && _trieKey == bytes32(0) && _trieValue == bytes32(0) ||
-      requestableContracts[_to] != address(0) && _trieKey != bytes32(0) && _trieValue != bytes32(0));
+    assert(_isTransfer || (requestableContracts[_to] != address(0)));
+
+    if (_isTransfer) {
+      // NOTE: issue
+      require(weiAmount != 0 && _trieKey == bytes32(0) && _trieValue == bytes32(0));
+    }
 
     requestId = _requests.length++;
     Data.Request storage r = _requests[requestId];
@@ -708,15 +704,11 @@ contract RootChain {
     r.trieValue = _trieValue;
     r.timestamp = uint64(block.timestamp);
     r.isExit = _isExit;
+    r.isTransfer = _isTransfer;
 
-    // apply enter request in root chain
-    if (!_isExit) {
-      r.applied = true;
-
-      // apply message-call
-      if (_to != msg.sender) {
-        require(r.applyRequestInRootChain(requestId));
-      }
+    // apply message-call
+    if (!_isExit && !_isTransfer) {
+      assert(r.applyRequestInRootChain(requestId));
     }
 
     uint requestBlockId;
@@ -728,18 +720,18 @@ contract RootChain {
     }
 
     Data.RequestBlock storage rb = _rbs[requestBlockId];
-    rb.init();
 
     // make new RequestBlock
     if (rb.submitted || rb.requestEnd - rb.requestStart + 1 == MAX_REQUESTS) {
       rb = _rbs[_rbs.length++];
       rb.requestStart = uint64(requestId);
-      rb.init();
     }
+
+    rb.init();
 
     rb.requestEnd = uint64(requestId);
 
-    if (_to == msg.sender) {
+    if (_isTransfer) {
       rb.addRequest(r.toChildChainRequest(_to), requestId);
     } else {
       rb.addRequest(r.toChildChainRequest(requestableContracts[_to]), requestId);

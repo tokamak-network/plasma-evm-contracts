@@ -1,6 +1,9 @@
 const { range } = require('lodash');
 const expectEvent = require('openzeppelin-solidity/test/helpers/expectEvent');
 
+const { padLeft } = require('./helpers/pad');
+const { appendHex } = require('./helpers/appendHex');
+
 const RootChain = artifacts.require('RootChain.sol');
 const RequestableSimpleToken = artifacts.require('RequestableSimpleToken.sol');
 
@@ -53,8 +56,9 @@ contract('RootChain', async ([
     rootchain = await RootChain.deployed();
     token = await RequestableSimpleToken.new();
 
-    await Promise.all(others.map(other => token.mint(other, tokenAmount)));
+    await Promise.all(others.map(other => token.mint(other, tokenAmount.mul(100))));
     await rootchain.mapRequestableContractByOperator(token.address, tokenInChildChain);
+    (await rootchain.requestableContracts(token.address)).should.be.equal(tokenInChildChain);
 
     // read parameters
     MAX_REQUESTS = await rootchain.MAX_REQUESTS();
@@ -171,32 +175,35 @@ contract('RootChain', async ([
     }
 
     for (const requestId of range(requestIdToApply, numRequests)) {
-      const [ , isExit, applied1, finalized1, , value, requestor, to, , ] = await rootchain.EROs(requestId);
+      const [timestamp1, isExit1, isTransfer1, finalized1, challenged1, value1, requestor1, to1, trieKey1, trieValue1] = await rootchain.EROs(requestId);
 
-      if (!isExit) {
-        applied1.should.be.equal(true);
-      }
       finalized1.should.be.equal(false);
 
-      const etherAmount1 = await web3.eth.getBalance(to);
+      const etherAmount1 = await web3.eth.getBalance(to1);
+      const tokenAmount1 = await token.balances(to1);
 
       const e = await expectEvent.inTransaction(rootchain.applyRequest(), 'RequestFinalized');
 
-      const [ , , applied2, finalized2, , , , , , ] = await rootchain.EROs(requestId);
+      const [timestamp2, isExit2, isTransfer2, finalized2, challenged2, value2, requestor2, to2, trieKey2, trieValue2] = await rootchain.EROs(requestId);
 
-      applied2.should.be.equal(true);
       finalized2.should.be.equal(true);
 
-      const etherAmount2 = await web3.eth.getBalance(to);
+      const etherAmount2 = await web3.eth.getBalance(to1);
+      const tokenAmount2 = await token.balances(to1);
 
-      if (isExit) {
-        etherAmount2.should.be.bignumber.equal(etherAmount1.add(value));
+      if (isExit1) {
+        if (isTransfer1) {
+          etherAmount2.should.be.bignumber.equal(etherAmount1.add(value1));
+        } else {
+          tokenAmount2.should.be.bignumber.equal(tokenAmount1.add(parseInt(trieValue1, 16)));
+        }
       }
       requestIdToApply = e.args.requestId.toNumber() + 1;
     }
   }
 
   async function logEpochAndBlock (epochNumber) {
+    return;
     console.log(`
       epoch#${currentEpoch} ${await rootchain.epochs(currentFork, epochNumber)}
       ORBs.length: ${await rootchain.getNumORBs()}
@@ -254,15 +261,40 @@ contract('RootChain', async ([
       await checkEpoch(currentEpoch);
     });
 
-    it(`NRBEpoch#${NRBEPochNumber}: user can make a enter request`, async () => {
+    it(`NRBEpoch#${NRBEPochNumber}: user can make an enter request for ether deposit`, async () => {
+      const isTransfer = true;
+
       (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
       const numORBs = await rootchain.getNumORBs();
 
       await Promise.all(others.map(other =>
-        rootchain.startEnter(other, emptyBytes32, emptyBytes32, { from: other, value: etherAmount })
+        rootchain.startEnter(isTransfer, other, emptyBytes32, emptyBytes32, { from: other, value: etherAmount })
       ));
 
       (await rootchain.getNumORBs()).should.be.bignumber.equal(numORBs.add(1));
+
+      numRequests += others.length;
+
+      (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
+    });
+
+    it(`NRBEpoch#${NRBEPochNumber}: user can make an enter request for token deposit`, async () => {
+      const isTransfer = false;
+
+      (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
+      const numORBs = await rootchain.getNumORBs();
+
+      for (const other of others) {
+        const trieKey = calcTrieKey(other);
+        const trieValue = padLeft(web3.fromDecimal(tokenAmount));
+
+        (await token.getBalanceTrieKey(other)).should.be.equals(trieKey);
+
+        const tokenBalance1 = await token.balances(other);
+        await rootchain.startEnter(isTransfer, token.address, trieKey, trieValue, { from: other });
+
+        (await token.balances(other)).should.be.bignumber.equal(tokenBalance1.sub(tokenAmount));
+      }
 
       numRequests += others.length;
 
@@ -317,12 +349,14 @@ contract('RootChain', async ([
         `);
     });
 
-    it(`NRBEpoch#${NRBEPochNumber}: user can make a enter request`, async () => {
+    it(`NRBEpoch#${NRBEPochNumber}: user can make an exit request for ether withdrawal `, async () => {
+      const isTransfer = true;
+
       (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
       const numORBs = await rootchain.getNumORBs();
 
       await Promise.all(others.map(other =>
-        rootchain.startEnter(other, emptyBytes32, emptyBytes32, { from: other, value: etherAmount })
+        rootchain.startExit(other, emptyBytes32, emptyBytes32, isTransfer, { from: other, value: etherAmount })
       ));
 
       (await rootchain.getNumORBs()).should.be.bignumber.equal(numORBs.add(1));
@@ -332,13 +366,15 @@ contract('RootChain', async ([
       (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
     });
 
-    it(`NRBEpoch#${NRBEPochNumber}: user can make a exit request`, async () => {
+    it(`NRBEpoch#${NRBEPochNumber}: user can make an exit request for token withdrawal`, async () => {
+      const isTransfer = false;
+
       const exitAmount = etherAmount.add(COST_ERO);
 
       (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
 
       await Promise.all(others.map(other =>
-        rootchain.startExit(other, emptyBytes32, emptyBytes32, { from: other, value: exitAmount })
+        rootchain.startExit(token.address, emptyBytes32, emptyBytes32, isTransfer, { from: other, value: exitAmount })
       ));
 
       numRequests += others.length;
@@ -429,4 +465,8 @@ function timeout (sec) {
   return new Promise((resolve) => {
     setTimeout(resolve, sec);
   });
+}
+
+function calcTrieKey (addr) {
+  return web3.sha3(appendHex(padLeft(addr), padLeft('0x02')), { encoding: 'hex' });
 }

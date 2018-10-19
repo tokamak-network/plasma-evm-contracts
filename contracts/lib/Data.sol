@@ -110,7 +110,7 @@ library Data {
   struct Request {
     uint64 timestamp;
     bool isExit;
-    bool applied;             // true if request is applied
+    bool isTransfer;
     bool finalized;           // true if request is finalized
     bool challenged;
     uint128 value;            // ether amount in wei
@@ -129,7 +129,7 @@ library Data {
   {
     // TODO: ignore transfer or applyRequestInRootChain?
 
-    if (self.requestor == self.to) {
+    if (self.isTransfer) {
       self.to.transfer(self.value);
       return true;
     }
@@ -148,6 +148,7 @@ library Data {
     address _to
   )
     internal
+    pure
     returns (Request memory out)
   {
     out.isExit = self.isExit;
