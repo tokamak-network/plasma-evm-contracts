@@ -94,7 +94,6 @@ contract('RootChain', async ([
         endBlockNumber1.should.be.bignumber.equal(startBlockNumber1);
       } else {
         startBlockNumber1.should.be.bignumber.equal(NRBEpochLength.add(1));
-        endBlockNumber1.should.be.bignumber.equal(startBlockNumber1.add(NRBEpochLength).sub(1));
       }
       isRequest1.should.be.equal(true);
     } else if (epochNumber > 2 && isRequest1) { // later request epochs
