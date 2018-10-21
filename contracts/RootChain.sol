@@ -225,14 +225,6 @@ contract RootChain {
    * @notice map requestable contract in child chain
    * NOTE: only operator?
    */
-  function mapRequestableContract(address _target) external returns (bool success) {
-    require(msg.sender.isContract());
-    require(requestableContracts[msg.sender] == address(0));
-
-    requestableContracts[msg.sender] = _target;
-    return true;
-  }
-
   function mapRequestableContractByOperator(address _rootchain, address _childchain)
     external
     onlyOperator
@@ -251,6 +243,14 @@ contract RootChain {
 
   function getNumORBs() external view returns (uint) {
     return ORBs.length;
+  }
+
+  function getEROBytes(uint _requestId) public view returns (bytes memory out) {
+    Data.Request storage ERO = EROs[_requestId];
+
+    return ERO.toChildChainRequest(requestableContracts[ERO.to])
+      .toTX(_requestId, false)
+      .toBytes();
   }
 
   /**
@@ -581,18 +581,6 @@ contract RootChain {
     ERO.finalized = true;
 
     emit RequestFinalized(requestId, false);
-    return true;
-  }
-
-
-  /**
-   * @notice finalize last Enter or Exit request. this returns the bond in both of
-   *         request types. For exit request, this calls applyRequestInRootChain
-   *         function of the requestable contract in root chain.
-   */
-  function finalizeRequest() public returns (bool success) {
-
-
     return true;
   }
 

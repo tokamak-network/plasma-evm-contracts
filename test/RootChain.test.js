@@ -15,7 +15,7 @@ const BigNumber = web3.BigNumber;
 
 const etherAmount = new BigNumber(10e18);
 const tokenAmount = new BigNumber(10e18);
-const emptyBytes32 = '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000';
+const emptyBytes32 = 0;
 
 // genesis block merkle roots
 const statesRoot = '0x0ded2f89db1e11454ba4ba90e31850587943ed4a412f2ddf422bd948eae8b164';
@@ -267,9 +267,17 @@ contract('RootChain', async ([
       (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
       const numORBs = await rootchain.getNumORBs();
 
-      await Promise.all(others.map(other =>
-        rootchain.startEnter(isTransfer, other, emptyBytes32, emptyBytes32, { from: other, value: etherAmount })
-      ));
+      const txs = await Promise.all(others.map(async other => {
+        const tx = await rootchain.startEnter(isTransfer, other, emptyBytes32, emptyBytes32, { from: other, value: etherAmount });
+
+        const requestId = tx.logs[0].args.requestId;
+        const requestTxRLPBytes = await rootchain.getEROBytes(requestId);
+
+        // TODO: check the RLP encoded bytes
+        requestTxRLPBytes.slice(2, 4).toLowerCase().should.be.equal('ec');
+
+        return tx;
+      }));
 
       (await rootchain.getNumORBs()).should.be.bignumber.equal(numORBs.add(1));
 

@@ -21,7 +21,7 @@ library Data {
   bytes4 public constant APPLY_IN_ROOTCHAIN_SIGNATURE = 0xd9afd3a9;
 
   address public constant NA = address(0);
-  uint public constant NA_TX_GAS_PRICE = 1;
+  uint public constant NA_TX_GAS_PRICE = 1e9;
   uint public constant NA_TX_GAS_LIMIT = 100000;
 
   struct Epoch {
@@ -53,7 +53,7 @@ library Data {
     bool finalized;             // true if it is successfully finalized
   }
 
-  function getNumBlocks(Epoch _e) internal returns (uint) {
+  function getNumBlocks(Epoch memory _e) internal pure returns (uint) {
     if (_e.isEmpty) return 0;
     return _e.endBlockNumber - _e.startBlockNumber + 1;
   }
@@ -62,7 +62,7 @@ library Data {
    * @notice This returns the request block number if the request is included
    *         in an epoch. Otherwise, returns 0.
    */
-  function getBlockNumber(Epoch _e, uint _requestId) internal returns (uint) {
+  function getBlockNumber(Epoch memory _e, uint _requestId) internal pure returns (uint) {
     if (!_e.isRequest
       || _e.limit == 0
       || _e.requestStart < _requestId
@@ -75,7 +75,11 @@ library Data {
   }
 
 
-  function getRequestRange(Epoch _e, uint _blockNumber, uint _limit) internal returns (uint requestStart, uint requestEnd) {
+  function getRequestRange(Epoch memory _e, uint _blockNumber, uint _limit)
+    internal
+    pure
+    returns (uint requestStart, uint requestEnd)
+  {
     require(_e.isRequest);
     require(_blockNumber >= _e.startBlockNumber && _blockNumber <= _e.endBlockNumber);
 
@@ -152,12 +156,17 @@ library Data {
     returns (Request memory out)
   {
     out.isExit = self.isExit;
+    out.isTransfer = self.isTransfer;
     out.requestor = self.requestor;
     out.value = self.value;
     out.trieKey = self.trieKey;
     out.trieValue = self.trieValue;
 
-    out.to = _to;
+    if (out.isTransfer) {
+      out.to = self.to;
+    } else {
+      out.to = _to;
+    }
   }
 
   /**
@@ -169,15 +178,20 @@ library Data {
     bool _rootchain
   )
     internal
+    pure
     returns (bytes memory out)
   {
+    if (self.isTransfer) {
+      return;
+    }
+
     bytes8 funcSig = _rootchain ? APPLY_IN_ROOTCHAIN_SIGNATURE : APPLY_IN_CHILDCHAIN_SIGNATURE;
 
     out = abi.encodePacked(
       funcSig,
-      self.isExit,
+      bytes32(uint(self.isExit ? 1 : 0)),
       _requestId,
-      self.requestor,
+      bytes32(self.requestor),
       self.trieKey,
       self.trieValue
     );
@@ -192,10 +206,13 @@ library Data {
     bool _rootchain
   )
     internal
+    pure
     returns (TX memory out)
   {
     out.gasPrice = NA_TX_GAS_PRICE;
     out.gasLimit = uint64(NA_TX_GAS_LIMIT);
+    out.to = self.to;
+    out.value = self.value;
     out.data = getData(self, _requestId, _rootchain);
   }
 
@@ -210,7 +227,7 @@ library Data {
     bytes32 transactionsRoot; // duplicated?
   }
 
-  function getInitialized(RequestBlock memory self) internal pure returns (bool){
+  function getInitialized(RequestBlock memory self) internal pure returns (bool) {
     return self.trie != address(0);
   }
 
@@ -227,14 +244,9 @@ library Data {
   ) internal {
     require(self.trie != address(0));
 
-    // TODO: check if txIndex is left-padded 32 bytes
-    bytes memory key = new bytes(32);
     uint txIndex = _requestId.sub(self.requestStart);
 
-    assembly {
-      mstore(add(key, 0x20), txIndex)
-    }
-
+    bytes memory key = txIndex.encodeUint();
     bytes memory value = toBytes(toTX(_request, _requestId, false));
 
     PatriciaTree(self.trie).insert(key, value);
