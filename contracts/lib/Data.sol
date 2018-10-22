@@ -5,7 +5,8 @@ import "./SafeMath.sol";
 import "./Math.sol";
 import "./RLP.sol";
 import "./RLPEncode.sol";
-import "../patricia_tree/PatriciaTree.sol";
+
+// import "../patricia_tree/PatriciaTree.sol"; // use binary merkle tree
 import {RequestableContractI} from "../RequestableContractI.sol";
 
 library Data {
@@ -122,6 +123,7 @@ library Data {
     address to;               // requestable contract in root chain
     bytes32 trieKey;
     bytes32 trieValue;
+    bytes32 hash;             // keccak256 hash of request transaction (in plasma chain)
   }
 
   function applyRequestInRootChain(
@@ -224,24 +226,25 @@ library Data {
     uint64 requestStart;      // first request id
     uint64 requestEnd;        // last request id
     address trie;             // patricia tree contract address
-    bytes32 transactionsRoot; // duplicated?
-  }
-
-  function getInitialized(RequestBlock memory self) internal pure returns (bool) {
-    return self.trie != address(0);
   }
 
   function init(RequestBlock storage self) internal {
+    /* use binary merkle tree instead of patricia tree
     if (self.trie == address(0)) {
       self.trie = new PatriciaTree();
     }
+     */
   }
 
   function addRequest(
     RequestBlock storage self,
-    Request memory _request, // should be child chain request
+    Request storage _rootchainRequest,  // request in root chain
+    Request memory _childchainRequest,  // request in child chain
     uint _requestId
   ) internal {
+    _rootchainRequest.hash = hash(toTX(_childchainRequest, _requestId, false));
+
+    /* use binary merkle tree instead of patricia tree
     require(self.trie != address(0));
 
     uint txIndex = _requestId.sub(self.requestStart);
@@ -251,6 +254,7 @@ library Data {
 
     PatriciaTree(self.trie).insert(key, value);
     self.transactionsRoot = PatriciaTree(self.trie).getRootHash();
+     */
   }
 
   /*

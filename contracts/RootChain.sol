@@ -4,6 +4,7 @@ import "./lib/SafeMath.sol";
 import "./lib/Math.sol";
 import "./lib/Data.sol";
 import "./lib/Address.sol";
+import "./lib/BMT.sol";
 import "./patricia_tree/PatriciaTreeFace.sol";
 
 
@@ -13,6 +14,7 @@ contract RootChain {
   using Math for *;
   using Data for *;
   using Address for address;
+  using BMT for *;
 
   enum State {
     AcceptingNRB,
@@ -335,7 +337,20 @@ contract RootChain {
 
     if (!development) {
       Data.RequestBlock storage ORB = ORBs[blocks[currentFork][blockNumber].requestBlockId];
+      uint s = ORB.requestStart;
+      uint e = ORB.requestEnd;
+
+      bytes32[] memory hashes = new bytes32[](e - s + 1);
+      for (uint i = s; i <= e; i++) {
+        hashes[i - s] = EROs[i].hash;
+      }
+
+      require(hashes.getRoot() == _transactionsRoot);
+
+      /* use binary merkle tree instead of patricia tree
+      Data.RequestBlock storage ORB = ORBs[blocks[currentFork][blockNumber].requestBlockId];
       require(_transactionsRoot == ORB.transactionsRoot);
+       */
     }
 
     if (blockNumber == epoch.endBlockNumber) {
@@ -720,9 +735,9 @@ contract RootChain {
     rb.requestEnd = uint64(requestId);
 
     if (_isTransfer) {
-      rb.addRequest(r.toChildChainRequest(_to), requestId);
+      rb.addRequest(r, r.toChildChainRequest(_to), requestId);
     } else {
-      rb.addRequest(r.toChildChainRequest(requestableContracts[_to]), requestId);
+      rb.addRequest(r, r.toChildChainRequest(requestableContracts[_to]), requestId);
     }
   }
 
