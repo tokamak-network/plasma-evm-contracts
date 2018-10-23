@@ -364,7 +364,7 @@ contract('RootChain', async ([
       const numORBs = await rootchain.getNumORBs();
 
       await Promise.all(others.map(other =>
-        rootchain.startExit(other, emptyBytes32, emptyBytes32, isTransfer, { from: other, value: etherAmount })
+        rootchain.startExit(isTransfer, other, etherAmount, emptyBytes32, emptyBytes32, { from: other, value: COST_ERU })
       ));
 
       (await rootchain.getNumORBs()).should.be.bignumber.equal(numORBs.add(1));
@@ -382,7 +382,7 @@ contract('RootChain', async ([
       (await rootchain.getNumEROs()).should.be.bignumber.equal(numRequests);
 
       await Promise.all(others.map(other =>
-        rootchain.startExit(token.address, emptyBytes32, emptyBytes32, isTransfer, { from: other, value: exitAmount })
+        rootchain.startExit(isTransfer, token.address, 0, emptyBytes32, emptyBytes32, { from: other, value: COST_ERU })
       ));
 
       numRequests += others.length;
@@ -421,16 +421,18 @@ contract('RootChain', async ([
 
       (await rootchain.lastFinalizedBlock(currentFork)).should.be.bignumber.gt(lastFinalizedBlock);
     });
+
+    it('should finalize requests', applyRequests);
   };
 
   describe('Epoch#1', () => {
     const epochNumber = 1;
-    testEpochsWithoutRequest(epochNumber);
+    testEpochsWithRequest(epochNumber);
   });
 
   describe('Epoch#3', () => {
     const epochNumber = 3;
-    testEpochsWithoutRequest(epochNumber);
+    testEpochsWithExitRequest(epochNumber);
   });
 
   describe('Epoch#5', () => {

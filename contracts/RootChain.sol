@@ -453,6 +453,7 @@ contract RootChain {
   function startExit(
     bool _isTransfer,
     address _to,
+    uint _value,
     bytes32 _trieKey,
     bytes32 _trieValue
   )
@@ -462,8 +463,8 @@ contract RootChain {
     returns (bool success)
   {
     uint requestId;
-    uint weiAmount;
-    (requestId, weiAmount) = _storeRequest(EROs, ORBs, _isTransfer, _to, _trieKey, _trieValue, true, false);
+    uint weiAmount = _value - COST_ERO;
+    requestId = _storeRequest(EROs, ORBs, _isTransfer, _to, weiAmount, _trieKey, _trieValue, true, false);
 
     emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, _isTransfer, true, false);
     return true;
@@ -480,8 +481,8 @@ contract RootChain {
     returns (bool success)
   {
     uint requestId;
-    uint weiAmount;
-    (requestId, weiAmount) = _storeRequest(EROs, ORBs, _isTransfer, _to, _trieKey, _trieValue, false, false);
+    uint weiAmount = msg.value;
+    requestId = _storeRequest(EROs, ORBs, _isTransfer, _to, weiAmount, _trieKey, _trieValue, false, false);
 
     emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, _isTransfer, false, false);
     return true;
@@ -498,8 +499,8 @@ contract RootChain {
     returns (bool success)
   {
     uint requestId;
-    uint weiAmount;
-    (requestId, weiAmount) = _storeRequest(ERUs, URBs, _isTransfer, _to, _trieKey, _trieValue, true, true);
+    uint weiAmount = msg.value - COST_ERU;
+    requestId = _storeRequest(ERUs, URBs, _isTransfer, _to, weiAmount, _trieKey, _trieValue, true, true);
 
     emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, _isTransfer, true, true);
     return true;
@@ -676,32 +677,29 @@ contract RootChain {
     Data.RequestBlock[] storage _rbs,
     bool _isTransfer,
     address _to,
+    uint _weiAmount,
     bytes32 _trieKey,
     bytes32 _trieValue,
     bool _isExit,
     bool _userActivated
   )
     internal
-    returns (uint requestId, uint weiAmount)
+    returns (uint requestId)
   {
-    weiAmount = !_isExit ? msg.value :
-                _userActivated ? msg.value.sub(COST_ERU) : msg.value.sub(COST_ERO);
-
-
     // NOTE: issue
     // check parameters for simple ether transfer and message-call
     assert(_isTransfer || (requestableContracts[_to] != address(0)));
 
     if (_isTransfer) {
       // NOTE: issue
-      require(weiAmount != 0 && _trieKey == bytes32(0) && _trieValue == bytes32(0));
+      require(_weiAmount != 0 && _trieKey == bytes32(0) && _trieValue == bytes32(0));
     }
 
     requestId = _requests.length++;
     Data.Request storage r = _requests[requestId];
 
     r.requestor = msg.sender;
-    r.value = uint128(weiAmount);
+    r.value = uint128(_weiAmount);
     r.to = _to;
     r.trieKey = _trieKey;
     r.trieValue = _trieValue;
