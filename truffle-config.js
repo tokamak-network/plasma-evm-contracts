@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const providerUrl = 'http://localhost:8545';
+// const providerUrl = 'http://localhost:8545';
 
 module.exports = {
   networks: {

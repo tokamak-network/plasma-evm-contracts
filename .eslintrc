@@ -20,10 +20,10 @@
   },
   "rules": {
 
-    // Strict mode
+    "_comment_1_": "Strict mode",
     "strict": ["error", "global"],
 
-    // Code style
+    "_comment_2_": "Code style",
     "camelcase": ["error", {"properties": "always"}],
     "comma-dangle": ["warn", "always-multiline"],
     "comma-spacing": ["error", {"before": false, "after": true}],
@@ -51,5 +51,8 @@
 
     "promise/always-return": "off",
     "promise/avoid-new": "off",
+
+    "_comment_3_": "this is bad, but unused variable is too many",
+    "no-unused-vars": "off"
   }
 }
