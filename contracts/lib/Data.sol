@@ -187,7 +187,7 @@ library Data {
       return;
     }
 
-    bytes8 funcSig = _rootchain ? APPLY_IN_ROOTCHAIN_SIGNATURE : APPLY_IN_CHILDCHAIN_SIGNATURE;
+    bytes4 funcSig = _rootchain ? APPLY_IN_ROOTCHAIN_SIGNATURE : APPLY_IN_CHILDCHAIN_SIGNATURE;
 
     out = abi.encodePacked(
       funcSig,

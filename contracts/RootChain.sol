@@ -463,7 +463,7 @@ contract RootChain {
     returns (bool success)
   {
     uint requestId;
-    uint weiAmount = _value - COST_ERO;
+    uint weiAmount = _value;
     requestId = _storeRequest(EROs, ORBs, _isTransfer, _to, weiAmount, _trieKey, _trieValue, true, false);
 
     emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, _isTransfer, true, false);
