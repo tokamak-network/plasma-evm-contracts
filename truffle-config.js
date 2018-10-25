@@ -11,6 +11,13 @@ module.exports = {
       gasPrice: 1e9,
       network_id: '*', // eslint-disable-line camelcase
     },
+    plasma: {
+      host: 'localhost',
+      port: 8547,
+      gas: 7500000,
+      gasPrice: 1e9,
+      network_id: '*', // eslint-disable-line camelcase
+    },
   //   ropsten: {
   //     provider: ropstenProvider,
   //     network_id: 3, // eslint-disable-line camelcase
