@@ -219,7 +219,7 @@ library Data {
   }
 
   struct RequestBlock {
-    bool submitted;              // true if no more request can be inserted
+    bool submitted;           // true if no more request can be inserted
                               // because epoch is initialized
 
     uint64 epochNumber;       // non request epoch number where the request is created

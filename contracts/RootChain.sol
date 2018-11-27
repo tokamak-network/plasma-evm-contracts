@@ -409,8 +409,49 @@ contract RootChain {
    * @notice Computation verifier contract reverts the block in case of wrong
    *         computation.
    */
-  function revertBlock(uint _forkNumber, uint _blockNumber) external {
+  /* function revertBlock(uint _forkNumber, uint _blockNumber) external {
     // TODO: make a new fork?
+  } */
+
+  function challengeExit(
+    uint _forkNumber,
+    uint _blockNumber,
+    uint _index,
+    bytes _receiptData,
+    bytes _receiptProof
+  ) external {
+    Data.PlasmaBlock storage pb = blocks[_forkNumber][_blockNumber];
+    require(pb.isRequest);
+    require(pb.finalized);
+
+    if (pb.userActivated) {
+      _doChallengeExit(pb, URBs[pb.requestBlockId], ERUs, _index, _receiptData, _receiptProof);
+      // TODO: dynamic cost for ERU
+      msg.sender.transfer(COST_ERU);
+    } else {
+      _doChallengeExit(pb, ORBs[pb.requestBlockId], EROs,_index, _receiptData, _receiptProof);
+      msg.sender.transfer(COST_ERO);
+    }
+  }
+
+  function _doChallengeExit(
+    Data.PlasmaBlock storage _pb,
+    Data.RequestBlock storage _rb,
+    Data.Request[] storage _rs,
+    uint _index,
+    bytes _receiptData,
+    bytes _proof
+  ) internal {
+    uint requestId = _rb.requestStart + _index;
+    require(requestId <= _rb.requestEnd);
+
+    bytes32 leaf = keccak256(_receiptData);
+
+    require(_receiptData.toReceiptStatus() == 1);
+    require(BMT.checkMembership(leaf, _index, _pb.receiptsRoot, _proof));
+
+    Data.Request storage r = _rs[requestId];
+    r.challenged = true;
   }
 
   /**
@@ -438,7 +479,7 @@ contract RootChain {
       trie = PatriciaTreeFace(ORBs[pb.requestBlockId].trie);
     }
 
-    Data.TX memory txData = Data.fromBytes(_txByte);
+    Data.TX memory txData = Data.toTX(_txByte);
     require(txData.isNATX());
 
     // TODO: use patricia verify library
@@ -603,7 +644,7 @@ contract RootChain {
   /**
    * @notice return true if the chain is forked by URB
    */
-  function forked(uint _forkNumber) public returns (bool result) {
+  function forked(uint _forkNumber) public view returns (bool result) {
     return _forkNumber != currentFork;
   }
 
@@ -960,7 +1001,7 @@ contract RootChain {
    * @notice return true if the first block of a request epoch (ORB epoch / URB epoch)
    *         can be finalized.
    */
-  function _checkFinalizable(uint _epochNumber) internal returns (bool) {
+  function _checkFinalizable(uint _epochNumber) internal view returns (bool) {
     // cannot finalize future epoch
     if (_epochNumber > currentEpoch) {
       return false;
