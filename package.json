@@ -33,5 +33,8 @@
     "truffle-privatekey-provider": "^0.1.0",
     "web3-utils": "^1.0.0-beta.34"
   },
-  "dependencies": {}
+  "dependencies": {
+    "chai-bytes": "^0.1.1",
+    "rlp": "^2.1.0"
+  }
 }

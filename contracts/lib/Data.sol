@@ -276,7 +276,7 @@ library Data {
     return self.v == 0 && self.r == 0 && self.s == 0;
   }
 
-  function fromBytes(bytes memory self) internal pure returns (TX memory out) {
+  function toTX(bytes memory self) internal pure returns (TX memory out) {
     RLP.RLPItem[] memory packArr = self.toRLPItem().toList(9);
 
     out.nonce = uint64(packArr[0].toUint());
@@ -339,4 +339,39 @@ library Data {
     bytes memory txBytes = toBytes(self);
     return keccak256(txBytes);
   }
+
+  /*
+   * Transaction Receipt
+   */
+
+  struct Log {
+    address contractAddress;
+    bytes32[] topics;
+    bytes data;
+  }
+
+  struct Receipt {
+    uint64 status;
+    uint64 cumulativeGasUsed;
+    bytes bloom; // 2048 bloom bits, byte[256]
+    Log[] logs;
+  }
+
+  function toReceipt(bytes memory self) internal pure returns (Receipt memory r) {
+    RLP.RLPItem[] memory items = self.toRLPItem().toList(4);
+
+    r.status = uint64(items[0].toUint());
+    r.cumulativeGasUsed = uint64(items[1].toUint());
+    r.bloom = items[2].toBytes();
+
+    // TODO: parse Logs
+    r.logs = new Log[](0);
+  }
+
+  function toReceiptStatus(bytes memory self) internal pure returns (uint) {
+    RLP.RLPItem[] memory items = self.toRLPItem().toList(4);
+    return items[0].toUint();
+  }
+
+
 }
