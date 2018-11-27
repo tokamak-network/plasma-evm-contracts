@@ -103,7 +103,7 @@ library Data {
 
     bytes32 statesRoot;
     bytes32 transactionsRoot;
-    bytes32 intermediateStatesRoot;
+    bytes32 receiptsRoot;
 
     bool isRequest;           // true in case of URB & ORB
     bool userActivated;       // true in case of URB

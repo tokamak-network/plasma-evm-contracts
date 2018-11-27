@@ -20,7 +20,7 @@ const emptyBytes32 = 0;
 // genesis block merkle roots
 const statesRoot = '0x0ded2f89db1e11454ba4ba90e31850587943ed4a412f2ddf422bd948eae8b164';
 const transactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
-const intermediateStatesRoot = '0x000000000000000000000000000000000000000000000000000000000000dead';
+const receiptsRoot = '0x000000000000000000000000000000000000000000000000000000000000dead';
 
 contract('RootChain', async ([
   operator,
@@ -148,7 +148,7 @@ contract('RootChain', async ([
   async function submitDummyNRB () {
     await checkBlockNumber();
 
-    await rootchain.submitNRB(statesRoot, transactionsRoot, intermediateStatesRoot, { value: COST_NRB });
+    await rootchain.submitNRB(statesRoot, transactionsRoot, receiptsRoot, { value: COST_NRB });
     currentBlockNumber += 1;
 
     await checkBlockNumber();
@@ -157,7 +157,7 @@ contract('RootChain', async ([
   async function submitDummyORB () {
     await checkBlockNumber();
 
-    await rootchain.submitORB(statesRoot, transactionsRoot, intermediateStatesRoot, { value: COST_ORB });
+    await rootchain.submitORB(statesRoot, transactionsRoot, receiptsRoot, { value: COST_ORB });
     currentBlockNumber += 1;
 
     await checkBlockNumber();

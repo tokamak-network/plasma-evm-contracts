@@ -196,7 +196,7 @@ contract RootChain {
     // genesis block state
     bytes32 _statesRoot,
     bytes32 _transactionsRoot,
-    bytes32 _intermediateStatesRoot
+    bytes32 _receiptsRoot
   )
     public
   {
@@ -207,7 +207,7 @@ contract RootChain {
     Data.PlasmaBlock storage genesis = blocks[currentFork][0];
     genesis.statesRoot = _statesRoot;
     genesis.transactionsRoot = _transactionsRoot;
-    genesis.intermediateStatesRoot = _intermediateStatesRoot;
+    genesis.receiptsRoot = _receiptsRoot;
 
     // set up the genesis epoch
     epochs[0][0].timestamp = uint64(block.timestamp);
@@ -274,7 +274,7 @@ contract RootChain {
   function submitNRB(
     bytes32 _statesRoot,
     bytes32 _transactionsRoot,
-    bytes32 _intermediateStatesRoot
+    bytes32 _receiptsRoot
   )
     external
     payable
@@ -291,7 +291,7 @@ contract RootChain {
     uint blockNumber = _storeBlock(
       _statesRoot,
       _transactionsRoot,
-      _intermediateStatesRoot,
+      _receiptsRoot,
       false,
       false,
       false
@@ -310,7 +310,7 @@ contract RootChain {
   function submitORB(
     bytes32 _statesRoot,
     bytes32 _transactionsRoot,
-    bytes32 _intermediateStatesRoot
+    bytes32 _receiptsRoot
   )
     external
     payable
@@ -327,7 +327,7 @@ contract RootChain {
     uint blockNumber = _storeBlock(
       _statesRoot,
       _transactionsRoot,
-      _intermediateStatesRoot,
+      _receiptsRoot,
       true,
       false,
       false
@@ -363,7 +363,7 @@ contract RootChain {
   function submitURB(
     bytes32 _statesRoot,
     bytes32 _transactionsRoot,
-    bytes32 _intermediateStatesRoot
+    bytes32 _receiptsRoot
   )
     external
     payable
@@ -376,7 +376,7 @@ contract RootChain {
     uint blockNumber = _storeBlock(
       _statesRoot,
       _transactionsRoot,
-      _intermediateStatesRoot,
+      _receiptsRoot,
       true,
       true,
       firstURB
@@ -625,7 +625,7 @@ contract RootChain {
   function _storeBlock(
     bytes32 _statesRoot,
     bytes32 _transactionsRoot,
-    bytes32 _intermediateStatesRoot,
+    bytes32 _receiptsRoot,
     bool _isRequest,
     bool _userActivated,
     bool _firstURB
@@ -662,7 +662,7 @@ contract RootChain {
 
     b.statesRoot = _statesRoot;
     b.transactionsRoot = _transactionsRoot;
-    b.intermediateStatesRoot = _intermediateStatesRoot;
+    b.receiptsRoot = _receiptsRoot;
     b.timestamp = uint64(block.timestamp);
     b.epochNumber = uint64(currentEpoch);
     b.isRequest = _isRequest;
