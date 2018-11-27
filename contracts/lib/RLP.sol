@@ -14,6 +14,8 @@ library RLP {
     uint constant LIST_LONG_START = 0xF8;
 
     uint constant DATA_LONG_OFFSET = 0xB7;
+    uint constant LIST_LONG_OFFSET = 0xF7;
+
 
 
     struct RLPItem {
@@ -118,6 +120,9 @@ library RLP {
             return 0;
         if (b0 < DATA_LONG_START || (b0 >= LIST_SHORT_START && b0 < LIST_LONG_START))
             return 1;
+        if (b0 < LIST_SHORT_START)
+            return b0 - DATA_LONG_OFFSET + 1;
+        return b0 - LIST_LONG_OFFSET + 1;
     }
 
     // Get the full length of an RLP item.
