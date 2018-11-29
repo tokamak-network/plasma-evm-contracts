@@ -26,7 +26,7 @@ contract RootChain {
   /*
    * Storage
    */
-  bool public development = true; // dev mode
+  bool public development; // dev mode
   address public operator;
   State public state;
 
@@ -151,12 +151,14 @@ contract RootChain {
   event EpochFinalized(
     uint forkNumber,
     uint epochNumber,
-    uint firstBlockNumber,
-    uint lastBlockNumber
+    uint startBlockNumber,
+    uint endBlockNumber
   );
 
   // emit when exit is finalized. _userActivated is true for ERU
   event RequestFinalized(uint requestId, bool userActivated);
+  event RequestApplied(uint requestId, bool userActivated);
+  event RequestChallenged(uint requestId, bool userActivated);
 
   /*
    * Modifier
@@ -418,20 +420,26 @@ contract RootChain {
     uint _blockNumber,
     uint _index,
     bytes _receiptData,
-    bytes _receiptProof
+    bytes _proof
   ) external {
     Data.PlasmaBlock storage pb = blocks[_forkNumber][_blockNumber];
+
     require(pb.isRequest);
     require(pb.finalized);
 
-    if (pb.userActivated) {
-      _doChallengeExit(pb, URBs[pb.requestBlockId], ERUs, _index, _receiptData, _receiptProof);
+    uint requestId;
+    bool userActivated = pb.userActivated;
+
+    if (userActivated) {
+      requestId = _doChallengeExit(pb, URBs[pb.requestBlockId], ERUs, _index, _receiptData, _proof);
       // TODO: dynamic cost for ERU
       msg.sender.transfer(COST_ERU);
     } else {
-      _doChallengeExit(pb, ORBs[pb.requestBlockId], EROs,_index, _receiptData, _receiptProof);
+      requestId = _doChallengeExit(pb, ORBs[pb.requestBlockId], EROs,_index, _receiptData, _proof);
       msg.sender.transfer(COST_ERO);
     }
+
+    emit RequestChallenged(requestId, userActivated);
   }
 
   function _doChallengeExit(
@@ -441,17 +449,24 @@ contract RootChain {
     uint _index,
     bytes _receiptData,
     bytes _proof
-  ) internal {
-    uint requestId = _rb.requestStart + _index;
+  )
+    internal
+    returns (uint requestId)
+  {
+    requestId = _rb.requestStart + _index;
     require(requestId <= _rb.requestEnd);
 
     bytes32 leaf = keccak256(_receiptData);
 
-    require(_receiptData.toReceiptStatus() == 1);
-    require(BMT.checkMembership(leaf, _index, _pb.receiptsRoot, _proof));
+    require(_receiptData.toReceiptStatus() == 0);
+    if (!development) {
+      require(BMT.checkMembership(leaf, _index, _pb.receiptsRoot, _proof));
+    }
 
     Data.Request storage r = _rs[requestId];
     r.challenged = true;
+
+    return;
   }
 
   /**
@@ -492,7 +507,6 @@ contract RootChain {
    * Public Functions
    */
   function startExit(
-    bool _isTransfer,
     address _to,
     uint _value,
     bytes32 _trieKey,
@@ -503,11 +517,13 @@ contract RootChain {
     onlyValidCost(COST_ERO)
     returns (bool success)
   {
+    require(_trieValue != bytes32(0));
+
     uint requestId;
     uint weiAmount = _value;
-    requestId = _storeRequest(EROs, ORBs, _isTransfer, _to, weiAmount, _trieKey, _trieValue, true, false);
+    requestId = _storeRequest(EROs, ORBs, false, _to, weiAmount, _trieKey, _trieValue, true, false);
 
-    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, _isTransfer, true, false);
+    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, false, true, false);
     return true;
   }
 
@@ -525,6 +541,7 @@ contract RootChain {
     uint weiAmount = msg.value;
     requestId = _storeRequest(EROs, ORBs, _isTransfer, _to, weiAmount, _trieKey, _trieValue, false, false);
 
+    emit RequestApplied(requestId, false);
     emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, _isTransfer, false, false);
     return true;
   }
@@ -602,9 +619,12 @@ contract RootChain {
 
       lastAppliedERU = requestId + 1;
 
-      if (ERU.isExit) {
+      if (ERU.isExit && !ERU.challenged) {
         // NOTE: do not check it reverted or not?
         ERU.applyRequestInRootChain(requestId);
+        // TODO: dynamic cost and bond release period
+        ERU.requestor.transfer(COST_ERU);
+        emit RequestApplied(requestId, true);
       }
       ERU.finalized = true;
 
@@ -631,9 +651,11 @@ contract RootChain {
 
     lastAppliedERO = requestId + 1;
 
-    if (ERO.isExit) {
+    if (ERO.isExit && !ERO.challenged) {
       // NOTE: do not check it reverted or not?
       ERO.applyRequestInRootChain(requestId);
+      ERO.requestor.transfer(COST_ERO);
+      emit RequestApplied(requestId, false);
     }
     ERO.finalized = true;
 
@@ -729,7 +751,7 @@ contract RootChain {
   {
     // NOTE: issue
     // check parameters for simple ether transfer and message-call
-    assert(_isTransfer || (requestableContracts[_to] != address(0)));
+    require(_isTransfer || (requestableContracts[_to] != address(0)));
 
     if (_isTransfer) {
       // NOTE: issue
@@ -750,7 +772,7 @@ contract RootChain {
 
     // apply message-call
     if (!_isExit && !_isTransfer) {
-      assert(r.applyRequestInRootChain(requestId));
+      require(r.applyRequestInRootChain(requestId));
     }
 
     uint requestBlockId;
@@ -946,7 +968,7 @@ contract RootChain {
    */
   function _finalizeBlock() internal returns (bool) {
     // short circuit if waiting URBs
-    if(state == State.AcceptingURB) {
+    if (state == State.AcceptingURB) {
       return false;
     }
 
@@ -1056,16 +1078,14 @@ contract RootChain {
   function _doFinalizeEpoch(uint _epochNumber) internal {
     Data.Epoch storage epoch = epochs[currentFork][_epochNumber];
 
-    /* require(!epoch.isRequest); */
+    require(!epoch.isRequest);
 
-    uint i;
-    bool stopped;
-    for(i = epoch.startBlockNumber; i <= epoch.endBlockNumber; i++) {
-      Data.PlasmaBlock storage pb = blocks[currentFork][i];
+    uint lastBlockNumber = epoch.startBlockNumber;
+    for (; lastBlockNumber <= epoch.endBlockNumber; lastBlockNumber++) {
+      Data.PlasmaBlock storage pb = blocks[currentFork][lastBlockNumber];
 
       // shrot circuit if block is under challenge or challenged
       if (pb.challenging || pb.challenged) {
-        stopped = true;
         break;
       }
 
@@ -1073,7 +1093,7 @@ contract RootChain {
       // BlockFinalized event is not fired to reduce the gas cost.
     }
 
-    uint lastBlockNumber = stopped ? i - 1 : i;
+    lastBlockNumber = lastBlockNumber - 1;
 
     if (lastBlockNumber >= epoch.startBlockNumber) {
       lastFinalizedBlock[currentFork] = lastBlockNumber;
