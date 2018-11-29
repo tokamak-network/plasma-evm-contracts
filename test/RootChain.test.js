@@ -568,8 +568,10 @@ contract('RootChain', async ([
   // generate mocha test cases
   for (const i of range(0, tests.length)) {
     const epochNumber = 1 + i * 2;
-    describe(`${i + 1}: Epoch#${epochNumber}`, () => {
-      tests[i](epochNumber);
+    const t = tests[i];
+
+    describe(`${i + 1}: Epoch#${epochNumber} (${t.name})`, () => {
+      t(epochNumber);
     });
   }
 });
