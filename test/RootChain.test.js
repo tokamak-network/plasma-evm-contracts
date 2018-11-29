@@ -75,8 +75,8 @@ contract('RootChain', async ([
     COST_URB = await rootchain.COST_URB();
     COST_ORB = await rootchain.COST_ORB();
     COST_NRB = await rootchain.COST_NRB();
-    CP_COMPUTATION = await rootchain.CP_COMPUTATION();
-    CP_WITHHOLDING = await rootchain.CP_WITHHOLDING();
+    CP_COMPUTATION = (await rootchain.CP_COMPUTATION()).toNumber();
+    CP_WITHHOLDING = (await rootchain.CP_WITHHOLDING()).toNumber();
 
     log(`
       RootChain contract at ${rootchain.address}
@@ -197,7 +197,6 @@ contract('RootChain', async ([
     await checkBlockNumber();
   }
 
-  // NOTE: testrpc may revert this.
   async function finalizeBlocks () {
     // finalize blocks until all blocks are fianlized
     const lastFinalizedBlock = await rootchain.lastFinalizedBlock(currentFork);
@@ -209,7 +208,7 @@ contract('RootChain', async ([
       lastFinalizedBlock: ${await rootchain.lastFinalizedBlock(currentFork)}
       `);
 
-    await timeout(CP_WITHHOLDING + 2);
+    await timeout(CP_WITHHOLDING + 1);
     await rootchain.finalizeBlock();
     return finalizeBlocks();
   }
@@ -257,9 +256,6 @@ contract('RootChain', async ([
   }
 
   async function logEpochAndBlock (epochNumber) {
-    // TODO: refactor me!
-    /*
-    return;
     log(`
       Epoch#${currentEpoch} ${await rootchain.epochs(currentFork, epochNumber)}
       ORBs.length: ${await rootchain.getNumORBs()}
@@ -273,7 +269,6 @@ contract('RootChain', async ([
       log(`
         block#${i} ${await rootchain.blocks(currentFork, i)}`);
     }
-    */
   }
 
   const testEpochsWithoutRequest = (NRBEPochNumber) => {
@@ -581,7 +576,7 @@ contract('RootChain', async ([
 
 function timeout (sec) {
   return new Promise((resolve) => {
-    setTimeout(resolve, sec);
+    setTimeout(resolve, sec * 1000);
   });
 }
 

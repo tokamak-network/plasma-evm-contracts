@@ -131,29 +131,3 @@ function merkleLeaves (leaves) {
 
   return merkleLeaves(nextLeaves);
 }
-
-function merkleProof(leaves, index) {
-  const proofs = [];
-
-  if (len(leaves) <= 1) {
-    return proofs;
-  }
-
-  const tree = [ leaves ];
-
-  // until the merkle root is found
-  while (last(tree).length != 1) {
-    const cur = last(cur);
-    const next = [];
-
-    for (let i = 0; i + 1 < cur.length; i += 2) {
-      next.push(merkleStr(cur[i], cur[i + 1]));
-    }
-
-    if (index % 2 == )
-  }
-}
-
-function last (arr) {
-  return arr[arr.length - 1];
-}
