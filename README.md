@@ -2,15 +2,13 @@
 
 [![Build Status](https://travis-ci.org/Onther-Tech/plasma-evm-contracts.svg?branch=master)](https://travis-ci.org/Onther-Tech/plasma-evm-contracts)
 
-`truffle test` may fail in testrpc.  [run.rootchain.sh](https://github.com/Onther-Tech/go-ethereum/blob/master/run.rootchain.sh) in [Onther-Tech/go-ethereum](https://github.com/Onther-Tech/go-ethereum) is highly recommended to the test client.
 
 ## Implementation Status
 
 -   [x] Make enter / exit requests
 -   [x] Submit NRBs / ORBs
 -   [x] Finalize block and requests
--   [ ] Challenge on Exit
--   [ ] Disable ether exit request
+-   [x] Challenge on Exit
 -   [ ] Challenge on Null Address Transaction in NRBs
 
 ## Development
