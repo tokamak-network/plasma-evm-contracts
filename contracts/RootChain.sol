@@ -16,19 +16,14 @@ contract RootChain {
   using Address for address;
   using BMT for *;
 
-  enum State {
-    AcceptingNRB,
-    AcceptingORB,
-    // TODO: remove AcceptingURB
-    AcceptingURB
-  }
-
   /*
    * Storage
    */
   bool public development; // dev mode
   address public operator;
-  State public state;
+
+  bool public acceptingNRB; // accepting NRB or ORB
+  bool public acceptingURB; // accepting URB or (NRB, ORB)
 
   // Increase for each URB
   uint public currentFork;
@@ -110,7 +105,6 @@ contract RootChain {
    * Event
    */
   event SessionTimeout(bool userActivated);
-  event StateChanged(State state);
 
   event Forked(uint newFork, uint forkedBlockNumber);
   event EpochPrepared(
@@ -165,16 +159,6 @@ contract RootChain {
    */
   modifier onlyOperator() {
     require(msg.sender == operator);
-    _;
-  }
-
-  modifier onlyState(State _state) {
-    require(state == _state);
-    _;
-  }
-
-  modifier onlyNotState(State _state) {
-    require(state != _state);
     _;
   }
 
@@ -262,12 +246,10 @@ contract RootChain {
    */
   function prepareToSubmitURB()
     external
-    onlyOperator
-    onlyNotState(State.AcceptingURB)
-    // finalizeBlocks
+    finalizeBlocks
     returns (bool success)
   {
-    state = State.AcceptingURB;
+    require(!acceptingURB);
     _prepareToSubmitURB();
     return true;
   }
@@ -281,11 +263,12 @@ contract RootChain {
     external
     payable
     onlyOperator
-    onlyState(State.AcceptingNRB)
     onlyValidCost(COST_NRB)
     finalizeBlocks
     returns (bool success)
   {
+    require(acceptingNRB);
+
     Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
 
     require(!epoch.isRequest);
@@ -317,11 +300,11 @@ contract RootChain {
     external
     payable
     onlyOperator
-    onlyState(State.AcceptingORB)
     onlyValidCost(COST_ORB)
     finalizeBlocks
     returns (bool success)
   {
+    require(!acceptingNRB);
     Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
 
     require(epoch.isRequest);
@@ -369,10 +352,11 @@ contract RootChain {
   )
     external
     payable
-    onlyState(State.AcceptingURB)
     onlyValidCost(COST_URB)
     returns (bool success)
   {
+    require(acceptingURB);
+
     bool firstURB = !blocks[currentFork][highestBlockNumber[currentFork]].isRequest;
 
     uint blockNumber = _storeBlock(
@@ -829,8 +813,8 @@ contract RootChain {
     }
 
     // change state to accept ORBs
-    state = State.AcceptingORB;
-    emit StateChanged(state);
+    acceptingNRB = false;
+
     emit EpochPrepared(
       currentEpoch,
       epoch.startBlockNumber,
@@ -919,8 +903,8 @@ contract RootChain {
     epoch.timestamp = uint64(block.timestamp);
 
     // change state to accept NRBs
-    state = State.AcceptingNRB;
-    emit StateChanged(state);
+    acceptingNRB = true;
+
     emit EpochPrepared(
       currentEpoch,
       epoch.startBlockNumber,
@@ -968,7 +952,7 @@ contract RootChain {
    */
   function _finalizeBlock() internal returns (bool) {
     // short circuit if waiting URBs
-    if (state == State.AcceptingURB) {
+    if (acceptingURB) {
       return false;
     }
 

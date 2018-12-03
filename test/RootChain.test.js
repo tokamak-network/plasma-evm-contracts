@@ -45,18 +45,11 @@ contract('RootChain', async ([
   let COST_ERO, COST_ERU, COST_URB_PREPARE, COST_URB, COST_ORB, COST_NRB;
   let CP_COMPUTATION, CP_WITHHOLDING;
 
-  const currentFork = 0;
+  let currentFork = 0;
   let currentEpoch = 1;
   let currentBlockNumber = 0;
   let numRequests = 0;
   let requestIdToApply = 0;
-
-  // rootchain.State
-  const State = {
-    AcceptingNRB: 0,
-    AcceptingORB: 1,
-    AcceptingURB: 2,
-  };
 
   before(async () => {
     rootchain = await RootChain.deployed();
@@ -175,8 +168,8 @@ contract('RootChain', async ([
       .should.be.bignumber.equal(currentBlockNumber);
   }
 
-  async function checkState (state) {
-    (await rootchain.state()).should.be.bignumber.equal(state);
+  async function checkBool (prom, expected) {
+    (await prom).should.be.equal(expected);
   }
 
   async function submitDummyNRB () {
@@ -275,7 +268,8 @@ contract('RootChain', async ([
     const ORBEPochNumber = NRBEPochNumber + 1;
 
     before(`check NRB Epoch#${NRBEPochNumber} parameters`, async () => {
-      await checkState(State.AcceptingNRB);
+      await checkBool(rootchain.acceptingNRB(), true);
+      await checkBool(rootchain.acceptingURB(), false);
       await checkBlockNumber();
       await checkEpochNumber();
 
@@ -293,7 +287,8 @@ contract('RootChain', async ([
       await checkEpochNumber();
       await checkEpoch(currentEpoch - 1);
       await checkEpoch(currentEpoch);
-      await checkState(State.AcceptingNRB);
+      await checkBool(rootchain.acceptingNRB(), true);
+      await checkBool(rootchain.acceptingURB(), false);
     });
 
     it('can finalize blocks', finalizeBlocks);
@@ -303,7 +298,8 @@ contract('RootChain', async ([
     const ORBEPochNumber = NRBEPochNumber + 1;
 
     before(`check NRB Epoch#${NRBEPochNumber} parameters`, async () => {
-      await checkState(State.AcceptingNRB);
+      await checkBool(rootchain.acceptingNRB(), true);
+      await checkBool(rootchain.acceptingURB(), false);
 
       await checkBlockNumber();
 
@@ -370,7 +366,8 @@ contract('RootChain', async ([
       await checkEpochNumber();
       await checkEpoch(currentEpoch - 1);
       await checkEpoch(currentEpoch);
-      await checkState(State.AcceptingORB);
+      await checkBool(rootchain.acceptingNRB(), false);
+      await checkBool(rootchain.acceptingURB(), false);
     });
 
     it(`ORBEpoch#${ORBEPochNumber}: operator submits ORBs`, async () => {
@@ -387,7 +384,8 @@ contract('RootChain', async ([
       await checkEpochNumber();
       await checkEpoch(currentEpoch - 1);
       await checkEpoch(currentEpoch);
-      await checkState(State.AcceptingNRB);
+      await checkBool(rootchain.acceptingNRB(), true);
+      await checkBool(rootchain.acceptingURB(), false);
     });
 
     it('can finalize blocks', finalizeBlocks);
@@ -428,7 +426,8 @@ contract('RootChain', async ([
       await checkEpochNumber();
       await checkEpoch(currentEpoch - 1);
       await checkEpoch(currentEpoch);
-      await checkState(State.AcceptingORB);
+      await checkBool(rootchain.acceptingNRB(), false);
+      await checkBool(rootchain.acceptingURB(), false);
     });
 
     it(`ORBEpoch#${ORBEPochNumber}: operator submits ORBs`, async () => {
@@ -444,7 +443,8 @@ contract('RootChain', async ([
       await checkEpochNumber();
       await checkEpoch(currentEpoch - 1);
       await checkEpoch(currentEpoch);
-      await checkState(State.AcceptingNRB);
+      await checkBool(rootchain.acceptingNRB(), true);
+      await checkBool(rootchain.acceptingURB(), false);
     });
 
     it('can finalize blocks', finalizeBlocks);
@@ -486,7 +486,8 @@ contract('RootChain', async ([
       await checkEpochNumber();
       await checkEpoch(currentEpoch - 1);
       await checkEpoch(currentEpoch);
-      await checkState(State.AcceptingORB);
+      await checkBool(rootchain.acceptingNRB(), false);
+      await checkBool(rootchain.acceptingURB(), false);
     });
 
     it(`ORBEpoch#${ORBEPochNumber}: operator submits ORBs`, async () => {
@@ -502,7 +503,8 @@ contract('RootChain', async ([
       await checkEpochNumber();
       await checkEpoch(currentEpoch - 1);
       await checkEpoch(currentEpoch);
-      await checkState(State.AcceptingNRB);
+      await checkBool(rootchain.acceptingNRB(), true);
+      await checkBool(rootchain.acceptingURB(), false);
     });
 
     it('can finalize blocks', finalizeBlocks);
