@@ -13,7 +13,7 @@ library BMT {
     bytes32[] memory nextLevel = new bytes32[]((level.length + 1) / 2);
     uint i;
 
-    for(; i + 1 < level.length; i += 2) {
+    for (; i + 1 < level.length; i += 2) {
       nextLevel[i/2] = keccak256(abi.encodePacked(level[i], level[i+1]));
     }
 
@@ -26,26 +26,35 @@ library BMT {
     return getRoot(nextLevel);
   }
 
-  function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)
-      internal
-      pure
-      returns (bool)
+  function checkMembership(
+    bytes32 leaf,
+    uint256 index,
+    bytes32 rootHash,
+    bytes proof
+  )
+    internal
+    pure
+    returns (bool)
   {
-      require(proof.length == 512);
-      bytes32 proofElement;
-      bytes32 computedHash = leaf;
+    require(proof.length % 32 == 0);
 
-      for (uint256 i = 32; i <= 512; i += 32) {
-          assembly {
-              proofElement := mload(add(proof, i))
-          }
-          if (index % 2 == 0) {
-              computedHash = keccak256(abi.encodePacked(computedHash, proofElement));
-          } else {
-              computedHash = keccak256(abi.encodePacked(proofElement, computedHash));
-          }
-          index = index / 2;
+    uint256 numElements = proof.length / 32;
+    require(numElements < 16);
+    
+    bytes32 proofElement;
+    bytes32 computedHash = leaf;
+
+    for (uint256 i = 32; i <= 32 * numElements; i += 32) {
+      assembly {
+        proofElement := mload(add(proof, i))
       }
-      return computedHash == rootHash;
+      if (index % 2 == 0) {
+        computedHash = keccak256(abi.encodePacked(computedHash, proofElement));
+      } else {
+        computedHash = keccak256(abi.encodePacked(proofElement, computedHash));
+      }
+      index = index / 2;
+    }
+    return computedHash == rootHash;
   }
 }
