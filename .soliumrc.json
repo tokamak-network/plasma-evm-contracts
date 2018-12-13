@@ -6,13 +6,12 @@
     "indentation": ["error", 2],
     "lbrace": "off",
     "linebreak-style": ["error", "unix"],
-    "max-len": ["error", 79],
+    "max-len": ["error", 119],
     "no-constant": ["error"],
     "no-empty-blocks": "off",
     "quotes": ["error", "double"],
     "uppercase": "off",
     "visibility-first": "error",
-
     "security/enforce-explicit-visibility": ["error"],
     "security/no-block-members": ["warning"],
     "security/no-inline-assembly": ["warning"]

@@ -13,7 +13,10 @@
     "lint:sol:fix": "solium -d . --fix",
     "lint": "npm run lint:js && npm run lint:sol",
     "lint:fix": "npm run lint:js:fix && npm run lint:sol:fix",
-    "test": "scripts/test.sh ./test/RootChain.test.js"
+    "test": "scripts/test.sh ./test/RootChain.test.js",
+    "test:verbose": "VERBOSE=true scripts/test.sh ./test/RootChain.test.js",
+    "compile": "truffle compile",
+    "console": "truffle console"
   },
   "keywords": [],
   "author": "",
