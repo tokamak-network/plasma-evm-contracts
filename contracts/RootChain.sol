@@ -28,31 +28,6 @@ contract RootChain {
    */
   bool public development; // dev mode
   address public operator;
-  State public state;
-
-  // Increase for each URB
-  uint public currentFork;
-
-  // First epoch of a fork
-  mapping (uint => uint) public firstEpoch;
-
-  // First not-empty request epochs of a fork
-  mapping (uint => uint) public firstFilledORBEpochNumber;
-
-  // Increase for each epoch
-  uint public currentEpoch;
-
-  // Highest block number of the fork
-  mapping (uint => uint) public highestBlockNumber;
-
-  // fork => block number
-  mapping (uint => uint) public lastFinalizedBlock;
-
-  // fork => block number => PlasmaBlock
-  mapping (uint => mapping (uint => Data.PlasmaBlock)) public blocks;
-
-  // fork => epoch number => Epoch
-  mapping (uint => mapping (uint => Data.Epoch)) public epochs;
 
   // 1 epoch = N NRBs or k URBs or k ORBs.
   // N consecutive NRBs must be submitted in an epoch. In case of request block,
@@ -60,6 +35,17 @@ contract RootChain {
   // N NRBs are submitted or when preparing URBs submission.
   uint public NRBEpochLength;
 
+  State public state;
+
+  // Increase for each URB
+  uint public currentFork;
+
+  // First not-empty request epochs of a fork
+  mapping (uint => uint) public firstFilledORBEpochNumber;
+
+  mapping (uint => Data.Fork) public forks;
+
+  
   // Enter & Exit requests for ORB / URB
   Data.Request[] public EROs;
   Data.Request[] public ERUs;
@@ -100,9 +86,7 @@ contract RootChain {
   uint public constant CP_COMPUTATION = 1; // 1 sec for dev
   uint public constant CP_WITHHOLDING = 3; // 3 sec for dev
 
-  // How many requests can be included in a single request block
-  uint public constant MAX_REQUESTS = 1000;
-
+  
   // Gas limit for request trasaction
   uint public constant REQUEST_GAS = 100000;
 
@@ -206,18 +190,17 @@ contract RootChain {
     operator = msg.sender;
     NRBEpochLength = _NRBEpochLength;
 
-    Data.PlasmaBlock storage genesis = blocks[currentFork][0];
+    Data.Fork storage fork = forks[currentFork];
+    Data.PlasmaBlock storage genesis = fork.blocks[0];
     genesis.statesRoot = _statesRoot;
     genesis.transactionsRoot = _transactionsRoot;
     genesis.receiptsRoot = _receiptsRoot;
 
     // set up the genesis epoch
-    epochs[0][0].timestamp = uint64(block.timestamp);
-    epochs[0][0].isEmpty = false;
-    epochs[0][0].initialized = true;
-    epochs[0][0].finalized = true;
+    fork.epochs[0].timestamp = uint64(block.timestamp);
+    fork.epochs[0].initialized = true;
 
-    _doFinalize(genesis, 0);
+    _doFinalize(fork, genesis, 0);
     _prepareToSubmitNRB();
   }
 
@@ -286,11 +269,12 @@ contract RootChain {
     finalizeBlocks
     returns (bool success)
   {
-    Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
+    Data.Fork storage fork = forks[currentFork];
 
-    require(!epoch.isRequest);
-
-    uint blockNumber = _storeBlock(
+    uint epochNunber;
+    uint blockNumber;
+    
+    (epochNunber, blockNumber) = fork.insertBlock(
       _statesRoot,
       _transactionsRoot,
       _receiptsRoot,
@@ -301,7 +285,7 @@ contract RootChain {
 
     emit NRBSubmitted(currentFork, blockNumber);
 
-    if (blockNumber == epoch.endBlockNumber) {
+    if (blockNumber == fork.epochs[fork.lastEpoch].endBlockNumber) {
       _prepareToSubmitORB();
     }
 
@@ -322,11 +306,9 @@ contract RootChain {
     finalizeBlocks
     returns (bool success)
   {
-    Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
+    Data.Fork storage fork = forks[currentFork];
 
-    require(epoch.isRequest);
-
-    uint blockNumber = _storeBlock(
+    fork.insertBlock(
       _statesRoot,
       _transactionsRoot,
       _receiptsRoot,
@@ -335,10 +317,8 @@ contract RootChain {
       false
     );
 
-    emit ORBSubmitted(currentFork, blockNumber);
-
     if (!development) {
-      Data.RequestBlock storage ORB = ORBs[blocks[currentFork][blockNumber].requestBlockId];
+      Data.RequestBlock storage ORB = ORBs[fork.blocks[fork.lastBlock].requestBlockId];
       uint s = ORB.requestStart;
       uint e = ORB.requestEnd;
 
@@ -350,18 +330,21 @@ contract RootChain {
       require(hashes.getRoot() == _transactionsRoot);
 
       /* use binary merkle tree instead of patricia tree
-      Data.RequestBlock storage ORB = ORBs[blocks[currentFork][blockNumber].requestBlockId];
+      Data.RequestBlock storage ORB = ORBs[fork.blocks[blockNumber].requestBlockId];
       require(_transactionsRoot == ORB.transactionsRoot);
        */
     }
 
-    if (blockNumber == epoch.endBlockNumber) {
+    emit ORBSubmitted(currentFork, fork.lastBlock);
+
+    if (fork.lastBlock == fork.epochs[fork.lastEpoch].endBlockNumber) {
       _prepareToSubmitNRB();
     }
 
     return true;
   }
 
+  // TODO: use Data.Fork
   function submitURB(
     bytes32 _statesRoot,
     bytes32 _transactionsRoot,
@@ -373,31 +356,31 @@ contract RootChain {
     onlyValidCost(COST_URB)
     returns (bool success)
   {
-    bool firstURB = !blocks[currentFork][highestBlockNumber[currentFork]].isRequest;
+    // bool firstURB = !fork.blocks[highestBlockNumber[currentFork]].isRequest;
 
-    uint blockNumber = _storeBlock(
-      _statesRoot,
-      _transactionsRoot,
-      _receiptsRoot,
-      true,
-      true,
-      firstURB
-    );
+    // uint blockNumber = _storeBlock(
+    //   _statesRoot,
+    //   _transactionsRoot,
+    //   _receiptsRoot,
+    //   true,
+    //   true,
+    //   firstURB
+    // );
 
-    if (blockNumber != 0) {
-      Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
-      uint numBlocks = epoch.getNumBlocks();
-      uint submittedURBs = highestBlockNumber[currentFork] - epoch.startBlockNumber + 1;
+    // if (blockNumber != 0) {
+    //   Data.Epoch storage epoch = fork.epochs[currentEpoch];
+    //   uint numBlocks = epoch.getNumBlocks();
+    //   uint submittedURBs = highestBlockNumber[currentFork] - epoch.startBlockNumber + 1;
 
-      // TODO: verify transactionsRoot
+    //   // TODO: verify transactionsRoot
 
-      if (submittedURBs == numBlocks) {
-        _prepareToSubmitNRB();
-      }
+    //   if (submittedURBs == numBlocks) {
+    //     _prepareToSubmitNRB();
+    //   }
 
-      emit ORBSubmitted(currentFork, blockNumber);
-      return true;
-    }
+    //   emit ORBSubmitted(currentFork, blockNumber);
+    //   return true;
+    // }
 
     return false;
   }
@@ -422,7 +405,8 @@ contract RootChain {
     bytes _receiptData,
     bytes _proof
   ) external {
-    Data.PlasmaBlock storage pb = blocks[_forkNumber][_blockNumber];
+    Data.Fork storage fork = forks[_forkNumber];
+    Data.PlasmaBlock storage pb = fork.blocks[_blockNumber];
 
     require(pb.isRequest);
     require(pb.finalized);
@@ -479,12 +463,13 @@ contract RootChain {
     uint _branchMask,
     bytes32[] _siblings
   ) external {
-    Data.PlasmaBlock storage pb = blocks[currentFork][_blockNumber];
+    Data.Fork storage fork = forks[currentFork];
+    Data.PlasmaBlock storage pb = fork.blocks[_blockNumber];
 
     // check if the plasma block is NRB
     require(!pb.isRequest);
 
-    // check if challenge period ends
+    // check if challenge period does not end yet
     require(pb.timestamp + CP_COMPUTATION > block.timestamp);
 
     PatriciaTreeFace trie;
@@ -553,6 +538,7 @@ contract RootChain {
     bytes32 _trieValue
   )
     public
+    payable
     onlyValidCost(COST_ERU)
     returns (bool success)
   {
@@ -572,29 +558,28 @@ contract RootChain {
    * TODO: refactor implementation
    */
   function applyRequest() external returns (bool success) {
-    uint forkNumber = lastAppliedForkNumber;
     uint epochNumber;
-    uint blockNumber = lastAppliedBlockNumber;
     uint requestId;
+    Data.Fork storage fork = forks[lastAppliedForkNumber];
 
-    require(blockNumber <= highestBlockNumber[forkNumber]);
+    require(lastAppliedBlockNumber <= fork.lastBlock);
 
-    Data.PlasmaBlock storage pb = blocks[forkNumber][blockNumber];
+    Data.PlasmaBlock storage pb = fork.blocks[lastAppliedBlockNumber];
     epochNumber = pb.epochNumber;
 
-    Data.Epoch storage epoch = epochs[forkNumber][pb.epochNumber];
+    Data.Epoch storage epoch = fork.epochs[pb.epochNumber];
 
     // find next request block
     if (!pb.isRequest) {
-      while (!epochs[forkNumber][epochNumber].isRequest) {
-        require(epochs[forkNumber][epochNumber].initialized);
+      while (!fork.epochs[epochNumber].isRequest) {
+        require(fork.epochs[epochNumber].initialized);
         epochNumber = epochNumber + 1;
       }
 
-      blockNumber = epoch.startBlockNumber;
+      lastAppliedBlockNumber = epoch.startBlockNumber;
 
-      epoch = epochs[forkNumber][epochNumber];
-      pb = blocks[forkNumber][blockNumber];
+      epoch = fork.epochs[epochNumber];
+      pb = fork.blocks[lastAppliedBlockNumber];
     }
 
     require(pb.finalized);
@@ -610,11 +595,11 @@ contract RootChain {
 
       // check next block
       if (requestId == URB.requestEnd) {
-        if (epoch.forkedBlockNumber > 0 && blockNumber == epoch.forkedBlockNumber - 1) {
-          lastAppliedForkNumber = forkNumber + 1;
+        if (epoch.forkedBlockNumber > 0 && lastAppliedBlockNumber == epoch.forkedBlockNumber - 1) {
+          lastAppliedForkNumber += 1;
         }
 
-        lastAppliedBlockNumber = blockNumber + 1;
+        lastAppliedBlockNumber += 1;
       }
 
       lastAppliedERU = requestId + 1;
@@ -642,11 +627,11 @@ contract RootChain {
 
     // check next block
     if (requestId == ORB.requestEnd) {
-      if (epoch.forkedBlockNumber > 0 && blockNumber == epoch.forkedBlockNumber - 1) {
-        lastAppliedForkNumber = forkNumber + 1;
+      if (epoch.forkedBlockNumber > 0 && lastAppliedBlockNumber == epoch.forkedBlockNumber - 1) {
+        lastAppliedForkNumber += 1;
       }
 
-      lastAppliedBlockNumber = blockNumber + 1;
+      lastAppliedBlockNumber += 1;
     }
 
     lastAppliedERO = requestId + 1;
@@ -661,6 +646,91 @@ contract RootChain {
 
     emit RequestFinalized(requestId, false);
     return true;
+  }
+
+  /**
+   * @notice return the max number of request
+   */
+  function MAX_REQUESTS() public pure returns (uint maxRequests) {
+    return Data.MAX_REQUESTS();
+  }
+  
+  function lastBlock(uint forkNumber) public view returns (uint lastBlock) {
+    return forks[forkNumber].lastBlock;
+  }
+  
+  function lastEpoch(uint forkNumber) public view returns (uint lastBlock) {
+    return forks[forkNumber].lastEpoch;
+  }
+
+  function getEpoch(
+    uint forkNumber,
+    uint epochNumber
+  ) public view returns (
+    uint64 requestStart,
+    uint64 requestEnd,
+    uint64 startBlockNumber,
+    uint64 endBlockNumber,
+    uint64 forkedBlockNumber,
+    uint64 firstRequestBlockId,
+    uint64 timestamp,
+    bool isEmpty,
+    bool initialized,
+    bool isRequest,
+    bool userActivated
+  ) {
+    Data.Epoch storage epoch = forks[forkNumber].epochs[epochNumber];
+
+    requestStart = epoch.requestStart;
+    requestEnd = epoch.requestEnd;
+    startBlockNumber = epoch.startBlockNumber;
+    endBlockNumber = epoch.endBlockNumber;
+    forkedBlockNumber = epoch.forkedBlockNumber;
+    firstRequestBlockId = epoch.firstRequestBlockId;
+    timestamp = epoch.timestamp;
+    isEmpty = epoch.isEmpty;
+    initialized = epoch.initialized;
+    isRequest = epoch.isRequest;
+    userActivated = epoch.userActivated;
+
+    return;
+  }
+
+  function getBlock(
+    uint forkNumber,
+    uint blockNumber
+  ) public view returns (
+    uint64 epochNumber,
+    uint64 previousBlockNUmber,
+    uint64 requestBlockId,
+    uint64 timestamp,
+    bytes32 statesRoot,
+    bytes32 transactionsRoot,
+    bytes32 receiptsRoot,
+    bool isRequest,
+    bool userActivated,
+    bool challenged,
+    bool challenging,
+    bool finalized
+  ) {
+    epochNumber = forks[forkNumber].blocks[blockNumber].epochNumber;
+    previousBlockNUmber = forks[forkNumber].blocks[blockNumber].previousBlockNUmber;
+    requestBlockId = forks[forkNumber].blocks[blockNumber].requestBlockId;
+    timestamp = forks[forkNumber].blocks[blockNumber].timestamp;
+    statesRoot = forks[forkNumber].blocks[blockNumber].statesRoot;
+    transactionsRoot = forks[forkNumber].blocks[blockNumber].transactionsRoot;
+    receiptsRoot = forks[forkNumber].blocks[blockNumber].receiptsRoot;
+    isRequest = forks[forkNumber].blocks[blockNumber].isRequest;
+    userActivated = forks[forkNumber].blocks[blockNumber].userActivated;
+    challenged = forks[forkNumber].blocks[blockNumber].challenged;
+    challenging = forks[forkNumber].blocks[blockNumber].challenging;
+    finalized = forks[forkNumber].blocks[blockNumber].finalized;
+
+    return;
+  }
+
+  function getLastFinalizedBlock(uint forkNumber) public view returns (uint) {
+    return forks[forkNumber].lastFinalizedBlock;
   }
 
   /**
@@ -685,56 +755,6 @@ contract RootChain {
   /*
    * Internal Functions
    */
-  function _storeBlock(
-    bytes32 _statesRoot,
-    bytes32 _transactionsRoot,
-    bytes32 _receiptsRoot,
-    bool _isRequest,
-    bool _userActivated,
-    bool _firstURB
-  )
-    internal
-    returns (uint blockNumber)
-  {
-    // when first URB is submitted
-    if (_isRequest && _userActivated && _firstURB) {
-      uint nextFork = currentFork.add(1);
-      uint forkEpochNumber = firstEpoch[nextFork];
-
-      // newEpoch is already set up in preparing step
-      Data.Epoch storage newEpoch = epochs[nextFork][forkEpochNumber];
-
-      // URB submission is out of time
-      if (newEpoch.isRequest && newEpoch.timestamp + PREPARE_TIMEOUT < block.timestamp) {
-        delete epochs[nextFork][forkEpochNumber];
-        firstEpoch[nextFork] = 0;
-        return;
-      }
-
-      // update storage
-      currentFork = nextFork;
-      blockNumber = epochs[currentFork][firstEpoch[nextFork]].startBlockNumber;
-      epochs[currentFork - 1][forkEpochNumber].forkedBlockNumber = uint64(blockNumber);
-
-      emit Forked(nextFork, blockNumber);
-    } else {
-      blockNumber = highestBlockNumber[currentFork].add(1);
-    }
-
-    Data.PlasmaBlock storage b = blocks[currentFork][blockNumber];
-
-    b.statesRoot = _statesRoot;
-    b.transactionsRoot = _transactionsRoot;
-    b.receiptsRoot = _receiptsRoot;
-    b.timestamp = uint64(block.timestamp);
-    b.epochNumber = uint64(currentEpoch);
-    b.isRequest = _isRequest;
-    b.userActivated = _userActivated;
-
-    highestBlockNumber[currentFork] = blockNumber;
-    return;
-  }
-
   function _storeRequest(
     Data.Request[] storage _requests,
     Data.RequestBlock[] storage _rbs,
@@ -786,7 +806,7 @@ contract RootChain {
     Data.RequestBlock storage rb = _rbs[requestBlockId];
 
     // make new RequestBlock
-    if (rb.submitted || rb.requestEnd - rb.requestStart + 1 == MAX_REQUESTS) {
+    if (rb.submitted || rb.requestEnd - rb.requestStart + 1 == Data.MAX_REQUESTS()) {
       rb = _rbs[_rbs.length++];
       rb.requestStart = uint64(requestId);
     }
@@ -807,10 +827,11 @@ contract RootChain {
    * being included in the request blocks in the just next ORB epoch.
    */
   function _prepareToSubmitORB() internal {
-    currentEpoch += 1;
-    Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
+    Data.Fork storage fork = forks[currentFork];
+    fork.lastEpoch += 1;
+    Data.Epoch storage epoch = fork.epochs[fork.lastEpoch];
 
-    epoch.startBlockNumber = epochs[currentFork][currentEpoch - 1].endBlockNumber + 1;
+    epoch.startBlockNumber = fork.epochs[fork.lastEpoch - 1].endBlockNumber + 1;
 
     epoch.isRequest = true;
     epoch.initialized = true;
@@ -825,14 +846,14 @@ contract RootChain {
     } else {
       epoch.requestEnd = uint64(EROs.length - 1);
       epoch.endBlockNumber = uint64(epoch.startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + uint64(1))
-        .divCeil(MAX_REQUESTS) - 1);
+        .divCeil(Data.MAX_REQUESTS()) - 1);
     }
 
     // change state to accept ORBs
     state = State.AcceptingORB;
     emit StateChanged(state);
     emit EpochPrepared(
-      currentEpoch,
+      fork.lastEpoch,
       epoch.startBlockNumber,
       epoch.endBlockNumber,
       epoch.requestStart,
@@ -848,8 +869,8 @@ contract RootChain {
     } else {
       uint numBlocks = epoch.getNumBlocks();
       for (uint64 i = 0; i < numBlocks; i++) {
-        blocks[currentFork][epoch.startBlockNumber + i].isRequest = true;
-        blocks[currentFork][epoch.startBlockNumber + i].requestBlockId = epoch.firstRequestBlockId + i;
+        fork.blocks[epoch.startBlockNumber + i].isRequest = true;
+        fork.blocks[epoch.startBlockNumber + i].requestBlockId = epoch.firstRequestBlockId + i;
       }
     }
   }
@@ -861,7 +882,8 @@ contract RootChain {
       return;
     }
 
-    Data.Epoch storage previousRequestEpoch = epochs[currentFork][currentEpoch - 2];
+    Data.Fork storage fork = forks[currentFork];
+    Data.Epoch storage previousRequestEpoch = fork.epochs[fork.lastEpoch - 2];
 
     if (EROs.length - 1 == uint(previousRequestEpoch.requestEnd)) {
       epoch.isEmpty = true;
@@ -883,7 +905,7 @@ contract RootChain {
     } else {
       // if there is no filled ORB epoch, this is the first one
       if (firstFilledORBEpochNumber[currentFork] == 0) {
-        firstFilledORBEpochNumber[currentFork] = currentEpoch;
+        firstFilledORBEpochNumber[currentFork] = fork.lastEpoch;
       } else {
         // set requestStart, firstRequestBlockId based on previousRequestEpoch
         if (previousRequestEpoch.isEmpty) {
@@ -904,13 +926,14 @@ contract RootChain {
 
 
   function _prepareToSubmitNRB() internal {
-    currentEpoch += 1;
-    Data.Epoch storage epoch = epochs[currentFork][currentEpoch];
+    Data.Fork storage fork = forks[currentFork];
+    fork.lastEpoch += 1;
+    Data.Epoch storage epoch = fork.epochs[fork.lastEpoch];
 
     uint startBlockNumber = 1;
 
-    if (currentEpoch != 1) {
-      startBlockNumber = epochs[currentFork][currentEpoch - 1].endBlockNumber + 1;
+    if (fork.lastEpoch != 1) {
+      startBlockNumber = fork.epochs[fork.lastEpoch - 1].endBlockNumber + 1;
     }
 
     epoch.initialized = true;
@@ -922,7 +945,7 @@ contract RootChain {
     state = State.AcceptingNRB;
     emit StateChanged(state);
     emit EpochPrepared(
-      currentEpoch,
+      fork.lastEpoch,
       epoch.startBlockNumber,
       epoch.endBlockNumber,
       0,
@@ -934,33 +957,34 @@ contract RootChain {
   }
 
   function _prepareToSubmitURB() internal {
-    // NOTE: what if no finalized block at this fork? consider URB re-submission
+    // // NOTE: what if no finalized block at this fork? consider URB re-submission
 
-    uint lastBlockNumber = lastFinalizedBlock[currentFork];
-    Data.PlasmaBlock storage lastBlock = blocks[currentFork][lastBlockNumber];
+    // uint lastBlockNumber = lastFinalizedBlock[currentFork];
+    // Data.PlasmaBlock storage lastBlock = fork.blocks[lastBlockNumber];
 
-    uint nextFork = currentFork + 1;
-    uint forkEpochNumber = lastBlock.epochNumber;
+    // uint nextFork = currentFork + 1;
+    // uint forkEpochNumber = lastBlock.epochNumber;
 
-    // note epoch number for the new fork
-    firstEpoch[nextFork] = forkEpochNumber;
+    // // note epoch number for the new fork
+    // firstEpoch[nextFork] = forkEpochNumber;
 
-    Data.Epoch storage epoch = epochs[nextFork][forkEpochNumber];
+    // Data.Epoch storage epoch = epochs[nextFork][forkEpochNumber];
 
-    if (nextFork == 1) {
-      // first URB fork
-      epoch.requestStart = 0;
-    } else {
-      // last ERU id of previous URB fork + 1
-      epoch.requestStart = epochs[currentFork][firstEpoch[currentFork]].requestEnd + 1;
-    }
+    // if (nextFork == 1) {
+    //   // first URB fork
+    //   epoch.requestStart = 0;
+    // } else {
+    //   // last ERU id of previous URB fork + 1
+    //   epoch.requestStart = fork.epochs[firstEpoch[currentFork]].requestEnd + 1;
+    // }
 
-    epoch.isRequest = true;
-    epoch.userActivated = true;
-    epoch.timestamp = uint64(block.timestamp);
-    epoch.requestEnd = uint64(ERUs.length.sub(1));
-    epoch.startBlockNumber = uint64(lastBlockNumber + 1);
-    epoch.endBlockNumber = uint64(epoch.startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + 1).divCeil(MAX_REQUESTS) - 1);
+    // epoch.isRequest = true;
+    // epoch.userActivated = true;
+    // epoch.timestamp = uint64(block.timestamp);
+    // epoch.requestEnd = uint64(ERUs.length.sub(1));
+    // epoch.startBlockNumber = uint64(lastBlockNumber + 1);
+    // epoch.endBlockNumber = uint64(epoch.startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + 1)
+    //   .divCeil(Data.MAX_REQUESTS()) - 1);
   }
 
   /**
@@ -972,14 +996,15 @@ contract RootChain {
       return false;
     }
 
-    uint blockNumber = lastFinalizedBlock[currentFork] + 1;
+    Data.Fork storage fork = forks[currentFork];
+    uint blockNumber = fork.lastFinalizedBlock + 1;
 
     // short circuit if all blocks are submitted yet
-    if (blockNumber > highestBlockNumber[currentFork]) {
+    if (blockNumber > fork.lastBlock) {
       return false;
     }
 
-    Data.PlasmaBlock storage pb = blocks[currentFork][blockNumber];
+    Data.PlasmaBlock storage pb = fork.blocks[blockNumber];
 
     // short circuit if the block is under challenge
     if (pb.challenging) {
@@ -994,7 +1019,7 @@ contract RootChain {
       }
 
       // finalize block
-      _doFinalize(pb, blockNumber);
+      _doFinalize(fork, pb, blockNumber);
       return true;
     }
 
@@ -1004,8 +1029,8 @@ contract RootChain {
 
     // if the first block of the next request epoch is finalized, finalize all
     // blocks of the current non request epoch.
-    if (_checkFinalizable(nextEpochNumber)) {
-      _doFinalizeEpoch(pb.epochNumber);
+    if (_checkFinalizable(fork, nextEpochNumber)) {
+      _doFinalizeEpoch(fork, pb.epochNumber);
       return true;
     }
 
@@ -1015,7 +1040,7 @@ contract RootChain {
     }
 
     // finalize block
-    _doFinalize(pb, blockNumber);
+    _doFinalize(fork, pb, blockNumber);
     return true;
   }
 
@@ -1023,13 +1048,13 @@ contract RootChain {
    * @notice return true if the first block of a request epoch (ORB epoch / URB epoch)
    *         can be finalized.
    */
-  function _checkFinalizable(uint _epochNumber) internal view returns (bool) {
+  function _checkFinalizable(Data.Fork storage fork, uint _epochNumber) internal view returns (bool) {
     // cannot finalize future epoch
-    if (_epochNumber > currentEpoch) {
+    if (_epochNumber > fork.lastEpoch) {
       return false;
     }
 
-    Data.Epoch storage epoch = epochs[currentFork][_epochNumber];
+    Data.Epoch storage epoch = fork.epochs[_epochNumber];
 
     // cannot finalize if it is not request epoch
     if (!epoch.isRequest) {
@@ -1042,11 +1067,11 @@ contract RootChain {
     }
 
     // cannot finalize if the first block was not submitted
-    if (epoch.startBlockNumber > highestBlockNumber[currentFork]) {
+    if (epoch.startBlockNumber > fork.lastBlock) {
       return false;
     }
 
-    Data.PlasmaBlock storage pb = blocks[currentFork][epoch.startBlockNumber];
+    Data.PlasmaBlock storage pb = fork.blocks[epoch.startBlockNumber];
 
     // the block was already finalized
     if (pb.finalized) {
@@ -1065,9 +1090,13 @@ contract RootChain {
   /**
    * @notice finalize a block
    */
-  function _doFinalize(Data.PlasmaBlock storage _pb, uint _blockNumber) internal {
+  function _doFinalize(
+    Data.Fork storage _f,
+    Data.PlasmaBlock storage _pb,
+    uint _blockNumber
+  ) internal {
     _pb.finalized = true;
-    lastFinalizedBlock[currentFork] = _blockNumber;
+    _f.lastFinalizedBlock = uint64(_blockNumber);
 
     emit BlockFinalized(currentFork, _blockNumber);
   }
@@ -1075,14 +1104,17 @@ contract RootChain {
   /**
    * @notice finalize all blocks in the non request epoch
    */
-  function _doFinalizeEpoch(uint _epochNumber) internal {
-    Data.Epoch storage epoch = epochs[currentFork][_epochNumber];
+  function _doFinalizeEpoch(
+    Data.Fork storage _f,
+    uint _epochNumber
+  ) internal {
+    Data.Epoch storage epoch = _f.epochs[_epochNumber];
 
     require(!epoch.isRequest);
 
     uint lastBlockNumber = epoch.startBlockNumber;
     for (; lastBlockNumber <= epoch.endBlockNumber; lastBlockNumber++) {
-      Data.PlasmaBlock storage pb = blocks[currentFork][lastBlockNumber];
+      Data.PlasmaBlock storage pb = _f.blocks[lastBlockNumber];
 
       // shrot circuit if block is under challenge or challenged
       if (pb.challenging || pb.challenged) {
@@ -1096,7 +1128,7 @@ contract RootChain {
     lastBlockNumber = lastBlockNumber - 1;
 
     if (lastBlockNumber >= epoch.startBlockNumber) {
-      lastFinalizedBlock[currentFork] = lastBlockNumber;
+      _f.lastFinalizedBlock = uint64(lastBlockNumber);
 
       // a single EpochFinalized event replaces lots of BlockFinalized events.
       emit EpochFinalized(currentFork, _epochNumber, epoch.startBlockNumber, lastBlockNumber);

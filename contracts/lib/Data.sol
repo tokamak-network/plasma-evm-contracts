@@ -9,49 +9,147 @@ import "./RLPEncode.sol";
 // import "../patricia_tree/PatriciaTree.sol"; // use binary merkle tree
 import {RequestableContractI} from "../RequestableContractI.sol";
 
+
 library Data {
   using SafeMath for *;
   using Math for *;
   using RLP for *;
   using RLPEncode for *;
 
-  // signature of function applyRequestInChildChain(bool isExit,uint256 requestId,address requestor,bytes32 trieKey,bytes32 trieValue)
+  // signature of function applyRequestInChildChain(bool,uint256,address,bytes32,bytes32)
   bytes4 public constant APPLY_IN_CHILDCHAIN_SIGNATURE = 0xe904e3d9;
 
-  // signature of function applyRequestInRootChain(bool isExit,uint256 requestId,address requestor,bytes32 trieKey,bytes32 trieValue)
+  // signature of function applyRequestInRootChain(bool,uint256,address,bytes32,bytes32)
   bytes4 public constant APPLY_IN_ROOTCHAIN_SIGNATURE = 0xd9afd3a9;
 
   address public constant NA = address(0);
   uint public constant NA_TX_GAS_PRICE = 1e9;
   uint public constant NA_TX_GAS_LIMIT = 100000;
 
+  // How many requests can be included in a single request block
+  function MAX_REQUESTS() internal pure returns (uint) {
+    return 1000;
+  }
+
+
+  /**
+   * highestFinalizedBlock
+   * firstEpochNumber
+   * blockToRenew                       0 means no renew required
+   * forkedBlock                        forked block number due to URB or challenge
+   *                                    last finalized block is forkedBlockNumber - 1
+   * lastRebasedPreviousRequestEpoch
+   * lastRebasedPreviousNonRequestEpoch
+   * urbEpochNumber
+   * lastEpoch
+   * lastBlock
+   * lastFinalizedBlock
+   * epochs
+   * blocks
+   */
+  struct Fork {
+    uint64 blockToRenew;
+    uint64 forkedBlock;
+    uint64 lastRebasedPreviousRequestEpoch;
+    uint64 lastRebasedPreviousNonRequestEpoch;
+    uint64 firstEpoch;
+    uint64 lastEpoch;
+    uint64 firstBlock;
+    uint64 lastBlock;
+    uint64 lastFinalizedBlock;
+    mapping (uint => Epoch) epochs;
+    mapping (uint => PlasmaBlock) blocks;
+  }
+
+  /**
+   * @notice Insert a block into the fork.
+   */
+  function insertBlock(
+    Fork storage _f,
+    bytes32 _statesRoot,
+    bytes32 _transactionsRoot,
+    bytes32 _receiptsRoot,
+    bool _isRequest,
+    bool _userActivated,
+    bool _firstURB
+  )
+    internal
+    returns (uint epochNunber, uint blockNumber)
+  {
+    // TODO: when first URB is submitted
+    /* if (_isRequest && _userActivated && _firstURB) {
+      uint nextFork = currentFork.add(1);
+      uint forkEpochNumber = firstEpoch[nextFork];
+
+      // newEpoch is already set up in preparing step
+      Data.Epoch storage newEpoch = epochs[nextFork][forkEpochNumber];
+
+      // URB submission is out of time
+      if (newEpoch.isRequest && newEpoch.timestamp + PREPARE_TIMEOUT < block.timestamp) {
+        delete epochs[nextFork][forkEpochNumber];
+        firstEpoch[nextFork] = 0;
+        return;
+      }
+
+      // update storage
+      currentFork = nextFork;
+      blockNumber = epochs[currentFork][firstEpoch[nextFork]].startBlockNumber;
+      epochs[currentFork - 1][forkEpochNumber].forkedBlockNumber = uint64(blockNumber);
+
+      emit Forked(nextFork, blockNumber);
+    }
+    */
+
+    epochNunber = _f.lastEpoch;
+    Data.Epoch storage epoch = _f.epochs[epochNunber];
+
+    require(epoch.isRequest == _isRequest);
+    require(epoch.userActivated == _userActivated);
+
+    blockNumber = _f.lastBlock.add64(1);
+
+    Data.PlasmaBlock storage b = _f.blocks[blockNumber];
+
+    b.statesRoot = _statesRoot;
+    b.transactionsRoot = _transactionsRoot;
+    b.receiptsRoot = _receiptsRoot;
+    b.timestamp = uint64(block.timestamp);
+    b.isRequest = _isRequest;
+    b.userActivated = _userActivated;
+
+    _f.lastBlock = uint64(blockNumber);
+    return;
+  }
+
+  /**
+   *
+   * requestStart         first request id
+   * requestEnd           last request id
+   * startBlockNumber     first block number of the epoch
+   * endBlockNumber       last block number of the epoch
+   * firstRequestBlockId  first id of RequestBlock[]
+   * timestamp            timestamp when the epoch is initialized.
+   *                      required for URB / ORB
+   * isEmpty              true if request epoch has no request block
+   *                      and also requestStart == requestEnd == previousEpoch.requestEnd
+   *                      startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
+   *                      firstRequestBlockId == previousEpoch.firstRequestBlockId
+   * initialized          true if epoch is initialized
+   * isRequest            true in case of URB / ORB
+   * userActivated        true in case of URB
+   */
   struct Epoch {
-    uint64 requestStart;        // first request id
-    uint64 requestEnd;          // last request id
-    uint64 startBlockNumber;    // first block number of the epoch
-    uint64 endBlockNumber;      // last block number of the epoch
-    uint64 forkedBlockNumber;   // forked block number due to URB or challenge
-                                // last finalized block is forkedBlockNumber - 1
-
-    uint64 firstRequestBlockId; // first id of RequestBlock[]
-
-    uint64 limit;               // the maximum number of request transactions in
-                                // a request block
-
-    uint64 timestamp;           // timestamp when the epoch is initialized.
-                                // required for URB / ORB
-
-    bool isEmpty;               // true if request epoch has no request block
-                                // and also requestStart == requestEnd == previousEpoch.requestEnd
-                                //          startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
-                                //          firstRequestBlockId == previousEpoch.firstRequestBlockId
-
-    bool initialized;           // true if epoch is initialized
-    bool isRequest;             // true in case of URB / ORB
-    bool userActivated;         // true in case of URB
-    // bool challenged;            // true if a block in the epoch is challenged
-    // bool challenging;           // true if a block in the epoch is being challenged
-    bool finalized;             // true if it is successfully finalized
+    uint64 requestStart;
+    uint64 requestEnd;
+    uint64 startBlockNumber;
+    uint64 endBlockNumber;
+    uint64 forkedBlockNumber;
+    uint64 firstRequestBlockId;
+    uint64 timestamp;
+    bool isEmpty;
+    bool initialized;
+    bool isRequest;
+    bool userActivated;
   }
 
   function getNumBlocks(Epoch memory _e) internal pure returns (uint) {
@@ -64,17 +162,16 @@ library Data {
    *         in an epoch. Otherwise, returns 0.
    */
   function getBlockNumber(Epoch memory _e, uint _requestId) internal pure returns (uint) {
-    if (!_e.isRequest
-      || _e.limit == 0
-      || _e.requestStart < _requestId
-      || _e.requestEnd > _requestId) {
-        return 0;
+    if (!_e.isRequest ||
+      _e.isEmpty ||
+      _e.requestStart < _requestId ||
+      _e.requestEnd > _requestId) {
+      return 0;
     }
 
     return uint(_e.startBlockNumber)
-      .add(uint(_requestId - _e.requestStart + 1).divCeil(_e.limit));
+      .add(uint(_requestId - _e.requestStart + 1).divCeil(MAX_REQUESTS()));
   }
-
 
   function getRequestRange(Epoch memory _e, uint _blockNumber, uint _limit)
     internal
@@ -95,35 +192,61 @@ library Data {
     return;
   }
 
+  /**
+   * epochNumber
+   * previousBlockNUmber
+   * requestBlockId       id of RequestBlock[]
+   * timestamp
+   * statesRoot
+   * transactionsRoot
+   * receiptsRoot
+   * isRequest            true in case of URB & OR
+   * userActivated        true in case of URB
+   * challenged           true if it is challenge
+   * challenging          true if it is being challenged
+   * finalized            true if it is successfully finalize
+   */
   struct PlasmaBlock {
-    uint64 forkNumber;
     uint64 epochNumber;
-    uint64 requestBlockId;    // id of RequestBlock[]
+    uint64 previousBlockNUmber;
+    uint64 requestBlockId;
     uint64 timestamp;
-
     bytes32 statesRoot;
     bytes32 transactionsRoot;
     bytes32 receiptsRoot;
-
-    bool isRequest;           // true in case of URB & ORB
-    bool userActivated;       // true in case of URB
-    bool challenged;          // true if it is challenged
-    bool challenging;         // true if it is being challenged
-    bool finalized;           // true if it is successfully finalized
+    bool isRequest;
+    bool userActivated;
+    bool challenged;
+    bool challenging;
+    bool finalized;
   }
 
+  /**
+   *
+   * timestamp
+   * isExit
+   * isTransfer
+   * finalized         true if request is finalized
+   * challenged
+   * value             ether amount in wei
+   * requestor
+   * to                requestable contract in root chain
+   * trieKey
+   * trieValue
+   * hash              keccak256 hash of request transaction (in plasma chain)
+   */
   struct Request {
     uint64 timestamp;
     bool isExit;
     bool isTransfer;
-    bool finalized;           // true if request is finalized
+    bool finalized;
     bool challenged;
-    uint128 value;            // ether amount in wei
+    uint128 value;
     address requestor;
-    address to;               // requestable contract in root chain
+    address to;
     bytes32 trieKey;
     bytes32 trieValue;
-    bytes32 hash;             // keccak256 hash of request transaction (in plasma chain)
+    bytes32 hash;
   }
 
   function applyRequestInRootChain(
@@ -218,14 +341,20 @@ library Data {
     out.data = getData(self, _requestId, _rootchain);
   }
 
+  /**
+   * submitted      true if no more request can be inserted
+                    because epoch is initialized
+   * epochNumber    non request epoch number where the request is created
+   * requestStart   first request id
+   * requestEnd     last request id
+   * trie           patricia tree contract address
+   */
   struct RequestBlock {
-    bool submitted;           // true if no more request can be inserted
-                              // because epoch is initialized
-
-    uint64 epochNumber;       // non request epoch number where the request is created
-    uint64 requestStart;      // first request id
-    uint64 requestEnd;        // last request id
-    address trie;             // patricia tree contract address
+    bool submitted;
+    uint64 epochNumber;
+    uint64 requestStart;
+    uint64 requestEnd;
+    address trie;
   }
 
   function init(RequestBlock storage self) internal {
@@ -340,7 +469,7 @@ library Data {
     return keccak256(txBytes);
   }
 
-  /*
+  /**
    * Transaction Receipt
    */
 
