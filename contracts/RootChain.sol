@@ -662,6 +662,36 @@ contract RootChain {
 
     return;
   }
+  
+  function getLastEpoch() public view returns (
+    uint64 requestStart,
+    uint64 requestEnd,
+    uint64 startBlockNumber,
+    uint64 endBlockNumber,
+    uint64 forkedBlockNumber,
+    uint64 firstRequestBlockId,
+    uint64 timestamp,
+    bool isEmpty,
+    bool initialized,
+    bool isRequest,
+    bool userActivated
+  ) {
+    Data.Epoch storage epoch = forks[currentFork].epochs[forks[currentFork].lastEpoch];
+
+    requestStart = epoch.requestStart;
+    requestEnd = epoch.requestEnd;
+    startBlockNumber = epoch.startBlockNumber;
+    endBlockNumber = epoch.endBlockNumber;
+    forkedBlockNumber = epoch.forkedBlockNumber;
+    firstRequestBlockId = epoch.firstRequestBlockId;
+    timestamp = epoch.timestamp;
+    isEmpty = epoch.isEmpty;
+    initialized = epoch.initialized;
+    isRequest = epoch.isRequest;
+    userActivated = epoch.userActivated;
+
+    return;
+  }
 
   function getBlock(
     uint forkNumber,

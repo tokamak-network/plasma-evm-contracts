@@ -52,13 +52,6 @@ contract('RootChain', async ([
   let numRequests = 0;
   let requestIdToApply = 0;
 
-  // rootchain.State
-  const State = {
-    AcceptingNRB: 0,
-    AcceptingORB: 1,
-    AcceptingURB: 2,
-  };
-
   before(async () => {
     rootchain = await RootChain.deployed();
     token = await RequestableSimpleToken.new();
@@ -165,14 +158,17 @@ contract('RootChain', async ([
       .should.be.bignumber.equal(currentBlockNumber);
   }
 
-  async function checkState (state) {
-    (await rootchain.state()).should.be.bignumber.equal(state);
+  async function checkLastEpoch (isRequest, userActivated) {
+    const epoch = new Data.Epoch(await rootchain.getLastEpoch());
+
+    epoch.isRequest.should.be.equal(isRequest);
+    epoch.userActivated.should.be.equal(userActivated);
   }
 
   async function submitDummyNRB () {
     await checkBlockNumber();
 
-    await rootchain.submitNRB(statesRoot, transactionsRoot, receiptsRoot, { value: COST_NRB });
+    await rootchain.submitNRB(currentFork, statesRoot, transactionsRoot, receiptsRoot, { value: COST_NRB });
     currentBlockNumber += 1;
 
     await checkBlockNumber();
@@ -181,7 +177,7 @@ contract('RootChain', async ([
   async function submitDummyORB () {
     await checkBlockNumber();
 
-    await rootchain.submitORB(statesRoot, transactionsRoot, receiptsRoot, { value: COST_ORB });
+    await rootchain.submitORB(currentFork, statesRoot, transactionsRoot, receiptsRoot, { value: COST_ORB });
     currentBlockNumber += 1;
 
     await checkBlockNumber();
@@ -255,7 +251,10 @@ contract('RootChain', async ([
     const ORBEPochNumber = NRBEPochNumber + 1;
 
     before(`check NRB Epoch#${NRBEPochNumber} parameters`, async () => {
-      await checkState(State.AcceptingNRB);
+      const isRequest = false;
+      const userActivated = false;
+
+      await checkLastEpoch(isRequest, userActivated);
       await checkBlockNumber();
       await checkEpochNumber();
 
@@ -269,11 +268,14 @@ contract('RootChain', async ([
       await logEpochAndBlock(lastEpoch);
 
       // because no ERO, ORB epoch is empty
+      const isRequest = false;
+      const userActivated = false;
+
       lastEpoch += 2;
       await checkEpochNumber();
       await checkEpoch(lastEpoch - 1);
       await checkEpoch(lastEpoch);
-      await checkState(State.AcceptingNRB);
+      await checkLastEpoch(isRequest, userActivated);
     });
 
     it('can finalize blocks', finalizeBlocks);
@@ -283,7 +285,9 @@ contract('RootChain', async ([
     const ORBEPochNumber = NRBEPochNumber + 1;
 
     before(`check NRB Epoch#${NRBEPochNumber} parameters`, async () => {
-      await checkState(State.AcceptingNRB);
+      const isRequest = false;
+      const userActivated = false;
+      await checkLastEpoch(isRequest, userActivated);
 
       await checkBlockNumber();
 
@@ -346,11 +350,14 @@ contract('RootChain', async ([
       await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
       await logEpochAndBlock(lastEpoch);
 
+      const isRequest = true;
+      const userActivated = false;
       lastEpoch += 1;
+
       await checkEpochNumber();
       await checkEpoch(lastEpoch - 1);
       await checkEpoch(lastEpoch);
-      await checkState(State.AcceptingORB);
+      await checkLastEpoch(isRequest, userActivated);
     });
 
     it(`ORBEpoch#${ORBEPochNumber}: operator submits ORBs`, async () => {
@@ -361,10 +368,13 @@ contract('RootChain', async ([
       await Promise.all(range(numORBs).map(submitDummyORB));
 
       lastEpoch += 1;
+      const isRequest = false;
+      const userActivated = false;
+
       await checkEpochNumber();
       await checkEpoch(lastEpoch - 1);
       await checkEpoch(lastEpoch);
-      await checkState(State.AcceptingNRB);
+      await checkLastEpoch(isRequest, userActivated);
     });
 
     it('can finalize blocks', finalizeBlocks);
@@ -400,12 +410,15 @@ contract('RootChain', async ([
     });
 
     it(`NRBEpoch#${NRBEPochNumber}: operator submits NRBs`, async () => {
+      const isRequest = true;
+      const userActivated = false;
+
       await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
       lastEpoch += 1;
       await checkEpochNumber();
       await checkEpoch(lastEpoch - 1);
       await checkEpoch(lastEpoch);
-      await checkState(State.AcceptingORB);
+      await checkLastEpoch(isRequest, userActivated);
     });
 
     it(`ORBEpoch#${ORBEPochNumber}: operator submits ORBs`, async () => {
@@ -415,10 +428,13 @@ contract('RootChain', async ([
       await Promise.all(range(numORBs).map(submitDummyORB));
 
       lastEpoch += 1;
+      const isRequest = false;
+      const userActivated = false;
+
       await checkEpochNumber();
       await checkEpoch(lastEpoch - 1);
       await checkEpoch(lastEpoch);
-      await checkState(State.AcceptingNRB);
+      await checkLastEpoch(isRequest, userActivated);
     });
 
     it('can finalize blocks', finalizeBlocks);
@@ -455,12 +471,15 @@ contract('RootChain', async ([
     });
 
     it(`NRBEpoch#${NRBEPochNumber}: operator submits NRBs`, async () => {
+      const isRequest = true;
+      const userActivated = false;
+
       await Promise.all(range(NRBEpochLength).map(submitDummyNRB));
       lastEpoch += 1;
       await checkEpochNumber();
       await checkEpoch(lastEpoch - 1);
       await checkEpoch(lastEpoch);
-      await checkState(State.AcceptingORB);
+      await checkLastEpoch(isRequest, userActivated);
     });
 
     it(`ORBEpoch#${ORBEPochNumber}: operator submits ORBs`, async () => {
@@ -470,10 +489,13 @@ contract('RootChain', async ([
       await Promise.all(range(numORBs).map(submitDummyORB));
 
       lastEpoch += 1;
+      const isRequest = false;
+      const userActivated = false;
+
       await checkEpochNumber();
       await checkEpoch(lastEpoch - 1);
       await checkEpoch(lastEpoch);
-      await checkState(State.AcceptingNRB);
+      await checkLastEpoch(isRequest, userActivated);
     });
 
     it('can finalize blocks', finalizeBlocks);
