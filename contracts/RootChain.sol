@@ -235,6 +235,7 @@ contract RootChain {
 
   // TODO: Delegate the validity check to TrueBit Verification Game contracts
   function submitNRB(
+    uint _forkNumber,
     bytes32 _statesRoot,
     bytes32 _transactionsRoot,
     bytes32 _receiptsRoot
@@ -257,7 +258,6 @@ contract RootChain {
       _transactionsRoot,
       _receiptsRoot,
       false,
-      false,
       false
     );
 
@@ -272,6 +272,7 @@ contract RootChain {
 
 
   function submitORB(
+    uint _forkNumber,
     bytes32 _statesRoot,
     bytes32 _transactionsRoot,
     bytes32 _receiptsRoot
@@ -291,26 +292,15 @@ contract RootChain {
       _transactionsRoot,
       _receiptsRoot,
       true,
-      false,
       false
     );
 
     if (!development) {
-      Data.RequestBlock storage ORB = ORBs[fork.blocks[fork.lastBlock].requestBlockId];
-      uint s = ORB.requestStart;
-      uint e = ORB.requestEnd;
-
-      bytes32[] memory hashes = new bytes32[](e - s + 1);
-      for (uint i = s; i <= e; i++) {
-        hashes[i - s] = EROs[i].hash;
-      }
-
-      require(hashes.getRoot() == _transactionsRoot);
-
-      /* use binary merkle tree instead of patricia tree
-      Data.RequestBlock storage ORB = ORBs[fork.blocks[blockNumber].requestBlockId];
-      require(_transactionsRoot == ORB.transactionsRoot);
-       */
+      _transactionsRoot._checkTxRoot(
+        ORBs[fork.blocks[fork.lastBlock].requestBlockId],
+        EROs,
+        false
+      );
     }
 
     emit ORBSubmitted(currentFork, fork.lastBlock);
@@ -843,8 +833,8 @@ contract RootChain {
     } else {
       uint numBlocks = epoch.getNumBlocks();
       for (uint64 i = 0; i < numBlocks; i++) {
-        fork.blocks[epoch.startBlockNumber + i].isRequest = true;
-        fork.blocks[epoch.startBlockNumber + i].requestBlockId = epoch.firstRequestBlockId + i;
+        fork.blocks[epoch.startBlockNumber.add64(i)].isRequest = true;
+        fork.blocks[epoch.startBlockNumber.add64(i)].requestBlockId = epoch.firstRequestBlockId + i;
       }
     }
   }
@@ -894,7 +884,7 @@ contract RootChain {
 
     // seal last ORB
     if (ORBs.length > 0) {
-      ORBs[ORBs.length - 1].submitted = true;
+      ORBs[ORBs.length.sub(1)].submitted = true;
     }
   }
 

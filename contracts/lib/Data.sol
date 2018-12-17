@@ -5,16 +5,19 @@ import "./SafeMath.sol";
 import "./Math.sol";
 import "./RLP.sol";
 import "./RLPEncode.sol";
+import "./BMT.sol";
 
 // import "../patricia_tree/PatriciaTree.sol"; // use binary merkle tree
 import {RequestableContractI} from "../RequestableContractI.sol";
 
 
 library Data {
-  using SafeMath for *;
+  using SafeMath for uint;
+  using SafeMath for uint64;
   using Math for *;
   using RLP for *;
   using RLPEncode for *;
+  using BMT for *;
 
   // signature of function applyRequestInChildChain(bool,uint256,address,bytes32,bytes32)
   bytes4 public constant APPLY_IN_CHILDCHAIN_SIGNATURE = 0xe904e3d9;
@@ -70,35 +73,12 @@ library Data {
     bytes32 _transactionsRoot,
     bytes32 _receiptsRoot,
     bool _isRequest,
-    bool _userActivated,
-    bool _firstURB
+    bool _userActivated
   )
     internal
     returns (uint epochNunber, uint blockNumber)
   {
-    // TODO: when first URB is submitted
-    /* if (_isRequest && _userActivated && _firstURB) {
-      uint nextFork = currentFork.add(1);
-      uint forkEpochNumber = firstEpoch[nextFork];
-
-      // newEpoch is already set up in preparing step
-      Data.Epoch storage newEpoch = epochs[nextFork][forkEpochNumber];
-
-      // URB submission is out of time
-      if (newEpoch.isRequest && newEpoch.timestamp + PREPARE_TIMEOUT < block.timestamp) {
-        delete epochs[nextFork][forkEpochNumber];
-        firstEpoch[nextFork] = 0;
-        return;
-      }
-
-      // update storage
-      currentFork = nextFork;
-      blockNumber = epochs[currentFork][firstEpoch[nextFork]].startBlockNumber;
-      epochs[currentFork - 1][forkEpochNumber].forkedBlockNumber = uint64(blockNumber);
-
-      emit Forked(nextFork, blockNumber);
-    }
-    */
+    require(_f.forkedBlock == 0);
 
     epochNunber = _f.lastEpoch;
     Data.Epoch storage epoch = _f.epochs[epochNunber];
@@ -503,4 +483,41 @@ library Data {
   }
 
 
+  /**
+   * Helpers
+   */
+
+  /**
+   * @notice Checks transaction root of a request block
+   */
+  function _checkTxRoot(
+    bytes32 _transactionsRoot,
+    RequestBlock storage _rb,
+    Request[] storage _rs,
+    bool _skipExit
+  ) internal {
+    uint s = _rb.requestStart;
+    uint e = _rb.requestEnd;
+    uint n = _skipExit ? _rb.numEnter : e - s + 1;
+
+    require(n > 0);
+
+    bytes32[] memory hashes = new bytes32[](n);
+
+    // TODO: optimize to reduce gas
+    uint j = s;
+    for (uint i = s; i <= e; i++) {
+      if (!_skipExit || !_rs[i].isExit) {
+        hashes[j - s] = _rs[i].hash;
+        j++;
+      }
+    }
+
+    require(hashes.getRoot() == _transactionsRoot);
+
+    /* use binary merkle tree instead of patricia tree
+    Data.RequestBlock storage ORB = ORBs[fork.blocks[blockNumber].requestBlockId];
+    require(_transactionsRoot == ORB.transactionsRoot);
+      */
+  }
 }
