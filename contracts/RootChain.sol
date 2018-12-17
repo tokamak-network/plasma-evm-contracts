@@ -9,19 +9,14 @@ import "./patricia_tree/PatriciaTreeFace.sol";
 
 
 // TODO: use SafeMath
+// TODO: remove state. use epoch.isRequest and epoch.userActivated
 contract RootChain {
   using SafeMath for uint;
+  using SafeMath for uint64;
   using Math for *;
   using Data for *;
   using Address for address;
   using BMT for *;
-
-  enum State {
-    AcceptingNRB,
-    AcceptingORB,
-    // TODO: remove AcceptingURB
-    AcceptingURB
-  }
 
   /*
    * Storage
@@ -34,8 +29,6 @@ contract RootChain {
   // massive requests can be included in k ORBs, and k is determined when
   // N NRBs are submitted or when preparing URBs submission.
   uint public NRBEpochLength;
-
-  State public state;
 
   // Increase for each URB
   uint public currentFork;
@@ -94,7 +87,6 @@ contract RootChain {
    * Event
    */
   event SessionTimeout(bool userActivated);
-  event StateChanged(State state);
 
   event Forked(uint newFork, uint forkedBlockNumber);
   event EpochPrepared(
@@ -149,16 +141,6 @@ contract RootChain {
    */
   modifier onlyOperator() {
     require(msg.sender == operator);
-    _;
-  }
-
-  modifier onlyState(State _state) {
-    require(state == _state);
-    _;
-  }
-
-  modifier onlyNotState(State _state) {
-    require(state != _state);
     _;
   }
 
@@ -245,13 +227,9 @@ contract RootChain {
    */
   function prepareToSubmitURB()
     external
-    onlyOperator
-    onlyNotState(State.AcceptingURB)
-    // finalizeBlocks
+    finalizeBlocks
     returns (bool success)
-  {
-    state = State.AcceptingURB;
-    _prepareToSubmitURB();
+  {    
     return true;
   }
 
@@ -264,12 +242,12 @@ contract RootChain {
     external
     payable
     onlyOperator
-    onlyState(State.AcceptingNRB)
     onlyValidCost(COST_NRB)
     finalizeBlocks
     returns (bool success)
   {
-    Data.Fork storage fork = forks[currentFork];
+    require(currentFork == _forkNumber);
+    Data.Fork storage fork = forks[_forkNumber];
 
     uint epochNunber;
     uint blockNumber;
@@ -301,12 +279,12 @@ contract RootChain {
     external
     payable
     onlyOperator
-    onlyState(State.AcceptingORB)
     onlyValidCost(COST_ORB)
     finalizeBlocks
     returns (bool success)
   {
-    Data.Fork storage fork = forks[currentFork];
+    require(currentFork == _forkNumber);
+    Data.Fork storage fork = forks[_forkNumber];
 
     fork.insertBlock(
       _statesRoot,
@@ -352,7 +330,6 @@ contract RootChain {
   )
     external
     payable
-    onlyState(State.AcceptingURB)
     onlyValidCost(COST_URB)
     returns (bool success)
   {
@@ -701,7 +678,7 @@ contract RootChain {
     uint blockNumber
   ) public view returns (
     uint64 epochNumber,
-    uint64 previousBlockNUmber,
+    uint64 previousBlockNumber,
     uint64 requestBlockId,
     uint64 timestamp,
     bytes32 statesRoot,
@@ -714,7 +691,7 @@ contract RootChain {
     bool finalized
   ) {
     epochNumber = forks[forkNumber].blocks[blockNumber].epochNumber;
-    previousBlockNUmber = forks[forkNumber].blocks[blockNumber].previousBlockNUmber;
+    previousBlockNumber = forks[forkNumber].blocks[blockNumber].previousBlockNumber;
     requestBlockId = forks[forkNumber].blocks[blockNumber].requestBlockId;
     timestamp = forks[forkNumber].blocks[blockNumber].timestamp;
     statesRoot = forks[forkNumber].blocks[blockNumber].statesRoot;
@@ -841,7 +818,7 @@ contract RootChain {
 
     if (epoch.isEmpty) {
       epoch.requestEnd = epoch.requestStart;
-      epoch.startBlockNumber = epoch.startBlockNumber - uint64(1);
+      epoch.startBlockNumber = epoch.startBlockNumber.sub64(1);
       epoch.endBlockNumber = epoch.startBlockNumber;
     } else {
       epoch.requestEnd = uint64(EROs.length - 1);
@@ -849,9 +826,6 @@ contract RootChain {
         .divCeil(Data.MAX_REQUESTS()) - 1);
     }
 
-    // change state to accept ORBs
-    state = State.AcceptingORB;
-    emit StateChanged(state);
     emit EpochPrepared(
       fork.lastEpoch,
       epoch.startBlockNumber,
@@ -937,13 +911,11 @@ contract RootChain {
     }
 
     epoch.initialized = true;
-    epoch.startBlockNumber = uint64(startBlockNumber);
-    epoch.endBlockNumber = uint64(startBlockNumber + NRBEpochLength - 1);
     epoch.timestamp = uint64(block.timestamp);
 
-    // change state to accept NRBs
-    state = State.AcceptingNRB;
-    emit StateChanged(state);
+    epoch.startBlockNumber = uint64(startBlockNumber);
+    epoch.endBlockNumber = uint64(startBlockNumber + NRBEpochLength - 1);
+
     emit EpochPrepared(
       fork.lastEpoch,
       epoch.startBlockNumber,
@@ -992,7 +964,7 @@ contract RootChain {
    */
   function _finalizeBlock() internal returns (bool) {
     // short circuit if waiting URBs
-    if (state == State.AcceptingURB) {
+    if (forks[currentFork].forkedBlock != 0) {
       return false;
     }
 

@@ -194,7 +194,7 @@ library Data {
 
   /**
    * epochNumber
-   * previousBlockNUmber
+   * previousBlockNumber
    * requestBlockId       id of RequestBlock[]
    * timestamp
    * statesRoot
@@ -208,7 +208,7 @@ library Data {
    */
   struct PlasmaBlock {
     uint64 epochNumber;
-    uint64 previousBlockNUmber;
+    uint64 previousBlockNumber;
     uint64 requestBlockId;
     uint64 timestamp;
     bytes32 statesRoot;
@@ -343,7 +343,7 @@ library Data {
 
   /**
    * submitted      true if no more request can be inserted
-                    because epoch is initialized
+   *                because epoch is initialized
    * epochNumber    non request epoch number where the request is created
    * requestStart   first request id
    * requestEnd     last request id
