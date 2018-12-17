@@ -772,6 +772,10 @@ contract RootChain {
 
     Data.RequestBlock storage rb = _rbs[requestBlockId];
 
+    if (_isExit) {
+      rb.numEnter += 1;
+    }
+
     // make new RequestBlock
     if (rb.submitted || rb.requestEnd - rb.requestStart + 1 == Data.MAX_REQUESTS()) {
       rb = _rbs[_rbs.length++];
