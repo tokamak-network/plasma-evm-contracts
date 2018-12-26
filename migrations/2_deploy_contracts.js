@@ -1,3 +1,4 @@
+const EpochHandler = artifacts.require('EpochHandler.sol');
 const RootChain = artifacts.require('RootChain.sol');
 
 const development = process.env.DEVELOPMENT || true;
@@ -7,5 +8,9 @@ const transactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc00162
 const receiptsRoot = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
 module.exports = function (deployer) {
-  deployer.deploy(RootChain, development, NRBEpochLength, statesRoot, transactionsRoot, receiptsRoot);
+  deployer.deploy(EpochHandler)
+    .then((epochHandler) => {
+      return deployer.deploy(RootChain, epochHandler.address, development, NRBEpochLength, statesRoot, transactionsRoot, receiptsRoot);
+    })
+    .catch(console.error);
 };

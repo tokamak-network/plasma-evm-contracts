@@ -34,38 +34,178 @@ library Data {
     return 1000;
   }
 
+  // Timeout for URB submission
+  function URE_TIMEOUT() internal pure returns (uint) {
+    return 1 hours;
+  }
 
   /**
    * highestFinalizedBlock
    * firstEpochNumber
-   * blockToRenew                       0 means no renew required
-   * forkedBlock                        forked block number due to URB or challenge
-   *                                    last finalized block is forkedBlockNumber - 1
-   * lastRebasedPreviousRequestEpoch
-   * lastRebasedPreviousNonRequestEpoch
+   * blockToRenew               0 means no renew required
+   * forkedBlock                forked block number due to URB submission
+   *                            last finalized block is forkedBlockNumber - 1
    * urbEpochNumber
    * lastEpoch
    * lastBlock
    * lastFinalizedBlock
-   * epochs
-   * blocks
+   * timestamp
+   * nextBlockToRebase
+   * rebased                    true if all blocks are rebased
+   * epochs                     epochs in this fork
+   * blocks                     blocks in this fork
    */
   struct Fork {
-    uint64 blockToRenew;
+    // uint64 blockToRenew;
     uint64 forkedBlock;
-    uint64 lastRebasedPreviousRequestEpoch;
-    uint64 lastRebasedPreviousNonRequestEpoch;
     uint64 firstEpoch;
     uint64 lastEpoch;
     uint64 firstBlock;
     uint64 lastBlock;
     uint64 lastFinalizedBlock;
+    uint64 timestamp;
+    uint64 firstEnterEpoch;
+    uint64 lastEnterEpoch;
+    uint64 nextBlockToRebase;
+    bool rebased;
     mapping (uint => Epoch) epochs;
     mapping (uint => PlasmaBlock) blocks;
   }
 
   /**
-   * @notice Insert a block into the fork.
+   * @notice Prepare ORE'. return true if ORE' is empty
+   */
+  function prepareOREAfterURE(
+    Fork storage _cur,
+    Fork storage _pre,
+    RequestBlock[] storage _rbs,
+    function() returns(uint64,uint64,uint64) _getLatestRequestInfo
+  ) internal returns (bool isEmpty) {
+    require(!_cur.rebased);
+    Epoch storage curEpoch = _cur.epochs[_cur.lastEpoch];
+
+    // check preivous URE
+    require(curEpoch.isRequest && curEpoch.userActivated);
+
+    _cur.lastEpoch += 1;
+
+    uint forkedEpochNumber = _pre.blocks[_pre.forkedBlock].epochNumber;
+
+    // prepare ORE' which covers all ORBs in previous fork but excludes exit requests.
+    curEpoch = _cur.epochs[_cur.lastEpoch];
+
+    curEpoch.initialized = true;
+    curEpoch.isRequest = true;
+    curEpoch.rebase = true;
+    curEpoch.timestamp = uint64(block.timestamp);
+
+    uint firstEpochNumber = _pre.epochs[forkedEpochNumber].isRequest ?
+      forkedEpochNumber :
+      forkedEpochNumber + 1;
+
+   // find requestBlockId, start, end
+    // uint lastEpochNumber = getLastEpochNumber(_pre, true);
+
+    // // copy firstRequestBlockId from prefious fork even though the request block has no enter
+    // curEpoch.firstRequestBlockId = _pre.epochs[lastEpochNumber].firstRequestBlockId;
+
+    (curEpoch.firstRequestBlockId, curEpoch.requestStart, curEpoch.requestEnd) = _getLatestRequestInfo();
+
+    // short circuit if there is no ORE at all.
+    if (!_pre.epochs[firstEpochNumber].initialized) {
+      curEpoch.isEmpty = true;
+      curEpoch.startBlockNumber = _cur.lastBlock;
+      curEpoch.endBlockNumber = _cur.lastBlock;
+      return true;
+    }
+
+    assert(_pre.epochs[firstEpochNumber].isRequest);
+
+    curEpoch.isEmpty = forkedEpochNumber > _pre.lastEnterEpoch;
+
+    // short circut if the epoch is empty
+    if (curEpoch.isEmpty) {
+      // get ready to prepare NRE'
+      curEpoch.startBlockNumber = _cur.lastBlock;
+      curEpoch.endBlockNumber = _cur.lastBlock;
+      return true;
+    }
+
+    // find next ORB to include into forked chain if ORE' is not empty
+    uint firstEnterEpoch = firstEpochNumber;
+    while (_pre.epochs[firstEpochNumber].numEnter == 0) {
+      firstEnterEpoch += 2;
+    }
+
+    curEpoch.startBlockNumber = _cur.lastBlock.add64(1);
+
+    uint preBlockNumber = _pre.epochs[firstEnterEpoch].startBlockNumber;
+
+    RequestBlock storage preRB = _rbs[_pre.blocks[preBlockNumber].requestBlockId];
+
+    while (preRB.numEnter == 0) {
+      preBlockNumber += 1;
+      preRB = _rbs[_pre.blocks[preBlockNumber].requestBlockId];
+    }
+
+    // TODO: forked epoch == ORE 일 경우, 아닐경우 에 따라. 위 반복문에서 이미 커버 되나?
+    _cur.nextBlockToRebase = uint64(preBlockNumber);
+
+    return false;
+  }
+
+  /**
+   * @notice Prepare NRE'. return true if NRE' is empty
+   */
+  function prepareNREAfterURE(
+    Fork storage _cur,
+    Fork storage _pre
+  ) internal returns (bool isEmpty) {
+    require(!_cur.rebased);
+    Epoch storage curEpoch = _cur.epochs[_cur.lastEpoch];
+
+    require(curEpoch.rebase && curEpoch.isRequest && !curEpoch.userActivated);
+
+    // set end block number of ORE' because it is 0. see EpochPrepared event.
+    _cur.epochs[_cur.lastEpoch].endBlockNumber = _cur.lastBlock;
+
+    _cur.lastEpoch += 1;
+
+    uint forkedEpochNumber = _pre.blocks[_pre.forkedBlock].epochNumber;
+
+    // prepare NRE'
+    curEpoch = _cur.epochs[_cur.lastEpoch];
+
+    curEpoch.initialized = true;
+    curEpoch.rebase = true;
+    curEpoch.timestamp = uint64(block.timestamp);
+
+    uint previousNRENumber = !_pre.epochs[forkedEpochNumber].isRequest ?
+      forkedEpochNumber :
+      forkedEpochNumber + 1;
+
+    // short circuit if there is no NRE to rebase at all.
+    if (!_pre.epochs[previousNRENumber].initialized) {
+      curEpoch.startBlockNumber = _cur.lastBlock;
+      curEpoch.endBlockNumber = _cur.lastBlock;
+      curEpoch.isEmpty = true;
+      _cur.rebased = true;
+      return true;
+    }
+
+    assert(!_pre.epochs[previousNRENumber].isRequest);
+
+    curEpoch.startBlockNumber = _cur.lastBlock.add64(1);
+    _cur.nextBlockToRebase = previousNRENumber == forkedEpochNumber ?
+      _pre.forkedBlock :
+      _pre.epochs[previousNRENumber].startBlockNumber;
+
+    assert(_cur.nextBlockToRebase >= _pre.forkedBlock);
+    return false;
+  }
+
+  /**
+   * @notice Insert a block (ORB / NRB) into the fork.
    */
   function insertBlock(
     Fork storage _f,
@@ -76,20 +216,19 @@ library Data {
     bool _userActivated
   )
     internal
-    returns (uint epochNunber, uint blockNumber)
+    returns (uint epochNumber, uint blockNumber)
   {
-    require(_f.forkedBlock == 0);
-
-    epochNunber = _f.lastEpoch;
-    Data.Epoch storage epoch = _f.epochs[epochNunber];
+    epochNumber = _f.lastEpoch;
+    Data.Epoch storage epoch = _f.epochs[epochNumber];
 
     require(epoch.isRequest == _isRequest);
     require(epoch.userActivated == _userActivated);
 
-    blockNumber = _f.lastBlock.add64(1);
+    blockNumber = _f.lastBlock.add(1);
 
     Data.PlasmaBlock storage b = _f.blocks[blockNumber];
 
+    b.epochNumber = uint64(epochNumber);
     b.statesRoot = _statesRoot;
     b.transactionsRoot = _transactionsRoot;
     b.receiptsRoot = _receiptsRoot;
@@ -101,82 +240,205 @@ library Data {
     return;
   }
 
+  function getLastEpochNumber(Fork storage _f, bool _isRequest) internal returns (uint) {
+    if (_f.epochs[_f.lastEpoch].isRequest == _isRequest) {
+      return _f.lastEpoch;
+    }
+
+    return _f.lastEpoch - 1;
+  }
+
+  // function getFirstNotFinalizedEpochNumber(Fork storage _f, bool _isRequest) internal returns (uint) {
+  //   if (_f.epochs[_f.lastEpoch].isRequest == _isRequest) {
+  //     return _f.lastEpoch;
+  //   }
+
+  //   return _f.lastEpoch - 1;
+  // }
+
+  /**
+   * @notice Update nextBlockToRebase to next request block containing enter request.
+   *         If all ORBs are rebased, return true.
+   */
+  function checkNextORBToRebase(
+    Fork storage _cur,
+    Fork storage _pre,
+    RequestBlock[] storage _rbs
+  ) internal returns (bool finished) {
+    uint blockNumber = _cur.nextBlockToRebase;
+    uint epochNumber = _pre.blocks[_cur.nextBlockToRebase].epochNumber;
+    // uint lastEpochNumber = getLastEpochNumber(_pre, true);
+
+    while (_pre.epochs[epochNumber].initialized) {
+      // at the end of epoch
+      if (_pre.epochs[epochNumber].endBlockNumber <= blockNumber) {
+        epochNumber += 2;
+        blockNumber = _pre.epochs[epochNumber].startBlockNumber;
+      }
+
+      // skip until epoch has enter request
+      while (_pre.epochs[epochNumber].numEnter == 0 && _pre.epochs[epochNumber].initialized) {
+        epochNumber += 2;
+        blockNumber = _pre.epochs[epochNumber].startBlockNumber;
+      }
+
+      // short circuit if all OREs are empty or has no enter
+      if (!_pre.epochs[epochNumber].initialized) {
+        return true;
+      }
+
+      // skip blocks without enter request
+      uint endBlockNumber = _pre.epochs[epochNumber].endBlockNumber;
+      while (blockNumber <= endBlockNumber) {
+        if (_rbs[_pre.blocks[blockNumber].requestBlockId].numEnter > 0) {
+          break;
+        }
+        blockNumber += 1;
+      }
+
+      // continue if there is no block containing enter request
+      if (blockNumber > endBlockNumber) {
+        epochNumber += 2;
+        blockNumber = _pre.epochs[epochNumber].startBlockNumber;
+        continue;
+      }
+
+      // target block number is found
+      _cur.nextBlockToRebase = uint64(blockNumber);
+      return false;
+    }
+
+    // ready to prepare NRE
+    return true;
+  }
+
+  /**
+   * @notice Update nextBlockToRebase to next non request block
+   *         If all NRBs are rebased, return true.
+   * TODO    What if no ORE' ?
+   */
+  function checkNextNRBToRebase(
+    Fork storage _cur,
+    Fork storage _pre
+  ) internal returns (bool finished) {
+    uint blockNumber = _cur.nextBlockToRebase;
+    uint epochNumber = _pre.blocks[blockNumber].epochNumber;
+
+    // at the end of epoch
+    if (_pre.epochs[epochNumber].endBlockNumber <= blockNumber) {
+      epochNumber += 2;
+      blockNumber = _pre.epochs[epochNumber].startBlockNumber;
+    } else {
+      blockNumber += 1;
+    }
+
+    // short circit if all NRE's are rebased
+    if (!_pre.epochs[epochNumber].initialized) {
+      _cur.nextBlockToRebase = 0;
+      return true;
+    }
+
+    // short circuit if block is not submitted
+    if (_pre.blocks[blockNumber].timestamp == 0) {
+      _cur.nextBlockToRebase = 0;
+      return true;
+    }
+
+    _cur.nextBlockToRebase = uint64(blockNumber);
+    return false;
+  }
+
   /**
    *
-   * requestStart         first request id
-   * requestEnd           last request id
-   * startBlockNumber     first block number of the epoch
-   * endBlockNumber       last block number of the epoch
+   * requestStart         first request id. 0 if the epoch is ORE'.
+   * requestEnd           last request id. 0 if the epoch is ORE'.
+   * startBlockNumber     first block number of the epoch.
+   * endBlockNumber       last block number of the epoch. 0 if the epoch is ORE' / NRE' until ORE' is filled.
    * firstRequestBlockId  first id of RequestBlock[]
+   *                      if epochs is ORE', copy from last request epoch in previous fork
    * timestamp            timestamp when the epoch is initialized.
    *                      required for URB / ORB
    * isEmpty              true if request epoch has no request block
-   *                      and also requestStart == requestEnd == previousEpoch.requestEnd
-   *                      startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
-   *                      firstRequestBlockId == previousEpoch.firstRequestBlockId
+   *                      also and requestStart == requestEnd == previousEpoch.requestEnd
+   *                      and startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
+   *                      and firstRequestBlockId == previousEpoch.firstRequestBlockId
    * initialized          true if epoch is initialized
    * isRequest            true in case of URB / ORB
    * userActivated        true in case of URB
+   * rebase               true in case of ORE' or NRE'
    */
   struct Epoch {
     uint64 requestStart;
     uint64 requestEnd;
     uint64 startBlockNumber;
     uint64 endBlockNumber;
-    uint64 forkedBlockNumber;
     uint64 firstRequestBlockId;
+    uint64 numEnter;
+    uint64 nextEnterEpoch;
     uint64 timestamp;
     bool isEmpty;
     bool initialized;
     bool isRequest;
     bool userActivated;
+    bool rebase;
   }
 
+  // function noExit(Epoch storage self) internal returns (bool) {
+  //   if (self.rebase) return true;
+  //   return self.requestEnd.sub64(self.requestStart).add64(1) == self.numEnter;
+  // }
+
   function getNumBlocks(Epoch memory _e) internal pure returns (uint) {
-    if (_e.isEmpty) return 0;
-    return _e.endBlockNumber - _e.startBlockNumber + 1;
+    if (_e.isEmpty || _e.rebase && _e.endBlockNumber == 0) return 0;
+    return _e.endBlockNumber + 1 - _e.startBlockNumber;
+    // return _e.endBlockNumber.add64(1).sub64(_e.startBlockNumber);
+    // return _e.endBlockNumber.sub64(_e.startBlockNumber).add64(1);
   }
 
   /**
    * @notice This returns the request block number if the request is included
    *         in an epoch. Otherwise, returns 0.
    */
-  function getBlockNumber(Epoch memory _e, uint _requestId) internal pure returns (uint) {
-    if (!_e.isRequest ||
-      _e.isEmpty ||
-      _e.requestStart < _requestId ||
-      _e.requestEnd > _requestId) {
-      return 0;
-    }
+  // function getBlockNumber(Epoch memory _e, uint _requestId) internal pure returns (uint) {
+  //   if (!_e.isRequest ||
+  //     _e.isEmpty ||
+  //     _e.requestStart < _requestId ||
+  //     _e.requestEnd > _requestId) {
+  //     return 0;
+  //   }
 
-    return uint(_e.startBlockNumber)
-      .add(uint(_requestId - _e.requestStart + 1).divCeil(MAX_REQUESTS()));
+  //   return uint(_e.startBlockNumber)
+  //     .add(uint(_requestId - _e.requestStart + 1).divCeil(MAX_REQUESTS()));
+  // }
+
+  function calcNumBlock(uint _rs, uint _re) internal pure returns (uint) {
+    return _re.sub(_rs).add(1).divCeil(MAX_REQUESTS());
   }
 
-  function getRequestRange(Epoch memory _e, uint _blockNumber, uint _limit)
-    internal
-    pure
-    returns (uint requestStart, uint requestEnd)
-  {
-    require(_e.isRequest);
-    require(_blockNumber >= _e.startBlockNumber && _blockNumber <= _e.endBlockNumber);
+  // function getRequestRange(Epoch memory _e, uint _blockNumber, uint _limit)
+  //   internal
+  //   pure
+  //   returns (uint requestStart, uint requestEnd)
+  // {
+  //   require(_e.isRequest);
+  //   require(_blockNumber >= _e.startBlockNumber && _blockNumber <= _e.endBlockNumber);
 
-    if (_blockNumber == _e.endBlockNumber) {
-      requestStart = _e.requestStart + (getNumBlocks(_e) - 1) * _limit;
-      requestEnd = _e.requestEnd;
-      return;
-    }
+  //   if (_blockNumber == _e.endBlockNumber) {
+  //     requestStart = _e.requestStart + (getNumBlocks(_e) - 1) * _limit;
+  //     requestEnd = _e.requestEnd;
+  //     return;
+  //   }
 
-    requestStart = _e.requestStart + (_blockNumber - _e.startBlockNumber) * _limit;
-    requestEnd = requestStart + _limit;
-    return;
-  }
+  //   requestStart = _e.requestStart + (_blockNumber - _e.startBlockNumber) * _limit;
+  //   requestEnd = requestStart + _limit;
+  //   return;
+  // }
 
   /**
    * epochNumber
-   * previousBlockNumber
    * requestBlockId       id of RequestBlock[]
    * timestamp
+   * referenceBlock       block number in previous fork
    * statesRoot
    * transactionsRoot
    * receiptsRoot
@@ -188,9 +450,9 @@ library Data {
    */
   struct PlasmaBlock {
     uint64 epochNumber;
-    uint64 previousBlockNumber;
     uint64 requestBlockId;
     uint64 timestamp;
+    uint64 referenceBlock;
     bytes32 statesRoot;
     bytes32 transactionsRoot;
     bytes32 receiptsRoot;
@@ -331,11 +593,16 @@ library Data {
    */
   struct RequestBlock {
     bool submitted;
+    uint64 numEnter;
     uint64 epochNumber;
     uint64 requestStart;
     uint64 requestEnd;
     address trie;
   }
+
+  // function noExit(RequestBlock storage self) internal returns (bool) {
+  //   return self.requestEnd.sub64(self.requestStart).add64(1) == self.numEnter;
+  // }
 
   function init(RequestBlock storage self) internal {
     /* use binary merkle tree instead of patricia tree
@@ -385,19 +652,19 @@ library Data {
     return self.v == 0 && self.r == 0 && self.s == 0;
   }
 
-  function toTX(bytes memory self) internal pure returns (TX memory out) {
-    RLP.RLPItem[] memory packArr = self.toRLPItem().toList(9);
+  // function toTX(bytes memory self) internal pure returns (TX memory out) {
+  //   RLP.RLPItem[] memory packArr = self.toRLPItem().toList(9);
 
-    out.nonce = uint64(packArr[0].toUint());
-    out.gasPrice = packArr[1].toUint();
-    out.gasLimit = uint64(packArr[2].toUint());
-    out.to = packArr[3].toAddress();
-    out.value = packArr[4].toUint();
-    out.data = packArr[5].toBytes();
-    out.v = packArr[6].toUint();
-    out.r = packArr[7].toUint();
-    out.s = packArr[8].toUint();
-  }
+  //   out.nonce = uint64(packArr[0].toUint());
+  //   out.gasPrice = packArr[1].toUint();
+  //   out.gasLimit = uint64(packArr[2].toUint());
+  //   out.to = packArr[3].toAddress();
+  //   out.value = packArr[4].toUint();
+  //   out.data = packArr[5].toBytes();
+  //   out.v = packArr[6].toUint();
+  //   out.r = packArr[7].toUint();
+  //   out.s = packArr[8].toUint();
+  // }
 
   /**
    * @notice Convert TX to RLP-encoded bytes
@@ -418,31 +685,31 @@ library Data {
     return packArr.encodeList();
   }
 
-  function toTX(
-    uint64 _nonce,
-    uint256 _gasPrice,
-    uint64 _gasLimit,
-    address _to,
-    uint256 _value,
-    bytes _data,
-    uint256 _v,
-    uint256 _r,
-    uint256 _s
-  )
-    internal
-    pure
-    returns (TX memory out)
-  {
-    out.nonce = _nonce;
-    out.gasPrice = _gasPrice;
-    out.gasLimit = _gasLimit;
-    out.to = _to;
-    out.value = _value;
-    out.data = _data;
-    out.v = _v;
-    out.r = _r;
-    out.s = _s;
-  }
+  // function toTX(
+  //   uint64 _nonce,
+  //   uint256 _gasPrice,
+  //   uint64 _gasLimit,
+  //   address _to,
+  //   uint256 _value,
+  //   bytes _data,
+  //   uint256 _v,
+  //   uint256 _r,
+  //   uint256 _s
+  // )
+  //   internal
+  //   pure
+  //   returns (TX memory out)
+  // {
+  //   out.nonce = _nonce;
+  //   out.gasPrice = _gasPrice;
+  //   out.gasLimit = _gasLimit;
+  //   out.to = _to;
+  //   out.value = _value;
+  //   out.data = _data;
+  //   out.v = _v;
+  //   out.r = _r;
+  //   out.s = _s;
+  // }
 
   function hash(TX memory self) internal pure returns (bytes32) {
     bytes memory txBytes = toBytes(self);

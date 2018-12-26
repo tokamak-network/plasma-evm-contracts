@@ -1,24 +1,29 @@
 class Fork {
   constructor ([
-    blockToRenew,
     forkedBlock,
-    lastRebasedPreviousRequestEpoch,
-    lastRebasedPreviousNonRequestEpoch,
     firstEpoch,
     lastEpoch,
     firstBlock,
     lastBlock,
     lastFinalizedBlock,
+    timestamp,
+    firstEnterEpoch,
+    lastEnterEpoch,
+    nextBlockToRebase,
+    rebased,
   ]) {
-    this.blockToRenew = blockToRenew;
+    // this.blockToRenew = blockToRenew;
     this.forkedBlock = forkedBlock;
-    this.lastRebasedPreviousRequestEpoch = lastRebasedPreviousRequestEpoch;
-    this.lastRebasedPreviousNonRequestEpoch = lastRebasedPreviousNonRequestEpoch;
     this.firstEpoch = firstEpoch;
     this.lastEpoch = lastEpoch;
     this.firstBlock = firstBlock;
     this.lastBlock = lastBlock;
     this.lastFinalizedBlock = lastFinalizedBlock;
+    this.timestamp = timestamp;
+    this.firstEnterEpoch = firstEnterEpoch;
+    this.lastEnterEpoch = lastEnterEpoch;
+    this.nextBlockToRebase = nextBlockToRebase;
+    this.rebased = rebased;
   }
 }
 
@@ -28,33 +33,33 @@ class Epoch {
     requestEnd,
     startBlockNumber,
     endBlockNumber,
-    forkedBlockNumber,
-    firstRequestBlockId,
-    timestamp,
+    numEnter,
+    nextEnterEpoch,
     isEmpty,
     initialized,
     isRequest,
     userActivated,
+    rebase,
   ]) {
     this.requestStart = requestStart;
     this.requestEnd = requestEnd;
     this.startBlockNumber = startBlockNumber;
     this.endBlockNumber = endBlockNumber;
-    this.forkedBlockNumber = forkedBlockNumber;
-    this.firstRequestBlockId = firstRequestBlockId;
-    this.timestamp = timestamp;
+    this.numEnter = numEnter;
+    this.nextEnterEpoch = nextEnterEpoch;
     this.isEmpty = isEmpty;
     this.initialized = initialized;
     this.isRequest = isRequest;
     this.userActivated = userActivated;
+    this.rebase = rebase;
   }
 }
 
 class PlasmaBlock {
   constructor ([
     epochNumber,
-    previousBlockNUmber,
     requestBlockId,
+    referenceBlock,
     timestamp,
     statesRoot,
     transactionsRoot,
@@ -66,8 +71,8 @@ class PlasmaBlock {
     finalized,
   ]) {
     this.epochNumber = epochNumber;
-    this.previousBlockNUmber = previousBlockNUmber;
     this.requestBlockId = requestBlockId;
+    this.referenceBlock = referenceBlock;
     this.timestamp = timestamp;
     this.statesRoot = statesRoot;
     this.transactionsRoot = transactionsRoot;
@@ -111,12 +116,14 @@ class Request {
 class RequestBlock {
   constructor ([
     submitted,
+    numEnter,
     epochNumber,
     requestStart,
     requestEnd,
     trie,
   ]) {
     this.submitted = submitted;
+    this.numEnter = numEnter;
     this.epochNumber = epochNumber;
     this.requestStart = requestStart;
     this.requestEnd = requestEnd;
