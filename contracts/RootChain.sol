@@ -144,7 +144,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
     payable
     onlyOperator
     onlyValidCost(COST_NRB)
-    // finalizeBlocks
+    finalizeBlocks
     returns (bool success)
   {
     require(currentFork == _forkNumber);
@@ -160,6 +160,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
         _statesRoot,
         _transactionsRoot,
         _receiptsRoot,
+        false,
         false,
         false
       );
@@ -185,7 +186,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
       _transactionsRoot,
       _receiptsRoot,
       false,
-      false
+      false,
+      true
     );
 
     curFork.blocks[blockNumber].referenceBlock = curFork.nextBlockToRebase;
@@ -236,10 +238,10 @@ contract RootChain is RootChainStorage, RootChainEvent {
     payable
     onlyOperator
     onlyValidCost(COST_ORB)
-    // finalizeBlocks
+    finalizeBlocks
     returns (bool success)
   {
-    assert(currentFork == _forkNumber);
+    require(currentFork == _forkNumber);
     Data.Fork storage curFork = forks[_forkNumber];
 
     uint epochNumber;
@@ -253,6 +255,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
         _transactionsRoot,
         _receiptsRoot,
         true,
+        false,
         false
       );
 
@@ -290,17 +293,19 @@ contract RootChain is RootChainStorage, RootChainEvent {
       _transactionsRoot,
       _receiptsRoot,
       true,
-      false
+      false,
+      true
     );
 
-    curFork.blocks[blockNumber].referenceBlock = curFork.nextBlockToRebase;
-
     Data.Fork storage preFork = forks[_forkNumber - 1];
-    Data.PlasmaBlock storage preBlock = preFork.blocks[curFork.nextBlockToRebase];
+    Data.PlasmaBlock storage curBlock = curFork.blocks[blockNumber];
+
+    curBlock.referenceBlock = curFork.nextBlockToRebase;
+    curBlock.requestBlockId = preFork.blocks[curFork.nextBlockToRebase].requestBlockId;
 
     if (!development) {
       _transactionsRoot._checkTxRoot(
-        ORBs[preBlock.requestBlockId],
+        ORBs[curBlock.requestBlockId],
         EROs,
         true
       );
@@ -330,7 +335,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
         false
       );
 
-      _prepareNREAfterURE();
+      prepareNREAfterURE();
     }
 
     // set next block to rebase iterating epochs
@@ -354,8 +359,11 @@ contract RootChain is RootChainStorage, RootChainEvent {
     Data.Fork storage fork = forks[_forkNumber];
 
     if (firstURB) {
+      currentFork += 1;
+      fork = forks[_forkNumber];
+
       require(fork.timestamp + Data.URE_TIMEOUT() > block.timestamp);
-      currentFork = _forkNumber;
+
       emit Forked(_forkNumber, fork.lastEpoch, fork.firstBlock);
     }
 
@@ -399,7 +407,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
 
     // TODO: use internal function to avoide stack too deep error
     if (blockNumber == epoch.endBlockNumber) {
-      _prepareOREAfterURE();
+      prepareOREAfterURE();
     }
 
     return true;
@@ -460,6 +468,11 @@ contract RootChain is RootChainStorage, RootChainEvent {
     requestId = _rb.requestStart + _index;
     require(requestId <= _rb.requestEnd);
 
+    Data.Request storage r = _rs[requestId];
+
+    require(!r.challenged);
+    require(!r.finalized);
+
     bytes32 leaf = keccak256(_receiptData);
 
     require(_receiptData.toReceiptStatus() == 0);
@@ -467,7 +480,6 @@ contract RootChain is RootChainStorage, RootChainEvent {
       require(BMT.checkMembership(leaf, _index, _pb.receiptsRoot, _proof));
     }
 
-    Data.Request storage r = _rs[requestId];
     r.challenged = true;
 
     return;
@@ -686,19 +698,19 @@ contract RootChain is RootChainStorage, RootChainEvent {
     uint forkNumber,
     uint epochNumber
   ) public view returns (
-    uint64,
-    uint64,
-    uint64,
-    uint64,
-    uint64,
-    uint64,
-    bool,
-    bool,
-    bool,
-    bool,
-    bool
+    uint64 requestStart,
+    uint64 requestEnd,
+    uint64 startBlockNumber,
+    uint64 endBlockNumber,
+    uint64 firstRequestBlockId,
+    uint64 numEnter,
+    bool isEmpty,
+    bool initialized,
+    bool isRequest,
+    bool userActivated,
+    bool rebase
   ) {
-    Data.Epoch storage epoch = forks[currentFork].epochs[epochNumber];
+    Data.Epoch storage epoch = forks[forkNumber].epochs[epochNumber];
 
     return
     (
@@ -706,8 +718,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
       epoch.requestEnd,
       epoch.startBlockNumber,
       epoch.endBlockNumber,
+      epoch.firstRequestBlockId,
       epoch.numEnter,
-      epoch.nextEnterEpoch,
       epoch.isEmpty,
       epoch.initialized,
       epoch.isRequest,
@@ -717,17 +729,17 @@ contract RootChain is RootChainStorage, RootChainEvent {
   }
 
   function getLastEpoch() public view returns (
-    uint64,
-    uint64,
-    uint64,
-    uint64,
-    uint64,
-    uint64,
-    bool,
-    bool,
-    bool,
-    bool,
-    bool
+    uint64 requestStart,
+    uint64 requestEnd,
+    uint64 startBlockNumber,
+    uint64 endBlockNumber,
+    uint64 firstRequestBlockId,
+    uint64 numEnter,
+    bool isEmpty,
+    bool initialized,
+    bool isRequest,
+    bool userActivated,
+    bool rebase
   ) {
     Data.Epoch storage epoch = forks[currentFork].epochs[forks[currentFork].lastEpoch];
 
@@ -737,8 +749,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
       epoch.requestEnd,
       epoch.startBlockNumber,
       epoch.endBlockNumber,
+      epoch.firstRequestBlockId,
       epoch.numEnter,
-      epoch.nextEnterEpoch,
       epoch.isEmpty,
       epoch.initialized,
       epoch.isRequest,
@@ -882,7 +894,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
    */
   function _prepareToSubmitORB() internal {
     // delegate to epoch handler
-    assert(epochHandler.delegatecall(bytes4(keccak256("_prepareToSubmitORB()"))));
+    require(epochHandler.delegatecall(bytes4(keccak256("_prepareToSubmitORB()"))));
   }
 
   function _prepareToSubmitNRB() internal {
@@ -890,14 +902,14 @@ contract RootChain is RootChainStorage, RootChainEvent {
     require(epochHandler.delegatecall(bytes4(keccak256("_prepareToSubmitNRB()"))));
   }
 
-  function _prepareOREAfterURE() internal {
+  function prepareOREAfterURE() internal {
     // delegate to epoch handler
-    require(epochHandler.delegatecall(bytes4(keccak256("_prepareOREAfterURE()"))));
+    require(epochHandler.delegatecall(bytes4(keccak256("prepareOREAfterURE()"))));
   }
 
-  function _prepareNREAfterURE() internal {
+  function prepareNREAfterURE() internal {
     // delegate to epoch handler
-    require(epochHandler.delegatecall(bytes4(keccak256("_prepareNREAfterURE()"))));
+    require(epochHandler.delegatecall(bytes4(keccak256("prepareNREAfterURE()"))));
   }
 
   /**
@@ -910,7 +922,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
     }
 
     Data.Fork storage fork = forks[currentFork];
-    uint blockNumber = fork.lastFinalizedBlock + 1;
+    uint blockNumber = Math.max(fork.firstBlock, fork.lastFinalizedBlock + 1);
 
     // short circuit if all blocks are submitted yet
     if (blockNumber > fork.lastBlock) {

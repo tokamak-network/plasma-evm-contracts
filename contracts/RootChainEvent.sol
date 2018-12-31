@@ -34,6 +34,16 @@ contract RootChainEvent {
     bool rebase
   );
 
+  event EpochFilling(
+    uint forkNumber,
+    uint epochNumber
+  );
+
+  event EpochFilled(
+    uint forkNumber,
+    uint epochNumber
+  );
+
   event EpochRebased(
     uint forkNumber,
     uint epochNumber,
