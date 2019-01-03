@@ -15,6 +15,9 @@ contract RequestableSimpleToken is Ownable {
   // `balances[addr]` is stored at keccak256(bytes32(addr), bytes32(2)).
   mapping(address => uint) public balances;
 
+  // requests
+  mapping(uint => bool) appliedRequests;
+
   /* Events */
   event Transfer(address _from, address _to, uint _value);
   event Mint(address _to, uint _value);
@@ -50,6 +53,8 @@ contract RequestableSimpleToken is Ownable {
     // TODO: adpot RootChain
     // require(msg.sender == address(rootchain));
     // require(!getRequestApplied(requestId)); // check double applying
+
+    require(!appliedRequests[requestId]);
 
     if (isExit) {
       // exit must be finalized.
@@ -95,6 +100,8 @@ contract RequestableSimpleToken is Ownable {
       }
     }
 
+    appliedRequests[requestId] = true;
+
     emit Request(isExit, requestor, trieKey, trieValue);
 
     // TODO: adpot RootChain
@@ -114,6 +121,7 @@ contract RequestableSimpleToken is Ownable {
   ) external returns (bool success) {
     // TODO: adpot child chain
     // require(msg.sender == NULL_ADDRESS);
+    require(!appliedRequests[requestId]);
 
     if (isExit) {
       if(bytes32(0) == trieKey) {
@@ -151,8 +159,11 @@ contract RequestableSimpleToken is Ownable {
         balances[requestor] += uint(trieValue);
       } else {
         // cannot apply request on other variables.
+        revert();
       }
     }
+
+    appliedRequests[requestId] = true;
 
     emit Request(isExit, requestor, trieKey, trieValue);
     return true;
