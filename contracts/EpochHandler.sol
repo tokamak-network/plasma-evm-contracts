@@ -102,6 +102,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
 
     uint64 nextEpoch = fork.lastEpoch + 1;
     Data.Epoch storage epoch = fork.epochs[nextEpoch];
+    Data.Epoch storage previousEpoch = fork.epochs[nextEpoch - 1];
 
     epoch.startBlockNumber = fork.epochs[fork.lastEpoch].endBlockNumber + 1;
 
@@ -124,15 +125,15 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
       fork.lastEnterEpoch = nextEpoch;
     }
 
-    _checkPreviousORBEpoch(epoch);
+    _checkPreviousORBEpoch(epoch, nextEpoch);
 
     if (epoch.isEmpty) {
       epoch.requestEnd = epoch.requestStart;
-      // epoch.startBlockNumber = epoch.startBlockNumber.sub64(1);
-      epoch.startBlockNumber = epoch.startBlockNumber - 1;
+      epoch.startBlockNumber = previousEpoch.endBlockNumber;
       epoch.endBlockNumber = epoch.startBlockNumber;
     } else {
       epoch.requestEnd = uint64(EROs.length - 1);
+      epoch.startBlockNumber = previousEpoch.endBlockNumber + 1;
       epoch.endBlockNumber = uint64(epoch.startBlockNumber + uint(epoch.requestEnd - epoch.requestStart + uint64(1))
         .divCeil(Data.MAX_REQUESTS()) - 1);
     }
@@ -163,77 +164,65 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     }
   }
 
-  function _checkPreviousORBEpoch(Data.Epoch storage epoch) internal {
+  function _checkPreviousORBEpoch(Data.Epoch storage epoch, uint epochNumber) internal {
     // short circuit if there is no request at all
     if (EROs.length == 0) {
       epoch.isEmpty = true;
       return;
     }
     Data.Fork storage fork = forks[currentFork];
-    uint64 nextEpochNumber = fork.lastEpoch + 1;
 
     // short curcit for ORE#2
-    if (nextEpochNumber - 2 == 0) {
+    if (epochNumber - 2 == 0) {
       if (ORBs.length > 0) {
         ORBs[ORBs.length.sub(1)].submitted = true;
+        firstFilledORENumber[currentFork] = epochNumber;
+      } else {
+        epoch.isEmpty = true;
       }
       return;
     }
 
-    Data.Epoch storage previousRequestEpoch = fork.epochs[nextEpochNumber - 2];
+    Data.Epoch storage previousRequestEpoch = fork.epochs[epochNumber - 2];
 
-    // if the epoch is the first ORE (not ORE') afeter forked
-    if (fork.rebased && nextEpochNumber == fork.firstEpoch + 4) {
+    if (fork.rebased && epochNumber == fork.firstEpoch + 4) {
+      // if the epoch is the first ORE (not ORE') afeter forked
       // URE - ORE' - NRE' - NRE - ORE(lastEpoch)
-      previousRequestEpoch = fork.epochs[nextEpochNumber - 3];
+      previousRequestEpoch = fork.epochs[epochNumber - 3];
     }
 
     require(previousRequestEpoch.isRequest);
+
 
     if (EROs.length - 1 == uint(previousRequestEpoch.requestEnd)) {
       epoch.isEmpty = true;
     }
 
-    if (epoch.isEmpty) {
-      epoch.requestStart = previousRequestEpoch.requestEnd;
-      epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId;
-    } else {
-      // TODO: check the first ORE after foreked.
+    if (!epoch.isEmpty && firstFilledORENumber[currentFork] == 0) {
+      firstFilledORENumber[currentFork] = epochNumber;
+    }
 
-      // if there is no filled ORB epoch, this is the first one
-      if (firstFilledORBEpochNumber[currentFork] == 0) {
-        firstFilledORBEpochNumber[currentFork] = nextEpochNumber;
+    if (!epoch.isEmpty) {
+      if (firstFilledORENumber[currentFork] == epochNumber && previousRequestEpoch.rebase) {
+        epoch.requestStart = previousRequestEpoch.requestEnd + 1;
+        epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId + 1;
+      } else if (firstFilledORENumber[currentFork] == epochNumber) {
+        epoch.requestStart = previousRequestEpoch.requestEnd;
+        epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId;
+      } else if (!previousRequestEpoch.isEmpty) {
+        epoch.requestStart = previousRequestEpoch.requestStart + uint64(previousRequestEpoch.getNumRequests());
+        epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId + uint64(previousRequestEpoch.getNumBlocks());
       } else {
         epoch.requestStart = previousRequestEpoch.requestEnd + 1;
-        epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId + uint64(previousRequestEpoch.getNumBlocks());
+        epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId + 1;
       }
+    } else {
+      epoch.requestStart = previousRequestEpoch.requestEnd;
+      epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId;
     }
-    // if (epoch.isEmpty) {
-    //   epoch.requestStart = previousRequestEpoch.requestEnd;
-
-    //   if (previousRequestEpoch.isEmpty) {
-    //     epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId;
-    //   } else {
-    //     epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId + uint64(previousRequestEpoch.getNumBlocks());
-    //   }
-    // } else {
-    //   // if there is no filled ORB epoch, this is the first one
-    //   if (firstFilledORBEpochNumber[currentFork] == 0) {
-    //     firstFilledORBEpochNumber[currentFork] = fork.lastEpoch;
-    //   } else {
-    //     // set requestStart, firstRequestBlockId based on previousRequestEpoch
-    //     if (previousRequestEpoch.isEmpty) {
-    //       epoch.requestStart = previousRequestEpoch.requestEnd;
-    //       epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId;
-    //     } else {
-    //       epoch.requestStart = previousRequestEpoch.requestEnd + 1;
-    //       epoch.firstRequestBlockId = previousRequestEpoch.firstRequestBlockId + uint64(previousRequestEpoch.getNumBlocks());
-    //     }
-    //   }
-    // }
 
     // seal last ORB
-    if (ORBs.length > 0) {
+    if (!epoch.isEmpty) {
       ORBs[ORBs.length.sub(1)].submitted = true;
     }
   }
@@ -276,7 +265,9 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     Data.Fork storage _f = forks[currentFork];
     bool isOREEmpty = _prepareOREAfterURE(_f, forks[currentFork.sub(1)], ORBs);
     uint64 epochNumber = _f.lastEpoch + 1;
-    firstFilledORBEpochNumber[currentFork] = epochNumber;
+    if (!isOREEmpty) {
+      firstFilledORENumber[currentFork] = epochNumber;
+    }
 
     emit EpochPrepared(
       currentFork,

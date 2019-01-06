@@ -274,10 +274,13 @@ library Data {
   // }
 
   function getNumBlocks(Epoch storage _e) internal view returns (uint) {
-    // if (_e.isEmpty || _e.rebase && _e.endBlockNumber == 0) return 0;
+    if (_e.isEmpty || _e.rebase && _e.endBlockNumber == 0) return 0;
     return _e.endBlockNumber + 1 - _e.startBlockNumber;
-    // return _e.endBlockNumber.add64(1).sub64(_e.startBlockNumber);
-    // return _e.endBlockNumber.sub64(_e.startBlockNumber).add64(1);
+  }
+
+  function getNumRequests(Epoch storage _e) internal view returns (uint) {
+    if (_e.isEmpty || _e.rebase && _e.endBlockNumber == 0) return 0;
+    return _e.requestEnd + 1 - _e.requestStart;
   }
 
   /**
