@@ -14,7 +14,8 @@ require('chai')
   .should();
 
 const BigNumber = web3.BigNumber;
-const verbose = process.env.VERBOSE || false;
+const LOGTX = process.env.LOGTX || false;
+const VERBOSE = process.env.VERBOSE || false;
 
 const etherAmount = new BigNumber(10e18);
 const tokenAmount = new BigNumber(10e18);
