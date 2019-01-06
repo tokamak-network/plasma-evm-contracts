@@ -21,7 +21,7 @@ contract RootChainStorage {
   uint public currentFork;
 
   // First not-empty request epochs of a fork
-  mapping (uint => uint) public firstFilledORBEpochNumber;
+  mapping (uint => uint) public firstFilledORENumber;
 
   mapping (uint => Data.Fork) public forks;
 
