@@ -64,10 +64,12 @@ contract RootChainStorage {
   uint public constant PREPARE_TIMEOUT = 1 hours;
 
   // Challenge periods for computation and withholding
+  uint public constant CP_COMPUTATION = 15; // 15 sec for dev
+  uint public constant CP_WITHHOLDING = 20; // 20 sec for dev
+  uint public constant CP_EXIT = 10; // 10 sec for dev
   // uint public constant CP_COMPUTATION = 1 days;
   // uint public constant CP_WITHHOLDING = 7 days;
-  uint public constant CP_COMPUTATION = 1; // 1 sec for dev
-  uint public constant CP_WITHHOLDING = 3; // 3 sec for dev
+  // uint public constant CP_EXIT = 1 days;
 
 
   // Gas limit for request trasaction

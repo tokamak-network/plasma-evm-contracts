@@ -340,6 +340,7 @@ library Data {
     uint64 epochNumber;
     uint64 requestBlockId;
     uint64 timestamp;
+    uint64 finalizedAt;
     uint64 referenceBlock;
     bytes32 statesRoot;
     bytes32 transactionsRoot;

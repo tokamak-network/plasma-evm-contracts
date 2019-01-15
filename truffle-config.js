@@ -39,7 +39,7 @@ module.exports = {
       currency: 'USD',
       gasPrice: 21,
     },
-    useColors: false,
+    useColors: true,
   },
   solc: {
     optimizer: {

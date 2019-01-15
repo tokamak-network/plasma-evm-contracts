@@ -39,6 +39,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     next.firstEpoch = cur.blocks[next.firstBlock].epochNumber;
 
     next.lastEpoch = next.firstEpoch;
+    next.lastFinalizedBlock = cur.lastFinalizedBlock;
     next.timestamp = uint64(block.timestamp);
 
     // prepare URE

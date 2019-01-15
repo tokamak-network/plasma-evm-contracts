@@ -34,7 +34,9 @@ contract RootChain is RootChainStorage, RootChainEvent {
   }
 
   modifier finalizeBlocks() {
-    _finalizeBlock();
+    if (!development) {
+      _finalizeBlock();
+    }
     _;
   }
 
@@ -470,6 +472,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
 
     Data.Request storage r = _rs[requestId];
 
+    require(_pb.finalizedAt + CP_EXIT > block.timestamp);
+    require(_pb.finalized);
     require(!r.challenged);
     require(!r.finalized);
 
@@ -598,22 +602,37 @@ contract RootChain is RootChainStorage, RootChainEvent {
     Data.PlasmaBlock storage pb = fork.blocks[lastAppliedBlockNumber];
     epochNumber = pb.epochNumber;
 
-    Data.Epoch storage epoch = fork.epochs[pb.epochNumber];
+    Data.Epoch storage epoch = fork.epochs[epochNumber];
 
-    // find next request block
-    if (!pb.isRequest) {
-      while (!fork.epochs[epochNumber].isRequest) {
-        require(fork.epochs[epochNumber].initialized);
-        epochNumber = epochNumber + 1;
-      }
+    // find next fork
+    if (fork.forkedBlock != 0 && lastAppliedBlockNumber >= fork.forkedBlock) {
+      lastAppliedForkNumber += 1;
+      fork = forks[lastAppliedForkNumber];
 
-      lastAppliedBlockNumber = epoch.startBlockNumber;
-
+      epochNumber = fork.firstEpoch;
       epoch = fork.epochs[epochNumber];
+
+      lastAppliedBlockNumber = fork.firstBlock;
       pb = fork.blocks[lastAppliedBlockNumber];
     }
 
+    // find next request block
+    if (!pb.isRequest) {
+      while (!epoch.isRequest || epoch.isEmpty) {
+        require(fork.epochs[epochNumber].initialized);
+        epochNumber = epochNumber + 1;
+        epoch = fork.epochs[epochNumber];
+      }
+
+      lastAppliedBlockNumber = epoch.startBlockNumber;
+      pb = fork.blocks[lastAppliedBlockNumber];
+    }
+
+    require(!epoch.isEmpty);
+    require(epoch.isRequest);
+    require(pb.isRequest);
     require(pb.finalized);
+    require(pb.finalizedAt + CP_EXIT < block.timestamp);
 
     // apply ERU
     if (pb.userActivated) {
@@ -623,6 +642,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
 
       Data.Request storage ERU = ERUs[requestId];
       Data.RequestBlock storage URB = URBs[pb.requestBlockId];
+
+      require(URB.requestStart <= requestId && requestId <= URB.requestEnd);
 
       // check next block
       if (requestId == URB.requestEnd) {
@@ -655,6 +676,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
 
     Data.Request storage ERO = EROs[requestId];
     Data.RequestBlock storage ORB = ORBs[pb.requestBlockId];
+
+    require(ORB.requestStart <= requestId && requestId <= ORB.requestEnd);
 
     // check next block
     if (requestId == ORB.requestEnd) {
@@ -790,6 +813,13 @@ contract RootChain is RootChainStorage, RootChainEvent {
     finalized = forks[forkNumber].blocks[blockNumber].finalized;
 
     return;
+  }
+
+  function getBlockFinalizedAt(
+    uint forkNumber,
+    uint blockNumber
+  ) public view returns (uint) {
+    return forks[forkNumber].blocks[blockNumber].finalizedAt;
   }
 
   function getLastFinalizedBlock(uint forkNumber) public view returns (uint) {
@@ -1021,6 +1051,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
     uint _blockNumber
   ) internal {
     _pb.finalized = true;
+    _pb.finalizedAt = uint64(block.timestamp);
     _f.lastFinalizedBlock = uint64(_blockNumber);
 
     emit BlockFinalized(currentFork, _blockNumber);
@@ -1047,6 +1078,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
       }
 
       pb.finalized = true;
+      pb.finalizedAt = uint64(block.timestamp);
       // BlockFinalized event is not fired to reduce the gas cost.
     }
 
