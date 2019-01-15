@@ -602,7 +602,19 @@ contract RootChain is RootChainStorage, RootChainEvent {
     Data.PlasmaBlock storage pb = fork.blocks[lastAppliedBlockNumber];
     epochNumber = pb.epochNumber;
 
-    Data.Epoch storage epoch = fork.epochs[pb.epochNumber];
+    Data.Epoch storage epoch = fork.epochs[epochNumber];
+
+    // find next fork
+    if (fork.forkedBlock != 0 && lastAppliedBlockNumber >= fork.forkedBlock) {
+      lastAppliedForkNumber += 1;
+      fork = forks[lastAppliedForkNumber];
+
+      epochNumber = fork.firstEpoch;
+      epoch = fork.epochs[epochNumber];
+
+      lastAppliedBlockNumber = fork.firstBlock;
+      pb = fork.blocks[lastAppliedBlockNumber];
+    }
 
     // find next request block
     if (!pb.isRequest) {
