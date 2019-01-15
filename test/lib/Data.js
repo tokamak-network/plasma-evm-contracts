@@ -61,6 +61,7 @@ class PlasmaBlock {
     requestBlockId,
     referenceBlock,
     timestamp,
+    // finalizedAt,
     statesRoot,
     transactionsRoot,
     receiptsRoot,
@@ -74,6 +75,7 @@ class PlasmaBlock {
     this.requestBlockId = requestBlockId;
     this.referenceBlock = referenceBlock;
     this.timestamp = timestamp;
+    // this.finalizedAt = finalizedAt;
     this.statesRoot = statesRoot;
     this.transactionsRoot = transactionsRoot;
     this.receiptsRoot = receiptsRoot;
