@@ -8,6 +8,7 @@ const { padLeft } = require('./helpers/pad');
 const { appendHex } = require('./helpers/appendHex');
 const Data = require('./lib/Data');
 
+const EpochHandler = artifacts.require('EpochHandler.sol');
 const RootChain = artifacts.require('RootChain.sol');
 const RequestableSimpleToken = artifacts.require('RequestableSimpleToken.sol');
 
@@ -25,7 +26,9 @@ const tokenAmount = new BigNumber(10e18);
 const exitAmount = tokenAmount.div(1000);
 const emptyBytes32 = 0;
 
-// genesis block merkle roots
+// RootChain contract parameters
+const development = true;
+const NRBEpochLength = 2;
 const statesRoot = '0x0ded2f89db1e11454ba4ba90e31850587943ed4a412f2ddf422bd948eae8b164';
 const transactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
 const receiptsRoot = '0x000000000000000000000000000000000000000000000000000000000000dead';
@@ -94,7 +97,8 @@ contract('RootChain', async ([
   }
 
   before(async () => {
-    rootchain = await RootChain.deployed();
+    const epochHandler = await EpochHandler.new();
+    rootchain = await RootChain.new(epochHandler.address, development, NRBEpochLength, statesRoot, transactionsRoot, receiptsRoot);
     token = await RequestableSimpleToken.new();
 
     await Promise.all(others.map(other => token.mint(other, tokenAmount.mul(100))));
@@ -339,6 +343,8 @@ contract('RootChain', async ([
       perviousEpoch = new Data.Epoch(await rootchain.getEpoch(forkNumber, perviousEpochNumber));
     }
 
+    const firstFilledORENumber = await rootchain.firstFilledORENumber(currentFork);
+
     if (!epoch.rebase) {
       await logEpoch(forkNumber, perviousEpochNumber);
     }
@@ -351,80 +357,86 @@ contract('RootChain', async ([
     epoch.isRequest.should.be.equal(true);
     epoch.isEmpty.should.be.equal(false);
 
-    // check epochs
-    if (!epoch.rebase) {
-      // check ORE
-      perviousEpoch.initialized.should.be.equal(true);
-      perviousEpoch.isRequest.should.be.equal(true);
+    // check previous and current epoch
+    (async function () {
+      if (!epoch.rebase) {
+        // check ORE
+        if (perviousEpochNumber.cmp(0) === 0) {
+          epoch.firstRequestBlockId.should.be.bignumber.equal(0);
+          epoch.requestStart.should.be.bignumber.equal(0);
+          return;
+        }
 
-      if (perviousEpoch.isEmpty) {
-        if (perviousEpoch.rebase) {
+        if (firstFilledORENumber.cmp(block.epochNumber) === 0) {
+          perviousEpoch.initialized.should.be.equal(true);
+          perviousEpoch.isRequest.should.be.equal(true);
+        }
+
+        if (perviousEpoch.isEmpty) {
           epoch.firstRequestBlockId.should.be.bignumber.equal(perviousEpoch.firstRequestBlockId.add(1));
+        } else if (perviousEpoch.initialized) {
+          // previous request epoch is not empty
+          const numPreviousBlocks = perviousEpoch.endBlockNumber.sub(perviousEpoch.startBlockNumber).add(1);
+          const expectedFirstRequestBlockId = perviousEpoch.firstRequestBlockId.add(numPreviousBlocks);
+
+          epoch.firstRequestBlockId.should.be.bignumber.equal(expectedFirstRequestBlockId);
         } else {
-          epoch.firstRequestBlockId.should.be.bignumber.equal(perviousEpoch.firstRequestBlockId);
+          // this epoch is the first request epoch
+          (await rootchain.firstFilledORENumber(forkNumber)).should.be.bignumber.equal(epochNumber);
         }
-      } else if (perviousEpoch.initialized) {
-        // previous request epoch is not empty
-        const numPreviousBlocks = perviousEpoch.endBlockNumber.sub(perviousEpoch.startBlockNumber).add(1);
-        const expectedFirstRequestBlockId = perviousEpoch.firstRequestBlockId.add(numPreviousBlocks);
-
-        epoch.firstRequestBlockId.should.be.bignumber.equal(expectedFirstRequestBlockId);
       } else {
-        // this epoch is the first request epoch
-        (await rootchain.firstFilledORENumber(forkNumber)).should.be.bignumber.equal(epochNumber);
-      }
-    } else {
-      // check ORE'
-      // check only if ORE' is filled
-      if (epoch.endBlockNumber.cmp(0) !== 0) {
-        const previousForkNumber = forkNumber - 1;
-        const previousFork = forks[previousForkNumber];
-        const forkedBlock = new Data.PlasmaBlock(await rootchain.getBlock(previousForkNumber, previousFork.forkedBlock));
+        // check ORE'
+        // check only if ORE' is filled
+        if (epoch.endBlockNumber.cmp(0) !== 0) {
+          const previousForkNumber = forkNumber - 1;
+          const previousFork = forks[previousForkNumber];
+          const forkedBlock = new Data.PlasmaBlock(await rootchain.getBlock(previousForkNumber, previousFork.forkedBlock));
 
-        const previousEpochNumbers = range(forkedBlock.epochNumber, previousFork.lastEpoch + 1);
-        const previousEpochs = (await Promise.all(previousEpochNumbers
-          .map(epochNumber => rootchain.getEpoch(previousForkNumber, epochNumber))))
-          .map(e => new Data.Epoch(e));
+          const previousEpochNumbers = range(forkedBlock.epochNumber, previousFork.lastEpoch + 1);
+          const previousEpochs = (await Promise.all(previousEpochNumbers
+            .map(epochNumber => rootchain.getEpoch(previousForkNumber, epochNumber))))
+            .map(e => new Data.Epoch(e));
 
-        const previousRequestEpochs = [];
-        const proms = [];
-        for (const i of range(previousEpochs.length)) {
-          const e = previousEpochs[i];
-          if (e.isRequest && !e.isEmpty) {
-            const n = previousEpochNumbers[i];
+          const previousRequestEpochs = [];
+          const proms = [];
+          for (const i of range(previousEpochs.length)) {
+            const e = previousEpochs[i];
+            if (e.isRequest && !e.isEmpty) {
+              const n = previousEpochNumbers[i];
 
-            proms.push(logEpoch(previousForkNumber, n));
-            previousRequestEpochs.push({ epochNumber: n, epoch: e });
+              proms.push(logEpoch(previousForkNumber, n));
+              previousRequestEpochs.push({ epochNumber: n, epoch: e });
+            }
           }
-        }
 
-        // log all previous request epochs
-        await proms;
-        const noRequestEpoch = previousRequestEpochs.length === 0;
-        noRequestEpoch.should.be.equal(false);
+          // log all previous request epochs
+          await proms;
+          const noRequestEpoch = previousRequestEpochs.length === 0;
+          noRequestEpoch.should.be.equal(false);
 
-        const firstRequestEpochAfterFork = first(previousRequestEpochs).epoch;
-        const lastRequestEpochAfterFork = last(previousRequestEpochs).epoch;
+          const firstRequestEpochAfterFork = first(previousRequestEpochs).epoch;
+          const lastRequestEpochAfterFork = last(previousRequestEpochs).epoch;
 
-        epoch.requestStart.should.be.bignumber.equal(firstRequestEpochAfterFork.requestStart);
-        epoch.requestEnd.should.be.bignumber.equal(lastRequestEpochAfterFork.requestEnd);
+          epoch.requestStart.should.be.bignumber.equal(firstRequestEpochAfterFork.requestStart);
+          epoch.requestEnd.should.be.bignumber.equal(lastRequestEpochAfterFork.requestEnd);
 
-        // test previous block and referenceBlock
-        let currentBlockNumber = Number(blockNumber);
-        for (const e of previousRequestEpochs) {
-          const referenceEpoch = e.epoch;
-          for (const referenceBlockNumber of range(
-            referenceEpoch.startBlockNumber.toNumber(), referenceEpoch.endBlockNumber.toNumber())) {
-            const referenceBlock = new Data.PlasmaBlock(await rootchain.getBlock(previousForkNumber, referenceBlockNumber));
-            const currentBlock = new Data.PlasmaBlock(await rootchain.getBlock(currentFork, currentBlockNumber));
-            currentBlock.referenceBlock.should.be.bignumber.equal(referenceBlockNumber);
-            currentBlock.requestBlockId.should.be.bignumber.equal(referenceBlock.requestBlockId);
+          // test previous block and referenceBlock
+          let currentBlockNumber = Number(blockNumber);
+          for (const e of previousRequestEpochs) {
+            const referenceEpoch = e.epoch;
+            for (const referenceBlockNumber of range(
+              referenceEpoch.startBlockNumber.toNumber(), referenceEpoch.endBlockNumber.toNumber())) {
+              const referenceBlock = new Data.PlasmaBlock(await rootchain.getBlock(previousForkNumber, referenceBlockNumber));
+              const currentBlock = new Data.PlasmaBlock(await rootchain.getBlock(currentFork, currentBlockNumber));
+              currentBlock.referenceBlock.should.be.bignumber.equal(referenceBlockNumber);
+              currentBlock.requestBlockId.should.be.bignumber.equal(referenceBlock.requestBlockId);
 
-            currentBlockNumber += 1;
+              currentBlockNumber += 1;
+            }
           }
         }
       }
-    }
+    })();
 
     // check request block
     const numBlocks = epoch.endBlockNumber.sub(epoch.startBlockNumber).add(1);
@@ -1357,36 +1369,36 @@ contract('RootChain', async ([
   const tests = [];
 
   // // scenario 1
-  tests.push(makeEpochTest({ numEtherEnter: 0, numValidExit: 0 }));
-  tests.push(makeEpochTest({ numEtherEnter: 0, numValidExit: 0 }));
-  tests.push(makeEpochTest({ numEtherEnter: 0, numValidExit: 0 }));
-  tests.push(makeEpochTest({
-    numEtherEnter: 1 * others.length,
-    numTokenEnter: 1 * others.length,
-    numValidExit: 0,
-  }));
-  tests.push(makeEpochTest({
-    numEtherEnter: 2 * others.length,
-    numTokenEnter: 2 * others.length,
-    numValidExit: 0,
-  }));
-  tests.push(makeEpochTest({
-    numEtherEnter: 3 * others.length,
-    numTokenEnter: 3 * others.length,
-    numValidExit: 0,
-  }));
-  tests.push(makeEpochTest({
-    numEtherEnter: 3 * others.length,
-    numTokenEnter: 3 * others.length,
-    numValidExit: 4 * others.length,
-  }));
-  tests.push(makeUAFTest({
-    numNREs: 1,
-    numOREs: 1,
-    makeEnter: true,
-    makeExit: true,
-  }));
-  tests.push(makeEpochTest({ numEtherEnter: 0, numValidExit: 40 * others.length }));
+  // tests.push(makeEpochTest({ numEtherEnter: 0, numValidExit: 0 }));
+  // tests.push(makeEpochTest({ numEtherEnter: 0, numValidExit: 0 }));
+  // tests.push(makeEpochTest({ numEtherEnter: 0, numValidExit: 0 }));
+  // tests.push(makeEpochTest({
+  //   numEtherEnter: 1 * others.length,
+  //   numTokenEnter: 1 * others.length,
+  //   numValidExit: 0,
+  // }));
+  // tests.push(makeEpochTest({
+  //   numEtherEnter: 2 * others.length,
+  //   numTokenEnter: 2 * others.length,
+  //   numValidExit: 0,
+  // }));
+  // tests.push(makeEpochTest({
+  //   numEtherEnter: 3 * others.length,
+  //   numTokenEnter: 3 * others.length,
+  //   numValidExit: 0,
+  // }));
+  // tests.push(makeEpochTest({
+  //   numEtherEnter: 3 * others.length,
+  //   numTokenEnter: 3 * others.length,
+  //   numValidExit: 4 * others.length,
+  // }));
+  // tests.push(makeUAFTest({
+  //   numNREs: 1,
+  //   numOREs: 1,
+  //   makeEnter: true,
+  //   makeExit: true,
+  // }));
+  // tests.push(makeEpochTest({ numEtherEnter: 0, numValidExit: 40 * others.length }));
 
   // scenario 2
   // tests.push(makeEpochTest({ numEtherEnter: 0, numValidExit: 0 }));
@@ -1441,6 +1453,68 @@ contract('RootChain', async ([
   //   numValidExit: 1 * others.length,
   //   numInvalidExit: 0 * others.length,
   // }));
+
+  // scenario 4: no fork
+  tests.push(makeEpochTest({
+    numEtherEnter: 1 * others.length,
+    numTokenEnter: 0 * others.length,
+    numValidExit: 0 * others.length,
+  }));
+  tests.push(makeEpochTest({
+    numEtherEnter: 0 * others.length,
+    numTokenEnter: 1 * others.length,
+    numValidExit: 0 * others.length,
+  }));
+  tests.push(makeEpochTest({
+    numEtherEnter: 0 * others.length,
+    numTokenEnter: 0 * others.length,
+    numValidExit: 0 * others.length,
+  }));
+  tests.push(makeEpochTest({
+    numEtherEnter: 0 * others.length,
+    numTokenEnter: 0 * others.length,
+    numValidExit: 1 * others.length,
+  }));
+  tests.push(makeEpochTest({
+    numEtherEnter: 0 * others.length,
+    numTokenEnter: 0 * others.length,
+    numValidExit: 1 * others.length,
+  }));
+  tests.push(makeEpochTest({
+    numEtherEnter: 0 * others.length,
+    numTokenEnter: 0 * others.length,
+    numValidExit: 1 * others.length,
+  }));
+  tests.push(makeEpochTest({
+    numEtherEnter: 0 * others.length,
+    numTokenEnter: 0 * others.length,
+    numValidExit: 1 * others.length,
+  }));
+  tests.push(makeEpochTest({
+    numEtherEnter: 0 * others.length,
+    numTokenEnter: 0 * others.length,
+    numValidExit: 1 * others.length,
+  }));
+  tests.push(makeEpochTest({
+    numEtherEnter: 0 * others.length,
+    numTokenEnter: 0 * others.length,
+    numValidExit: 1 * others.length,
+  }));
+  tests.push(makeEpochTest({
+    numEtherEnter: 0 * others.length,
+    numTokenEnter: 0 * others.length,
+    numValidExit: 1 * others.length,
+  }));
+  tests.push(makeEpochTest({
+    numEtherEnter: 0 * others.length,
+    numTokenEnter: 0 * others.length,
+    numValidExit: 1 * others.length,
+  }));
+  tests.push(makeEpochTest({
+    numEtherEnter: 0 * others.length,
+    numTokenEnter: 0 * others.length,
+    numValidExit: 1 * others.length,
+  }));
 
   // generate mocha test cases
   let forkNumber = 0;
