@@ -9,6 +9,14 @@ module.exports = {
       gasPrice: 1e9,
       network_id: '*', // eslint-disable-line camelcase
     },
+    rootchain: {
+      host: 'localhost',
+      port: 8546,
+      gas: 7500000,
+      gasPrice: 1e9,
+      network_id: '*', // eslint-disable-line camelcase
+      websocket: true,
+    },
     plasma: {
       host: 'localhost',
       port: 8547,
@@ -40,6 +48,7 @@ module.exports = {
       gasPrice: 21,
     },
     useColors: true,
+    enableTimeouts: false,
   },
   solc: {
     optimizer: {
