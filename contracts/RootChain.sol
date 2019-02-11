@@ -902,7 +902,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
     }
 
     // make new RequestBlock
-    if (rb.submitted || rb.requestEnd - rb.requestStart + 1 == Data.MAX_REQUESTS()) {
+    if (rb.submitted || rb.requestEnd - rb.requestStart + 1 == MAX_REQUESTS()) {
+      rb.submitted = true;
       rb = _rbs[_rbs.length++];
       rb.requestStart = uint64(requestId);
     }

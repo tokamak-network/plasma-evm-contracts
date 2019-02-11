@@ -31,7 +31,9 @@ library Data {
 
   // How many requests can be included in a single request block
   function MAX_REQUESTS() internal pure returns (uint) {
-    return 1000;
+    // TODO: use 100 in production mode
+    // return 1000;
+    return 20;
   }
 
   // Timeout for URB submission
