@@ -82,6 +82,10 @@ contract RootChain is RootChainStorage, RootChainEvent {
     fork.epochs[0].timestamp = uint64(block.timestamp);
     fork.epochs[0].initialized = true;
 
+    // prepare ORE#2
+    fork.epochs[2].isEmpty = true;
+    fork.epochs[2].isRequest = true;
+
     _doFinalize(fork, genesis, 0);
     _prepareToSubmitNRB();
   }
@@ -887,22 +891,13 @@ contract RootChain is RootChainStorage, RootChainEvent {
       require(r.applyRequestInRootChain(requestId));
     }
 
-    uint requestBlockId;
-    if (_rbs.length == 0) {
-      _rbs.length++;
-      requestBlockId = 0;
-    } else {
-      requestBlockId = _rbs.length - 1;
-    }
+    uint requestBlockId = _rbs.length == 0 ? _rbs.length++ : _rbs.length - 1;
 
     Data.RequestBlock storage rb = _rbs[requestBlockId];
 
-    if (!_isExit) {
-      rb.numEnter += 1;
-    }
-
-    // make new RequestBlock
-    if (rb.submitted || rb.requestEnd - rb.requestStart + 1 == Data.MAX_REQUESTS()) {
+    // make a new RequestBlock
+    if (rb.submitted || rb.requestEnd - rb.requestStart + 1 == MAX_REQUESTS()) {
+      rb.submitted = true;
       rb = _rbs[_rbs.length++];
       rb.requestStart = uint64(requestId);
     }
@@ -910,6 +905,9 @@ contract RootChain is RootChainStorage, RootChainEvent {
     rb.init();
 
     rb.requestEnd = uint64(requestId);
+    if (!_isExit) {
+      rb.numEnter += 1;
+    }
 
     if (_isTransfer) {
       rb.addRequest(r, r.toChildChainRequest(_to), requestId);
