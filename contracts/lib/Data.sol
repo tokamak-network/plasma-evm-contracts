@@ -123,6 +123,10 @@ library Data {
     b.isRequest = _isRequest;
     b.userActivated = _userActivated;
 
+    if (_isRequest) {
+      b.requestBlockId = uint64(epoch.firstRequestBlockId + blockNumber - epoch.startBlockNumber);
+    }
+
     _f.lastBlock = uint64(blockNumber);
     return;
   }
