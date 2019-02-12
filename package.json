@@ -14,7 +14,7 @@
     "lint": "npm run lint:js && npm run lint:sol",
     "lint:fix": "npm run lint:js:fix && npm run lint:sol:fix",
     "run:testrpc": "bash ./run.testrpc.sh",
-    "test": "scripts/test.sh ./test/RootChain.test.*",
+    "test": "scripts/test.sh ./test/RootChain.test.behavior.js",
     "test:logtx": "LOGTX=true npm run test",
     "test:verbose": "VERBOSE=true npm run test",
     "test:verbose:logtx": "VERBOSE=true LOGTX=true npm run test",
