@@ -10,6 +10,7 @@ contract RootChainStorage {
   bool public development; // dev mode
   address public operator;
   address public epochHandler;
+  address public etherToken;
 
   // 1 epoch = N NRBs or k URBs or k ORBs.
   // N consecutive NRBs must be submitted in an epoch. In case of request block,

@@ -420,14 +420,16 @@ library Data {
     out.isExit = self.isExit;
     out.isTransfer = self.isTransfer;
     out.requestor = self.requestor;
-    out.value = self.value;
-    out.trieKey = self.trieKey;
-    out.trieValue = self.trieValue;
 
-    if (out.isTransfer) {
-      out.to = self.to;
+    // EtherToken enter request mints PETH to requestor
+    if (!self.isExit && self.isTransfer) {
+      out.to = self.requestor;
+      out.value = uint128(self.trieValue);
     } else {
       out.to = _to;
+      out.value = self.value;
+      out.trieKey = self.trieKey;
+      out.trieValue = self.trieValue;
     }
   }
 
