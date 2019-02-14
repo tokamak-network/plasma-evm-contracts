@@ -417,7 +417,7 @@ library Data {
     // EtherToken enter request mints PETH to requestor
     if (!self.isExit && self.isTransfer) {
       out.to = self.requestor;
-      out.value = uint128(self.trieValue);
+      out.value = uint128(uint256(self.trieValue));
     } else {
       out.to = _to;
       out.value = self.value;
@@ -438,7 +438,7 @@ library Data {
     pure
     returns (bytes memory out)
   {
-    if (self.isTransfer) {
+    if (self.isTransfer && !self.isExit) {
       return;
     }
 
