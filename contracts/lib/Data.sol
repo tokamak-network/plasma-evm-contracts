@@ -393,13 +393,6 @@ library Data {
     internal
     returns (bool)
   {
-    // TODO: ignore transfer or applyRequestInRootChain?
-
-    if (self.isTransfer) {
-      self.to.transfer(self.value);
-      return true;
-    }
-
     return RequestableContractI(self.to).applyRequestInRootChain(
       self.isExit,
       _requestId,

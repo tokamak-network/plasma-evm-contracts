@@ -22,7 +22,7 @@ contract EtherToken is RequestableERC20Wrapper {
     bool noToken = address(_token) == address(0);
 
     // in production, Exchangable asset must be either ERC20 or ETH, not both.
-    require(_development || (noToken && !_swapEnabled || !noToken && _swapEnabled));
+    require(_development || (noToken && _swapEnabled || !noToken && !_swapEnabled));
     swapEnabled = _swapEnabled;
   }
 

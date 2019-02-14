@@ -868,24 +868,19 @@ contract RootChain is RootChainStorage, RootChainEvent {
     bool isTransfer = _to == etherToken;
 
     // check parameters for simple ether transfer and message-call
-    require(isTransfer || (requestableContracts[_to] != address(0)));
-
-    if (isTransfer) {
-      // NOTE: issue
-      require(_weiAmount != 0 && _trieKey == bytes32(0) && _trieValue == bytes32(0));
-    }
+    require(isTransfer && !_isExit || (requestableContracts[_to] != address(0)));
 
     requestId = _requests.length++;
     Data.Request storage r = _requests[requestId];
 
     r.requestor = msg.sender;
-    r.value = uint128(_weiAmount);
     r.to = _to;
-    r.trieKey = _trieKey;
-    r.trieValue = _trieValue;
     r.timestamp = uint64(block.timestamp);
     r.isExit = _isExit;
     r.isTransfer = isTransfer;
+    r.value = uint128(_weiAmount);
+    r.trieKey = _trieKey;
+    r.trieValue = _trieValue;
 
     // apply message-call in case of enter request.
     if (!_isExit) {
@@ -910,7 +905,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
       rb.numEnter += 1;
     }
 
-    if (isTransfer) {
+    if (isTransfer && !_isExit) {
       rb.addRequest(r, r.toChildChainRequest(msg.sender), requestId);
     } else {
       rb.addRequest(r, r.toChildChainRequest(requestableContracts[_to]), requestId);
