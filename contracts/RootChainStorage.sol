@@ -10,6 +10,7 @@ contract RootChainStorage {
   bool public development; // dev mode
   address public operator;
   address public epochHandler;
+  address public etherToken;
 
   // 1 epoch = N NRBs or k URBs or k ORBs.
   // N consecutive NRBs must be submitted in an epoch. In case of request block,
@@ -51,24 +52,31 @@ contract RootChainStorage {
    */
   address constant public NULL_ADDRESS = 0x0000000000000000000000000000000000000000;
 
-  // TODO: develop cost function model
-  // Simple cost parameters
-  uint public constant COST_ERO = 0.1 ether;         // cost for invalid exit
-  uint public constant COST_ERU = 0.2 ether;         // cost for fork & rebase
-  uint public constant COST_URB_PREPARE = 0.1 ether; // cost for URB prepare
-  uint public constant COST_URB = 0.9 ether;         // cost for fork & rebase
-  uint public constant COST_ORB = 0.1 ether;         // cost for invalid computation
-  uint public constant COST_NRB = 0.1 ether;         // cost for invalid computation
-
-  // Prepare time
-  uint public constant PREPARE_TIMEOUT = 1 hours;
+  // Cost parameters for development and test
+  uint public constant COST_ERO = 0.00001 ether;         // cost for invalid exit
+  uint public constant COST_ERU = 0.00002 ether;         // cost for fork & rebase
+  uint public constant COST_URB_PREPARE = 0.00001 ether; // cost for URB prepare
+  uint public constant COST_URB = 0.00009 ether;         // cost for fork & rebase
+  uint public constant COST_ORB = 0.00001 ether;         // cost for invalid computation
+  uint public constant COST_NRB = 0.00001 ether;         // cost for invalid computation
+  uint public constant PREPARE_TIMEOUT = 60; // 60 sec for dev
 
   // Challenge periods for computation and withholding
   uint public constant CP_COMPUTATION = 15; // 15 sec for dev
   uint public constant CP_WITHHOLDING = 20; // 20 sec for dev
   uint public constant CP_EXIT = 10; // 10 sec for dev
 
-  // TODO: use these in production mode
+  // TODO: develop more concrete cost model
+  // Cost parameters for production
+  // uint public constant COST_ERO = 0.1 ether;         // cost for invalid exit
+  // uint public constant COST_ERU = 0.2 ether;         // cost for fork & rebase
+  // uint public constant COST_URB_PREPARE = 0.1 ether; // cost for URB prepare
+  // uint public constant COST_URB = 0.9 ether;         // cost for fork & rebase
+  // uint public constant COST_ORB = 0.1 ether;         // cost for invalid computation
+  // uint public constant COST_NRB = 0.1 ether;         // cost for invalid computation
+  // uint public constant PREPARE_TIMEOUT = 1 hours;
+
+  // // Challenge periods for computation and withholding
   // uint public constant CP_COMPUTATION = 1 days;
   // uint public constant CP_WITHHOLDING = 7 days;
   // uint public constant CP_EXIT = 1 days;

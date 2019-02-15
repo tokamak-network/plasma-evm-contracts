@@ -393,13 +393,6 @@ library Data {
     internal
     returns (bool)
   {
-    // TODO: ignore transfer or applyRequestInRootChain?
-
-    if (self.isTransfer) {
-      self.to.transfer(self.value);
-      return true;
-    }
-
     return RequestableContractI(self.to).applyRequestInRootChain(
       self.isExit,
       _requestId,
@@ -420,14 +413,16 @@ library Data {
     out.isExit = self.isExit;
     out.isTransfer = self.isTransfer;
     out.requestor = self.requestor;
-    out.value = self.value;
-    out.trieKey = self.trieKey;
-    out.trieValue = self.trieValue;
 
-    if (out.isTransfer) {
-      out.to = self.to;
+    // EtherToken enter request mints PETH to requestor
+    if (!self.isExit && self.isTransfer) {
+      out.to = self.requestor;
+      out.value = uint128(uint256(self.trieValue));
     } else {
       out.to = _to;
+      out.value = self.value;
+      out.trieKey = self.trieKey;
+      out.trieValue = self.trieValue;
     }
   }
 
@@ -443,7 +438,7 @@ library Data {
     pure
     returns (bytes memory out)
   {
-    if (self.isTransfer) {
+    if (self.isTransfer && !self.isExit) {
       return;
     }
 

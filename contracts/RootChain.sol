@@ -54,6 +54,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
    */
   constructor(
     address _epochHandler,
+    address _etherToken,
     bool _development,
     uint _NRELength,
 
@@ -64,10 +65,11 @@ contract RootChain is RootChainStorage, RootChainEvent {
   )
     public
   {
-    require(_epochHandler != address(0));
     require(_epochHandler.isContract());
+    require(_etherToken.isContract());
 
     epochHandler = _epochHandler;
+    etherToken = _etherToken;
     development = _development;
     operator = msg.sender;
     NRELength = _NRELength;
@@ -544,14 +546,13 @@ contract RootChain is RootChainStorage, RootChainEvent {
     require(_trieValue != bytes32(0));
 
     uint requestId;
-    requestId = _storeRequest(EROs, ORBs, false, _to, 0, _trieKey, _trieValue, true, false);
+    requestId = _storeRequest(EROs, ORBs, _to, 0, _trieKey, _trieValue, true, false);
 
-    emit RequestCreated(requestId, msg.sender, _to, 0, _trieKey, _trieValue, false, true, false);
+    emit RequestCreated(requestId, msg.sender, _to, 0, _trieKey, _trieValue, true, false);
     return true;
   }
 
   function startEnter(
-    bool _isTransfer,
     address _to,
     bytes32 _trieKey,
     bytes32 _trieValue
@@ -562,13 +563,13 @@ contract RootChain is RootChainStorage, RootChainEvent {
   {
     uint requestId;
     uint weiAmount = msg.value;
-    requestId = _storeRequest(EROs, ORBs, _isTransfer, _to, weiAmount, _trieKey, _trieValue, false, false);
+    requestId = _storeRequest(EROs, ORBs, _to, weiAmount, _trieKey, _trieValue, false, false);
     numEnterForORB += 1;
 
     Data.Fork storage fork = forks[currentFork];
 
     emit RequestApplied(requestId, false);
-    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, _isTransfer, false, false);
+    emit RequestCreated(requestId, msg.sender, _to, weiAmount, _trieKey, _trieValue, false, false);
     return true;
   }
 
@@ -583,9 +584,9 @@ contract RootChain is RootChainStorage, RootChainEvent {
     returns (bool success)
   {
     uint requestId;
-    requestId = _storeRequest(ERUs, URBs, false, _to, 0, _trieKey, _trieValue, true, true);
+    requestId = _storeRequest(ERUs, URBs, _to, 0, _trieKey, _trieValue, true, true);
 
-    emit RequestCreated(requestId, msg.sender, _to, 0, _trieKey, _trieValue, false, true, true);
+    emit RequestCreated(requestId, msg.sender, _to, 0, _trieKey, _trieValue, true, true);
     return true;
   }
 
@@ -854,7 +855,6 @@ contract RootChain is RootChainStorage, RootChainEvent {
   function _storeRequest(
     Data.Request[] storage _requests,
     Data.RequestBlock[] storage _rbs,
-    bool _isTransfer,
     address _to,
     uint _weiAmount,
     bytes32 _trieKey,
@@ -865,29 +865,25 @@ contract RootChain is RootChainStorage, RootChainEvent {
     internal
     returns (uint requestId)
   {
-    // NOTE: issue
-    // check parameters for simple ether transfer and message-call
-    require(_isTransfer || (requestableContracts[_to] != address(0)));
+    bool isTransfer = _to == etherToken;
 
-    if (_isTransfer) {
-      // NOTE: issue
-      require(_weiAmount != 0 && _trieKey == bytes32(0) && _trieValue == bytes32(0));
-    }
+    // check parameters for simple ether transfer and message-call
+    require(isTransfer && !_isExit || (requestableContracts[_to] != address(0)));
 
     requestId = _requests.length++;
     Data.Request storage r = _requests[requestId];
 
     r.requestor = msg.sender;
-    r.value = uint128(_weiAmount);
     r.to = _to;
-    r.trieKey = _trieKey;
-    r.trieValue = _trieValue;
     r.timestamp = uint64(block.timestamp);
     r.isExit = _isExit;
-    r.isTransfer = _isTransfer;
+    r.isTransfer = isTransfer;
+    r.value = uint128(_weiAmount);
+    r.trieKey = _trieKey;
+    r.trieValue = _trieValue;
 
-    // apply message-call
-    if (!_isExit && !_isTransfer) {
+    // apply message-call in case of enter request.
+    if (!_isExit) {
       require(r.applyRequestInRootChain(requestId));
     }
 
@@ -895,7 +891,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
 
     Data.RequestBlock storage rb = _rbs[requestBlockId];
 
-    // make a new RequestBlock
+    // make a new RequestBlock.
     if (rb.submitted || rb.requestEnd - rb.requestStart + 1 == MAX_REQUESTS()) {
       rb.submitted = true;
       rb = _rbs[_rbs.length++];
@@ -909,8 +905,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
       rb.numEnter += 1;
     }
 
-    if (_isTransfer) {
-      rb.addRequest(r, r.toChildChainRequest(_to), requestId);
+    if (isTransfer && !_isExit) {
+      rb.addRequest(r, r.toChildChainRequest(msg.sender), requestId);
     } else {
       rb.addRequest(r, r.toChildChainRequest(requestableContracts[_to]), requestId);
     }

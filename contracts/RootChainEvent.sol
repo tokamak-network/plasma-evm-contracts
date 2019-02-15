@@ -71,7 +71,6 @@ contract RootChainEvent {
     uint weiAmount,
     bytes32 trieKey,
     bytes32 trieValue,
-    bool isTransfer,
     bool isExit,
     bool userActivated
   );
