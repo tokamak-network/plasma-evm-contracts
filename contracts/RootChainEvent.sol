@@ -95,4 +95,5 @@ contract RootChainEvent {
   event RequestApplied(uint requestId, bool userActivated);
   event RequestChallenged(uint requestId, bool userActivated);
 
+  event RequestableContractMapped(address contractInRootchain, address contractInChildchain);
 }

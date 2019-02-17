@@ -109,6 +109,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
     require(requestableContracts[_rootchain] == address(0));
 
     requestableContracts[_rootchain] = _childchain;
+
+    emit RequestableContractMapped(_rootchain, _childchain);
     return true;
   }
 
