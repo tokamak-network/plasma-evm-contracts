@@ -18,11 +18,19 @@ module.exports = {
       websocket: true,
     },
     plasma: {
-      host: 'localhost',
+      host: '192.168.0.8',
       port: 8547,
       gas: 7500000,
       gasPrice: 1e9,
       network_id: '*', // eslint-disable-line camelcase
+    },
+    docker: {
+      host: "192.168.0.8",
+      port: 8545,
+      gas: 7500000,
+      gasPrice: 1e9,
+      network_id: '*', // eslint-disable-line camelcase
+      websocket: true,
     },
   //   ropsten: {
   //     provider: ropstenProvider,
