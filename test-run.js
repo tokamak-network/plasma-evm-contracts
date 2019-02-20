@@ -43,7 +43,7 @@ for (var i=1; i<5; i++) {
 // execute test here
 (async function () {
     try {
-        await test1();
+        await test2();
     }
     catch (e) {
         console.log(e);
@@ -95,7 +95,7 @@ async function test1() {
     console.log("await rootchain.requestableContracts(tokenR.address)", await rootchain.requestableContracts(tokenR.address));
 
     // send PETH between users 'n' times
-    sendPETHbetweenUsers(10).then(function() {
+    sendPETHbetweenUsers(100).then(function() {
         console.log("finish to send PETH between users")
     }, function(reason) {
         console.error("Failed to send PETH between users. reason: ", reason)
@@ -154,7 +154,7 @@ async function test2() {
     console.log('RootChain num EROs: ', numEROS.toNumber());
 
     // send PETH between users 'n' times
-    sendPETHbetweenUsers(50).then(function() {
+    sendPETHbetweenUsers(10).then(function() {
         console.log("finish to send PETH between users")
     }, function(reason) {
         console.error("Failed to send PETH between users. reason: ", reason)
@@ -165,6 +165,12 @@ async function test2() {
 
     await startExit(10, rootchain, tokenR.address, COST_ERO);
     console.log("finish to make exitRequests");
+
+    await sendPETHbetweenUsers(100);
+    console.log("finish to send PETH between users");
+
+    // wait for 2 min
+    await wait(120);
 
     const hash = await rootchain.applyRequest({from: users[0], gas: 1000000});
     await waitTx(hash);
@@ -182,9 +188,9 @@ async function sendPETHbetweenUsers(n) {
     for (var i=0; i<n; i++) {
         for (var j=0; j<4; j++) {
             if (j=3) {
-                await web3c.eth.sendTransaction({from: users[j], value: etherAmount, to: users[0]});
+                await web3c.eth.sendTransaction({from: users[j], value: etherAmount.div(1000), to: users[0]});
             } else {
-                await web3c.eth.sendTransaction({from: users[j], value: etherAmount, to: users[j+1]});
+                await web3c.eth.sendTransaction({from: users[j], value: etherAmount.div(1000), to: users[j+1]});
             }
             await wait(1)
         }
