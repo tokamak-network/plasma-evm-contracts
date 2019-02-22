@@ -169,8 +169,8 @@ async function test2() {
     await sendPETHbetweenUsers(100);
     console.log("finish to send PETH between users");
 
-    // wait for 2 min
-    await wait(120);
+    // wait for 30 secs
+    await wait(30);
 
     const hash = await rootchain.applyRequest({from: users[0], gas: 1000000});
     await waitTx(hash);
