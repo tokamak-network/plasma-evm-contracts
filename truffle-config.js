@@ -25,7 +25,7 @@ module.exports = {
       network_id: '*', // eslint-disable-line camelcase
     },
     docker: {
-      host: "192.168.0.8",
+      host: '192.168.0.8',
       port: 8545,
       gas: 7500000,
       gasPrice: 1e9,
