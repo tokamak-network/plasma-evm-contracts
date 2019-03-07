@@ -22,7 +22,7 @@ module.exports = {
       websocket: true,
     },
     plasma: {
-      host: '192.168.0.8',
+      host: 'localhost',
       port: 8547,
       gas: 7500000,
       gasPrice: 1e9,
