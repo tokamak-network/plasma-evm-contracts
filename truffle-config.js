@@ -1,5 +1,9 @@
 require('dotenv').config();
 
+const HDWalletProvider = require('truffle-hdwallet-provider');
+const ropstenProviderUrl = `https://ropsten.infura.io/v3/${process.env.INFURA_API_KEY}`;
+const ropstenProvider = new HDWalletProvider(`${process.env.MNEMONIC}`, ropstenProviderUrl, 0, 50);
+
 module.exports = {
   networks: {
     development: {
@@ -18,28 +22,37 @@ module.exports = {
       websocket: true,
     },
     plasma: {
-      host: 'localhost',
+      host: '192.168.0.8',
       port: 8547,
       gas: 7500000,
       gasPrice: 1e9,
       network_id: '*', // eslint-disable-line camelcase
     },
-  //   ropsten: {
-  //     provider: ropstenProvider,
-  //     network_id: 3, // eslint-disable-line camelcase
-  //   },
-  //   coverage: {
-  //     host: 'localhost',
-  //     network_id: '*', // eslint-disable-line camelcase
-  //     port: 8555,
-  //     gas: 0xfffffffffff,
-  //     gasPrice: 0x01,
-  //   },
-  //   ganache: {
-  //     host: 'localhost',
-  //     port: 8545,
-  //     network_id: '*', // eslint-disable-line camelcase
-  //   },
+    docker: {
+      host: '192.168.0.8',
+      port: 8545,
+      gas: 7500000,
+      gasPrice: 1e9,
+      network_id: '*', // eslint-disable-line camelcase
+      websocket: true,
+    },
+    ropsten: {
+      provider: ropstenProvider,
+      network_id: 3, // eslint-disable-line camelcase
+      gas: 7500000,
+    },
+    coverage: {
+      host: 'localhost',
+      network_id: '*', // eslint-disable-line camelcase
+      port: 8555,
+      gas: 0xfffffffffff,
+      gasPrice: 0x01,
+    },
+    ganache: {
+      host: 'localhost',
+      port: 8545,
+      network_id: '*', // eslint-disable-line camelcase
+    },
   },
   mocha: {
     reporter: 'eth-gas-reporter',
