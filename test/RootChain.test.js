@@ -469,13 +469,18 @@ contract('RootChain', async ([
       .should.be.bignumber.equal(forks[currentFork].lastEpoch);
   }
 
+  function makePos (forkNumber, blockNumber) {
+    return forkNumber * (1 << 128) + blockNumber;
+  }
+
   async function submitDummyNRBs (numBlocks) {
     for (const _ of range(numBlocks)) {
       await checkLastBlockNumber();
-
-      const tx = await rootchain.submitNRB(currentFork, statesRoot, transactionsRoot, receiptsRoot, { value: COST_NRB });
-      logtx(tx);
       forks[currentFork].lastBlock += 1;
+      const pos = makePos(currentFork, forks[currentFork].lastBlock);
+
+      const tx = await rootchain.submitNRB(pos, statesRoot, transactionsRoot, receiptsRoot, { value: COST_NRB });
+      logtx(tx);
 
       await checkLastBlockNumber();
     }
@@ -484,10 +489,11 @@ contract('RootChain', async ([
   async function submitDummyORBs (numBlocks) {
     for (const _ of range(numBlocks)) {
       await checkLastBlockNumber();
-
-      const tx = await rootchain.submitORB(currentFork, statesRoot, transactionsRoot, receiptsRoot, { value: COST_ORB });
-      logtx(tx);
       forks[currentFork].lastBlock += 1;
+      const pos = makePos(currentFork, forks[currentFork].lastBlock);
+
+      const tx = await rootchain.submitORB(pos, statesRoot, transactionsRoot, receiptsRoot, { value: COST_ORB });
+      logtx(tx);
 
       await checkRequestBlock(forks[currentFork].lastBlock);
       await checkLastBlockNumber();
@@ -496,20 +502,21 @@ contract('RootChain', async ([
 
   async function submitDummyURBs (numBlocks, firstURB = true) {
     for (const _ of range(numBlocks)) {
-      const tx = await rootchain.submitURB(currentFork, statesRoot, transactionsRoot, receiptsRoot,
-        { from: submiter, value: COST_URB });
-      logtx(tx);
-
       if (firstURB) {
-        // consume events
-        await timeout(3);
-
         forks[currentFork].lastBlock = forks[currentFork - 1].lastFinalizedBlock + 1;
       } else {
         forks[currentFork].lastBlock += 1;
       }
 
       firstURB = false;
+      const pos = makePos(currentFork, forks[currentFork].lastBlock);
+
+      const tx = await rootchain.submitURB(pos, statesRoot, transactionsRoot, receiptsRoot,
+        { from: submiter, value: COST_URB });
+      logtx(tx);
+
+      // consume events
+      await timeout(3);
 
       await checkLastBlockNumber();
     }
@@ -547,7 +554,7 @@ contract('RootChain', async ([
     return finalizeBlocks();
   }
 
-  async function applyRequests (n = 0, userActivated = false) {
+  async function finalizeRequests (n = 0, userActivated = false) {
     const firstRequestId = userActivated ? ERUToApply : EROToApply;
     const lastRequestId = userActivated
       ? n === 0 ? numERUs : firstRequestId + n
@@ -563,7 +570,7 @@ contract('RootChain', async ([
 
       const tokenAmountBefore = await token.balances(requestBefore.requestor);
 
-      const tx = await rootchain.applyRequest();
+      const tx = await rootchain.finalizeRequest();
       logtx(tx);
 
       await expectEvent.inTransaction(tx, 'RequestFinalized');
@@ -900,7 +907,7 @@ contract('RootChain', async ([
         });
 
         it('cannot finalize requests before block is finalized', async () => {
-          await rootchain.applyRequest().should.be.rejectedWith(EVMRevert);
+          await rootchain.finalizeRequest().should.be.rejectedWith(EVMRevert);
         });
 
         if (numInvalidExit > 0) {
@@ -968,7 +975,7 @@ contract('RootChain', async ([
           await finalizeBlocks();
           await increaseTime(CP_EXIT + 1);
 
-          await applyRequests();
+          await finalizeRequests();
         });
       } else {
         it('can finalize blocks', finalizeBlocks);
@@ -1051,7 +1058,7 @@ contract('RootChain', async ([
 
     it('can finalize blocks', finalizeBlocks);
 
-    it('should finalize requests', applyRequests);
+    it('should finalize requests', finalizeRequests);
   };
 
   const testEpochsWithInvalidExitRequest = (NRENumber) => {
@@ -1152,7 +1159,7 @@ contract('RootChain', async ([
       }
     });
 
-    it('should finalize invalid requests', async () => { applyRequests(invalidExit); });
+    it('should finalize invalid requests', async () => { finalizeRequests(invalidExit); });
   }; */
 
   const makeUAFTest = ({
@@ -1346,16 +1353,16 @@ contract('RootChain', async ([
       it('should finalize blocks', finalizeBlocks);
 
       it('should not finalize ERUs before exit challenge period ends', async () => {
-        await rootchain.applyRequest().should.be.rejectedWith(EVMRevert);
+        await rootchain.finalizeRequest().should.be.rejectedWith(EVMRevert);
       });
 
       it('should finalize ERUs after exit challenge period ends', async () => {
         await increaseTime(CP_EXIT + 1);
-        await applyRequests(numNewERUs, true);
+        await finalizeRequests(numNewERUs, true);
       });
 
       it('should finalize EROs', async () => {
-        await applyRequests(0, false);
+        await finalizeRequests(0, false);
       });
     };
 

@@ -145,7 +145,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
 
   // TODO: Delegate the validity check to TrueBit Verification Game contracts
   function submitNRB(
-    uint _forkNumber,
+    uint _pos,
     bytes32 _statesRoot,
     bytes32 _transactionsRoot,
     bytes32 _receiptsRoot
@@ -157,15 +157,20 @@ contract RootChain is RootChainStorage, RootChainEvent {
     finalizeBlocks
     returns (bool success)
   {
-    require(currentFork == _forkNumber);
-
-    Data.Fork storage curFork = forks[_forkNumber];
-
-    uint epochNumber;
+    uint forkNumber;
     uint blockNumber;
 
+    (forkNumber, blockNumber) = _pos.decodePos();
+
+    require(currentFork == forkNumber);
+    require(forks[forkNumber].lastBlock + 1 == blockNumber);
+
+    Data.Fork storage curFork = forks[forkNumber];
+
+    uint epochNumber;
+
     // If not forked or already rebased
-    if (_forkNumber == 0 || forks[_forkNumber - 1].forkedBlock != 0 && curFork.rebased) {
+    if (forkNumber == 0 || forks[forkNumber - 1].forkedBlock != 0 && curFork.rebased) {
       (epochNumber, blockNumber) = curFork.insertBlock(
         _statesRoot,
         _transactionsRoot,
@@ -176,7 +181,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
       );
 
       emit BlockSubmitted(
-        _forkNumber,
+        forkNumber,
         epochNumber,
         blockNumber,
         false,
@@ -202,12 +207,12 @@ contract RootChain is RootChainStorage, RootChainEvent {
 
     curFork.blocks[blockNumber].referenceBlock = curFork.nextBlockToRebase;
 
-    Data.Fork storage preFork = forks[_forkNumber - 1];
+    Data.Fork storage preFork = forks[forkNumber - 1];
 
     require(_transactionsRoot == preFork.blocks[curFork.nextBlockToRebase].transactionsRoot);
 
     emit BlockSubmitted(
-      _forkNumber,
+      forkNumber,
       epochNumber,
       blockNumber,
       false,
@@ -220,7 +225,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
       curFork.rebased = true;
 
       emit EpochRebased(
-        _forkNumber,
+        forkNumber,
         epochNumber,
         curFork.epochs[epochNumber].startBlockNumber,
         blockNumber,
@@ -239,7 +244,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
   }
 
   function submitORB(
-    uint _forkNumber,
+    uint _pos,
     bytes32 _statesRoot,
     bytes32 _transactionsRoot,
     bytes32 _receiptsRoot
@@ -251,15 +256,21 @@ contract RootChain is RootChainStorage, RootChainEvent {
     finalizeBlocks
     returns (bool success)
   {
-    require(currentFork == _forkNumber);
-    Data.Fork storage curFork = forks[_forkNumber];
+    uint forkNumber;
+    uint blockNumber;
+
+    (forkNumber, blockNumber) = _pos.decodePos();
+
+    require(currentFork == forkNumber);
+    require(forks[forkNumber].lastBlock + 1 == blockNumber);
+
+    Data.Fork storage curFork = forks[forkNumber];
 
     uint epochNumber;
-    uint blockNumber;
     uint requestBlockId;
 
     // If not forked or already rebased
-    if (_forkNumber == 0 || forks[_forkNumber - 1].forkedBlock != 0 && curFork.rebased) {
+    if (forkNumber == 0 || forks[forkNumber - 1].forkedBlock != 0 && curFork.rebased) {
       (epochNumber, blockNumber) = curFork.insertBlock(
         _statesRoot,
         _transactionsRoot,
@@ -283,7 +294,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
       curFork.epochs[epochNumber].numEnter += ORBs[requestBlockId].numEnter;
 
       emit BlockSubmitted(
-        _forkNumber,
+        forkNumber,
         epochNumber,
         blockNumber,
         true,
@@ -307,7 +318,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
       true
     );
 
-    Data.Fork storage preFork = forks[_forkNumber - 1];
+    Data.Fork storage preFork = forks[forkNumber - 1];
     Data.PlasmaBlock storage curBlock = curFork.blocks[blockNumber];
 
     curBlock.referenceBlock = curFork.nextBlockToRebase;
@@ -322,7 +333,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
     }
 
     emit BlockSubmitted(
-      _forkNumber,
+      forkNumber,
       epochNumber,
       blockNumber,
       true,
@@ -334,7 +345,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
       curFork.epochs[epochNumber].endBlockNumber = uint64(blockNumber);
 
       emit EpochRebased(
-        _forkNumber,
+        forkNumber,
         epochNumber,
         curFork.epochs[epochNumber].startBlockNumber,
         blockNumber,
@@ -353,7 +364,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
   }
 
   function submitURB(
-    uint _forkNumber,
+    uint _pos,
     bytes32 _statesRoot,
     bytes32 _transactionsRoot,
     bytes32 _receiptsRoot
@@ -363,29 +374,36 @@ contract RootChain is RootChainStorage, RootChainEvent {
     onlyValidCost(COST_URB)
     returns (bool success)
   {
-    bool firstURB = currentFork + 1 == _forkNumber;
-    require(firstURB || currentFork == _forkNumber);
+    uint forkNumber;
+    uint blockNumber;
 
-    Data.Fork storage fork = forks[_forkNumber];
+    (forkNumber, blockNumber) = _pos.decodePos();
+
+
+    bool firstURB = currentFork + 1 == forkNumber;
+    require(firstURB || currentFork == forkNumber);
+
+    Data.Fork storage fork = forks[forkNumber];
 
     if (firstURB) {
-      currentFork += 1;
-      fork = forks[_forkNumber];
+      currentFork = forkNumber;
+      fork = forks[forkNumber];
 
       require(fork.timestamp + Data.URE_TIMEOUT() > block.timestamp);
 
-      emit Forked(_forkNumber, fork.lastEpoch, fork.firstBlock);
+      // check block number
+      require(blockNumber == fork.firstBlock);
+
+      emit Forked(forkNumber, fork.lastEpoch, fork.firstBlock);
+    } else {
+      // check block number
+      require(blockNumber == fork.lastBlock.add64(1));
     }
 
     Data.Epoch storage epoch = fork.epochs[fork.lastEpoch];
 
     require(epoch.isRequest);
     require(epoch.userActivated);
-
-    // set blockNumber as the forked block number if it is first URB
-    uint blockNumber = firstURB ?
-      fork.firstBlock :
-      fork.lastBlock.add64(1);
 
     Data.PlasmaBlock storage b = fork.blocks[blockNumber];
 
@@ -408,7 +426,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
     }
 
     emit BlockSubmitted(
-      currentFork,
+      forkNumber,
       fork.lastEpoch,
       blockNumber,
       true,
@@ -593,13 +611,11 @@ contract RootChain is RootChainStorage, RootChainEvent {
   }
 
   /**
-   * @notice Apply last exit request. this returns the bond in both of
-   *         request types.
-   * @notice Apply a request in root chain if request block including it
+   * @notice Finalize a request if request block including it
    *         is finalized.
    * TODO: refactor implementation
    */
-  function applyRequest() external returns (bool success) {
+  function finalizeRequest() public returns (bool success) {
     uint epochNumber;
     uint requestId;
     Data.Fork storage fork = forks[lastAppliedForkNumber];
@@ -706,6 +722,14 @@ contract RootChain is RootChainStorage, RootChainEvent {
     ERO.finalized = true;
 
     emit RequestFinalized(requestId, false);
+    return true;
+  }
+
+  function finalizeRequests(uint n) external returns (bool success) {
+    for (uint i = 0; i < n; i++) {
+      require(finalizeRequest());
+    }
+
     return true;
   }
 

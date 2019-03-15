@@ -41,6 +41,13 @@ library Data {
     return 1 hours;
   }
 
+  function decodePos(uint pos) internal pure returns (uint forkNumber, uint blockNumber) {
+    assembly {
+      forkNumber := div(pos, exp(2, 128))
+      blockNumber := and(pos, sub(exp(2, 128), 1))
+    }
+  }
+
   /**
    * highestFinalizedBlock
    * firstEpochNumber
