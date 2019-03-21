@@ -208,6 +208,7 @@ async function sendBulkTransaction (plasma, bulk, interval) {
     exitWithMessage(`No account to use.`)
   }
   const sender = accounts[0];
+  console.log(`sender address: ${sender}\n`);
   await isUnlockedAccount(_web3, sender.toLowerCase());
   
   let nonce = await _web3.eth.getTransactionCountAsync(sender);
