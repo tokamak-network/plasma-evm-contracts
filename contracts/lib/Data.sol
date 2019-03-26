@@ -19,11 +19,11 @@ library Data {
   using RLPEncode for *;
   using BMT for *;
 
-  // signature of function applyRequestInChildChain(bool,uint256,address,bytes32,bytes32)
-  bytes4 public constant APPLY_IN_CHILDCHAIN_SIGNATURE = 0xe904e3d9;
+  // signature of function applyRequestInChildChain(bool,uint256,address,bytes32,bytes)
+  bytes4 public constant APPLY_IN_CHILDCHAIN_SIGNATURE = 0x141ecf46;
 
-  // signature of function applyRequestInRootChain(bool,uint256,address,bytes32,bytes32)
-  bytes4 public constant APPLY_IN_ROOTCHAIN_SIGNATURE = 0xd9afd3a9;
+  // signature of function applyRequestInRootChain(bool,uint256,address,bytes32,bytes)
+  bytes4 public constant APPLY_IN_ROOTCHAIN_SIGNATURE = 0xa9f79308;
 
   address public constant NA = address(0);
   uint public constant NA_TX_GAS_PRICE = 1e9;
@@ -462,11 +462,13 @@ library Data {
 
     out = abi.encodePacked(
       funcSig,
-      bytes32(uint(self.isExit ? 1 : 0)),
-      _requestId,
-      bytes32(self.requestor),
-      self.trieKey,
-      self.trieValue
+      abi.encode(
+        bytes32(uint(self.isExit ? 1 : 0)),
+        _requestId,
+        bytes32(self.requestor),
+        self.trieKey,
+        self.trieValue
+      )
     );
   }
 
