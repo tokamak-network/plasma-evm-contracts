@@ -4,6 +4,8 @@ const path = require('path');
 const Web3 = require('web3');
 const BigNumber = web3.BigNumber;
 const Tx = require('ethereumjs-tx')
+const ethUtil = require('ethereumjs-util');
+
 
 const { appendHex } = require('../test/helpers/appendHex');
 const { marshalString, unmarshalString } = require('../test/helpers/marshal');
@@ -58,11 +60,12 @@ module.exports = async function (callback) {
   program
     .command('send-tx')
     .option('-p --plasma')
+    .option('--p, --privatekey <private key>')
     .option('-b --bulk <number of transactions')
     .option('-i --interval <seconds>')
     .action(cmd => {
       checkNumberType(cmd.bulk, cmd.interval);
-      sendBulkTransaction(cmd.plasma, cmd.bulk, cmd.interval);
+      sendBulkTransaction(cmd.plasma, cmd.privatekey, cmd.bulk, cmd.interval);
     });
 
   // truffle exec scripts/test-run.js apply-request 10
@@ -207,16 +210,17 @@ async function test (n, bulk) {
   process.exit(0);
 }
 
-async function makeBulkSerializedTx (web3, serializedTxs) {
-  // TODO: how to get pk / address
-  let privateKey = new Buffer('b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291', 'hex')
+async function makeBulkSerializedTx (web3, pk, serializedTxs) {
+  let privateKey = new Buffer(pk, 'hex')
+  const sender = '0x' + ethUtil.privateToAddress('0x' + pk).toString('hex');
   let nonce;
   try {
-    nonce = await web3.eth.getTransactionCountAsync('0x71562b71999873DB5b286dF957af199Ec94617F7');
+    nonce = await web3.eth.getTransactionCountAsync(sender);
   } catch (err) {
     console.log(err);
   }
-  while (true) {
+  
+  for (let i = 0; i < 100000; i++) {
     let rawTx = {
       nonce: nonce.toString(16),
       gasPrice: '0x01', 
@@ -231,52 +235,42 @@ async function makeBulkSerializedTx (web3, serializedTxs) {
     serializedTxs.push(serializedTx);
     nonce++;
     console.log(nonce);
-    await wait(4);
-      
-    try {
-      await web3.eth.sendRawTransactionAsync('0x' + serializedTx.toString('hex'));
-    } catch (err) {
-      console.log(err);
-    }
   }
 }
 
 
-async function sendBulkTransaction (plasma, bulk, interval) {
+async function sendBulkTransaction (plasma, pk, bulk, interval) {
   await init(defaultChildChainURL);
   
   const _web3 = !plasma ? web3 : web3ForChildChain;
   const serializedTxs = [];  
-  makeBulkSerializedTx(_web3, serializedTxs)
+  console.log('making serialized txs...');
+  await makeBulkSerializedTx(_web3, pk, serializedTxs)
+  console.log(`now you have ${serializedTxs.length} serialized txs`);
   
-  const accounts = await _web3.eth.getAccountsAsync();
-  if (accounts.length === 0) {
-    exitWithMessage(`No account to use.`)
-  }
-  const sender = accounts[0];
-  console.log(`sender address: ${sender}\n`);
-  await isUnlockedAccount(_web3, sender.toLowerCase());
-  
-  let nonce = await _web3.eth.getTransactionCountAsync(sender);
+  let index = 0;
   while (true) {
     const promises = [];
-    for (let i = 0; i < bulk; i++) {
+    for (let j = 0; j < bulk; j++) {
       try {
-        promises.push(_web3.eth.sendTransactionAsync({ nonce: nonce, from: sender, to: sender, value: 0 }));
+        if (typeof serializedTxs[index] === "undefined") {
+          exitWithMessage(`end of sending bulk txs`);
+        }
+        promises.push(_web3.eth.sendRawTransactionAsync('0x' + serializedTxs[index].toString('hex')));
+        index++;
       } catch (err) {
-        console.error(err);
+        exitWithMessage(`Failed to send raw transaction: ${err}`);
       }
-      nonce++;
     }
 
-    const txs = await Promise.all(promises);
-    txs.forEach(async tx => {
-      try {
-        console.log(await waitTx(_web3, tx));
-      } catch (err) {
-        console.error(err);
-      }
-    });
+    try {
+      const txs = await Promise.all(promises);
+      txs.forEach(async tx => {
+        console.log(tx);
+      });
+    } catch (err) {
+      console.log(err);
+    } 
     await wait(interval);
   }
 }
