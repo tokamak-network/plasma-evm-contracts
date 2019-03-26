@@ -222,7 +222,7 @@ async function makeBulkSerializedTx (web3, pk, serializedTxs) {
   
   for (let i = 0; i < 100000; i++) {
     let rawTx = {
-      nonce: nonce.toString(16),
+      nonce: "0x" + nonce.toString(16),
       gasPrice: '0x01', 
       gasLimit: '0x5208',
       to: '0x0000000000000000000000000000000000000000', 
