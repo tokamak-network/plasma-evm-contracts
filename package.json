@@ -54,6 +54,7 @@
     "chai-bytes": "^0.1.1",
     "commander": "^2.19.0",
     "ethereumjs-tx": "^1.3.7",
+    "ethereumjs-util": "^6.1.0",
     "rlp": "^2.1.0",
     "web3": "git+https://github.com/Onther-Tech/web3.js.git"
   }
