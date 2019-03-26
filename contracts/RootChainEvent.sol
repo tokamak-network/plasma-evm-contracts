@@ -70,7 +70,7 @@ contract RootChainEvent {
     address to,
     uint weiAmount,
     bytes32 trieKey,
-    bytes32 trieValue,
+    bytes trieValue,
     bool isExit,
     bool userActivated
   );
@@ -78,7 +78,7 @@ contract RootChainEvent {
     uint requestId,
     address requestor,
     address to,
-    bytes32 trieKey,
+    bytes trieKey,
     bytes32 trieValue
   );
 
