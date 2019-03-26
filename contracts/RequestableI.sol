@@ -1,12 +1,12 @@
 pragma solidity ^0.4.24;
 
-interface RequestableContractI {
+interface RequestableI {
   function applyRequestInRootChain(
     bool isExit,
     uint256 requestId,
     address requestor,
     bytes32 trieKey,
-    bytes32 trieValue
+    bytes trieValue
   ) external returns (bool success);
 
   function applyRequestInChildChain(
@@ -14,7 +14,6 @@ interface RequestableContractI {
     uint256 requestId,
     address requestor,
     bytes32 trieKey,
-    bytes32 trieValue
+    bytes trieValue
   ) external returns (bool success);
-
 }
