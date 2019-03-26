@@ -78,6 +78,14 @@ module.exports = async function (callback) {
 /* command */
 async function test (n, bulk) {
   await init(defaultChildChainURL);
+
+  const etherAmount = new BigNumber(10e30);
+  const faucet = await web3ForChildChain.eth.sendTransactionAsync({ from: operator, to: user, value: etherAmount });
+  await waitTx(web3ForChildChain, faucet);
+  console.log(`faucet is complete
+  operator balance: ${await web3ForChildChain.eth.getBalanceAsync(operator)}
+  user balance: ${await web3ForChildChain.eth.getBalanceAsync(user)}\n`);
+  
   let requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain;
   try {
     requestSimpleTokenAtRootChain = await RequestableSimpleToken.new({ from: operator });
@@ -85,8 +93,6 @@ async function test (n, bulk) {
   } catch (err) {
     exitWithMessage(`Failed to deploy RequestSimpleToken: ${err}`);
   }
-
-  // const waitBlockSubmit1 = checkSubmittedBlock(1);
 
   try {
     const deployed = await web3ForChildChain.eth.contract(requestSimpleTokenABI).new({ from: operator, gas: 30000000, data: requestSimpleTokenBytecode });
@@ -97,23 +103,16 @@ async function test (n, bulk) {
     exitWithMessage(`Failed to deploy RequestSimpleToekn at childchain: ${err}`);
   }
 
-  console.log('\nmap SimpleRequestToken contracts');
+  console.log('map SimpleRequestToken contracts');
   try {
     const hash = await rootchainContract.mapRequestableContractByOperatorAsync(requestSimpleTokenAtRootChain.address, requestSimpleTokenAtChildChain.address, { from: operator, gas: 2000000 });
     await waitTx(web3, hash);
   } catch (err) {
     exitWithMessage(`Failed to map contracts: ${err}`);
   }
-
-  const tokenAmount = new BigNumber(10e18);
-  const etherAmount = new BigNumber(10e30);
-  const faucet = await web3ForChildChain.eth.sendTransactionAsync({ from: operator, to: user, value: etherAmount });
-  await waitTx(web3ForChildChain, faucet);
-  console.log(`faucet is complete, operator balance: ${await web3ForChildChain.eth.getBalanceAsync(operator)}, user balance: ${await web3ForChildChain.eth.getBalanceAsync(user)}\n`);
   
-  // await waitBlockSubmit1();
-
   console.log('mint token');
+  const tokenAmount = new BigNumber(10e18);
   try {
     const res = await requestSimpleTokenAtRootChain.mint(user, tokenAmount.mul(100));
     await waitTx(web3, res.tx);
@@ -174,12 +173,15 @@ async function test (n, bulk) {
   // wait challenger period
   console.log('\nWaiting challenger period for 20 seconds');
   await wait(20);
-
-  console.log(`faucet is complete, operator balance: ${await web3ForChildChain.eth.getBalanceAsync(operator)}, user balance: ${await web3ForChildChain.eth.getBalanceAsync(user)}\n`);
-  console.log('\n');
+  
   // apply enter request
   for (let i = 0; i < n; i++) {
-    const hash = await rootchainContract.applyRequestAsync({ from: user, gas: 2000000 });
+    let hash;
+    try {
+      hash = await rootchainContract.finalizeRequestAsync({ from: user, gas: 2000000 });
+    } catch (err) {
+      exitWithMessage(`Failed to finalize request: ${err}`);
+    }
     if (await waitTx(web3, hash)) {
       await printTokenBalance('Succeess to apply enter request', requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain);
     }
@@ -189,7 +191,12 @@ async function test (n, bulk) {
 
   // apply exit request
   for (let i = 0; i < n; i++) {
-    const hash = await rootchainContract.applyRequestAsync({ from: user, gas: 2000000 });
+    let hash;
+    try {
+      hash = await rootchainContract.finalizeRequestAsync({ from: user, gas: 2000000 });
+    } catch (err) {
+      exitWithMessage(`Failed to finalize request: ${err}`);
+    }
     if (await waitTx(web3, hash)) {
       await printTokenBalance('Succeess to apply exit request', requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain);
     }
@@ -216,7 +223,6 @@ async function sendBulkTransaction (plasma, bulk, interval) {
     const promises = [];
     for (let i = 0; i < bulk; i++) {
       try {
-        console.log('test', sender);
         promises.push(_web3.eth.sendTransactionAsync({ nonce: nonce, from: sender, to: sender, value: 0 }));
       } catch (err) {
         console.error(err);
@@ -262,7 +268,12 @@ async function applyRequest (n) {
   await init(defaultChildChainURL);
 
   for (let i = 0; i < n; i++) {
-    const hash = await rootchainContract.applyRequestAsync({ from: user, gas: 2000000 });
+    let hash;
+    try {
+      hash = await rootchainContract.finalizeRequestAsync({ from: user, gas: 2000000 });
+    } catch (err) {
+      exitWithMessage(`Failed to finalize request: ${err}`);
+    }
     await waitTx(web3, hash);
   }
 }
@@ -488,7 +499,9 @@ async function printTokenBalance (state, tokenAtRoot, tokenAtChild) {
   try {
     const balanceAtRoot = await tokenAtRoot.balances(user);
     const balanceAtChild = tokenAtChild.balances(user);
-    console.log(`${state}: balance at rootchain ${balanceAtRoot}, balance at childchain ${balanceAtChild}`);
+    console.log(`${state}
+  token balance at rootchain: ${balanceAtRoot}
+  token balance at childchain: ${balanceAtChild}`);
   } catch (err) {
     exitWithMessage(`Filed to get balance: ${err}`);
   }
