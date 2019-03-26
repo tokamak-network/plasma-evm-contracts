@@ -22,15 +22,14 @@ const BigNumber = web3.BigNumber;
 const LOGTX = process.env.LOGTX || false;
 const VERBOSE = process.env.VERBOSE || false;
 
+const dummyStatesRoot = '0xdb431b544b2f5468e3f771d7843d9c5df3b4edcf8bc1c599f18f0b4ea8709bc3';
+const dummyTransactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
+const dummyReceiptsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
+
 const etherAmount = new BigNumber(10e18);
 const tokenAmount = new BigNumber(10e18);
 const exitAmount = tokenAmount.div(1000);
 const emptyBytes32 = 0;
-
-// genesis block merkle roots
-const statesRoot = '0x0ded2f89db1e11454ba4ba90e31850587943ed4a412f2ddf422bd948eae8b164';
-const transactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
-const receiptsRoot = '0x000000000000000000000000000000000000000000000000000000000000dead';
 
 // eslint-disable-next-line max-len
 const failedReceipt = '0xf9010800825208b9010000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0';
@@ -336,7 +335,7 @@ contract('RootChain', async ([
       forks[currentFork].lastBlock += 1;
       const pos = makePos(currentFork, forks[currentFork].lastBlock);
 
-      const tx = await rootchain.submitNRB(pos, statesRoot, transactionsRoot, receiptsRoot, { value: COST_NRB });
+      const tx = await rootchain.submitNRB(pos, dummyStatesRoot, dummyTransactionsRoot, dummyReceiptsRoot, { value: COST_NRB });
       logtx(tx);
 
       await checkLastBlockNumber();
@@ -349,7 +348,7 @@ contract('RootChain', async ([
       forks[currentFork].lastBlock += 1;
       const pos = makePos(currentFork, forks[currentFork].lastBlock);
 
-      const tx = await rootchain.submitORB(pos, statesRoot, transactionsRoot, receiptsRoot, { value: COST_ORB });
+      const tx = await rootchain.submitORB(pos, dummyStatesRoot, dummyTransactionsRoot, dummyReceiptsRoot, { value: COST_ORB });
       logtx(tx);
 
       await checkRequestBlock(forks[currentFork].lastBlock);
@@ -368,7 +367,7 @@ contract('RootChain', async ([
       firstURB = false;
       const pos = makePos(currentFork, forks[currentFork].lastBlock);
 
-      const tx = await rootchain.submitURB(pos, statesRoot, transactionsRoot, receiptsRoot,
+      const tx = await rootchain.submitURB(pos, dummyStatesRoot, dummyTransactionsRoot, dummyReceiptsRoot,
         { from: submiter, value: COST_URB });
       logtx(tx);
 
@@ -463,7 +462,7 @@ contract('RootChain', async ([
         const trieValue = padLeft(web3.fromDecimal(etherAmount));
 
         const tx = await rootchain.startEnter(etherToken.address, trieKey, trieValue, {
-          from: other
+          from: other,
         });
 
         logtx(tx);
