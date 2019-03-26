@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const Web3 = require('web3');
 const BigNumber = web3.BigNumber;
+const Tx = require('ethereumjs-tx')
 
 const { appendHex } = require('../test/helpers/appendHex');
 const { marshalString, unmarshalString } = require('../test/helpers/marshal');
@@ -206,10 +207,48 @@ async function test (n, bulk) {
   process.exit(0);
 }
 
+async function makeBulkSerializedTx (web3, serializedTxs) {
+  // TODO: how to get pk / address
+  let privateKey = new Buffer('b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291', 'hex')
+  let nonce;
+  try {
+    nonce = await web3.eth.getTransactionCountAsync('0x71562b71999873DB5b286dF957af199Ec94617F7');
+  } catch (err) {
+    console.log(err);
+  }
+  while (true) {
+    let rawTx = {
+      nonce: nonce.toString(16),
+      gasPrice: '0x01', 
+      gasLimit: '0x5208',
+      to: '0x0000000000000000000000000000000000000000', 
+      value: '0x00', 
+    }
+    let tx = new Tx(rawTx);
+    tx.sign(privateKey);
+    
+    let serializedTx = tx.serialize();
+    serializedTxs.push(serializedTx);
+    nonce++;
+    console.log(nonce);
+    await wait(4);
+      
+    try {
+      await web3.eth.sendRawTransactionAsync('0x' + serializedTx.toString('hex'));
+    } catch (err) {
+      console.log(err);
+    }
+  }
+}
+
+
 async function sendBulkTransaction (plasma, bulk, interval) {
   await init(defaultChildChainURL);
-
+  
   const _web3 = !plasma ? web3 : web3ForChildChain;
+  const serializedTxs = [];  
+  makeBulkSerializedTx(_web3, serializedTxs)
+  
   const accounts = await _web3.eth.getAccountsAsync();
   if (accounts.length === 0) {
     exitWithMessage(`No account to use.`)
