@@ -889,6 +889,9 @@ contract RootChain is RootChainStorage, RootChainEvent {
     internal
     returns (uint requestId)
   {
+    // trieValue cannot be longer than 1KB.
+    require(_trieValue.length <= 1024);
+
     bool isTransfer = _to == etherToken;
 
     // check parameters for simple ether transfer and message-call
