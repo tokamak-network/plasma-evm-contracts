@@ -556,15 +556,13 @@ contract RootChain is RootChainStorage, RootChainEvent {
   function startExit(
     address _to,
     bytes32 _trieKey,
-    bytes32 _trieValue
+    bytes _trieValue
   )
     public
     payable
     onlyValidCost(COST_ERO)
     returns (bool success)
   {
-    require(_trieValue != bytes32(0));
-
     uint requestId;
     requestId = _storeRequest(EROs, ORBs, _to, 0, _trieKey, _trieValue, true, false);
 
@@ -575,7 +573,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
   function startEnter(
     address _to,
     bytes32 _trieKey,
-    bytes32 _trieValue
+    bytes _trieValue
   )
     public
     payable
@@ -596,7 +594,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
   function makeERU(
     address _to,
     bytes32 _trieKey,
-    bytes32 _trieValue
+    bytes _trieValue
   )
     public
     payable
@@ -884,13 +882,16 @@ contract RootChain is RootChainStorage, RootChainEvent {
     address _to,
     uint _weiAmount,
     bytes32 _trieKey,
-    bytes32 _trieValue,
+    bytes _trieValue,
     bool _isExit,
     bool _userActivated
   )
     internal
     returns (uint requestId)
   {
+    // trieValue cannot be longer than 1KB.
+    require(_trieValue.length <= 1024);
+
     bool isTransfer = _to == etherToken;
 
     // check parameters for simple ether transfer and message-call

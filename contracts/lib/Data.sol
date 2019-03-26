@@ -8,7 +8,7 @@ import "./RLPEncode.sol";
 import "./BMT.sol";
 
 // import "../patricia_tree/PatriciaTree.sol"; // use binary merkle tree
-import {RequestableContractI} from "../RequestableContractI.sol";
+import {RequestableI} from "../RequestableI.sol";
 
 
 library Data {
@@ -389,8 +389,8 @@ library Data {
     address requestor;
     address to;
     bytes32 trieKey;
-    bytes32 trieValue;
     bytes32 hash;
+    bytes trieValue;
   }
 
   function applyRequestInRootChain(
@@ -400,7 +400,7 @@ library Data {
     internal
     returns (bool)
   {
-    return RequestableContractI(self.to).applyRequestInRootChain(
+    return RequestableI(self.to).applyRequestInRootChain(
       self.isExit,
       _requestId,
       self.requestor,
@@ -421,10 +421,19 @@ library Data {
     out.isTransfer = self.isTransfer;
     out.requestor = self.requestor;
 
-    // EtherToken enter request mints PETH to requestor
+    // Enter request of EtherToken mints PETH to requestor.
     if (!self.isExit && self.isTransfer) {
       out.to = self.requestor;
-      out.value = uint128(uint256(self.trieValue));
+      bytes memory b = self.trieValue;
+      uint128 v;
+
+      assembly {
+        v := mload(add(b, 0x20))
+      }
+
+      require(v > 0);
+
+      out.value = uint128(v);
     } else {
       out.to = _to;
       out.value = self.value;
