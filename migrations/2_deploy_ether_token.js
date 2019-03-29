@@ -2,9 +2,7 @@ const MintableToken = artifacts.require('MintableToken.sol');
 const EtherToken = artifacts.require('EtherToken.sol');
 
 const development = process.env.NODE_ENV !== 'production';
-
 const baseTokenAddress = process.env.BASE_TOKEN || '0x0000000000000000000000000000000000000000';
-
 const swapEnabled = true;
 
 module.exports = function (deployer) {
