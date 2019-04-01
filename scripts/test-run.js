@@ -3,9 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const Web3 = require('web3');
 const BigNumber = web3.BigNumber;
-const Tx = require('ethereumjs-tx')
+const Tx = require('ethereumjs-tx');
 const ethUtil = require('ethereumjs-util');
-
 
 const { appendHex } = require('../test/helpers/appendHex');
 const { marshalString, unmarshalString } = require('../test/helpers/marshal');
@@ -89,7 +88,7 @@ async function test (n, bulk) {
   console.log(`faucet is complete
   operator balance: ${await web3ForChildChain.eth.getBalanceAsync(operator)}
   user balance: ${await web3ForChildChain.eth.getBalanceAsync(user)}\n`);
-  
+
   let requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain;
   try {
     requestSimpleTokenAtRootChain = await RequestableSimpleToken.new({ from: operator });
@@ -114,7 +113,7 @@ async function test (n, bulk) {
   } catch (err) {
     exitWithMessage(`Failed to map contracts: ${err}`);
   }
-  
+
   console.log('mint token');
   const tokenAmount = new BigNumber(10e18);
   try {
@@ -177,7 +176,7 @@ async function test (n, bulk) {
   // wait challenger period
   console.log('\nWaiting challenger period for 20 seconds');
   await wait(20);
-  
+
   // apply enter request
   for (let i = 0; i < n; i++) {
     let hash;
@@ -211,7 +210,7 @@ async function test (n, bulk) {
 }
 
 async function makeBulkSerializedTx (web3, pk, serializedTxs) {
-  let privateKey = new Buffer(pk, 'hex')
+  const privateKey = new Buffer(pk, 'hex');
   const sender = '0x' + ethUtil.privateToAddress('0x' + pk).toString('hex');
   let nonce;
   try {
@@ -219,42 +218,41 @@ async function makeBulkSerializedTx (web3, pk, serializedTxs) {
   } catch (err) {
     console.log(err);
   }
-  
+
   for (let i = 0; i < 100000; i++) {
-    let rawTx = {
-      nonce: "0x" + nonce.toString(16),
-      gasPrice: '0x01', 
+    const rawTx = {
+      nonce: '0x' + nonce.toString(16),
+      gasPrice: '0x01',
       gasLimit: '0x5208',
-      to: '0x0000000000000000000000000000000000000000', 
-      value: '0x00', 
-    }
-    let tx = new Tx(rawTx);
+      to: '0x0000000000000000000000000000000000000000',
+      value: '0x00',
+    };
+    const tx = new Tx(rawTx);
     tx.sign(privateKey);
-    
-    let serializedTx = tx.serialize();
+
+    const serializedTx = tx.serialize();
     serializedTxs.push(serializedTx);
     nonce++;
     console.log(nonce);
   }
 }
 
-
 async function sendBulkTransaction (plasma, pk, bulk, interval) {
   await init(defaultChildChainURL);
-  
+
   const _web3 = !plasma ? web3 : web3ForChildChain;
-  const serializedTxs = [];  
+  const serializedTxs = [];
   console.log('making serialized txs...');
-  await makeBulkSerializedTx(_web3, pk, serializedTxs)
+  await makeBulkSerializedTx(_web3, pk, serializedTxs);
   console.log(`now you have ${serializedTxs.length} serialized txs`);
-  
+
   let index = 0;
   while (true) {
     const promises = [];
     for (let j = 0; j < bulk; j++) {
       try {
-        if (typeof serializedTxs[index] === "undefined") {
-          exitWithMessage(`end of sending bulk txs`);
+        if (typeof serializedTxs[index] === 'undefined') {
+          exitWithMessage('end of sending bulk txs');
         }
         promises.push(_web3.eth.sendRawTransactionAsync('0x' + serializedTxs[index].toString('hex')));
         index++;
@@ -270,7 +268,7 @@ async function sendBulkTransaction (plasma, pk, bulk, interval) {
       });
     } catch (err) {
       console.log(err);
-    } 
+    }
     await wait(interval);
   }
 }
@@ -409,7 +407,7 @@ async function startEnter (user, n, tokenAddr, tokenAmount) {
 async function startExit (user, n, tokenAddr, tokenAmount, cost) {
   const promises = [];
   for (let i = 0; i < n; i++) {
-    promises.push(rootchainContract.startExitAsync(tokenAddr, calcTrieKey(user), padLeft(web3.fromDecimal(tokenAmount)), { from: user, gas: 1000000, value: cost }));
+    promises.push(rootchainContract.startExitAsync(tokenAddr, calcTrieKey(user), padLeft(web3.fromDecimal(tokenAmount)), { from: user, gas: 2000000, value: cost }));
   }
   try {
     const exitTxs = await Promise.all(promises);
