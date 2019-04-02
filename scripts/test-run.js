@@ -17,13 +17,14 @@ const requestSimpleTokenBytecode = JSON.parse(fs.readFileSync(requestSimpleToken
 
 const staminaJSON = path.join(__dirname, 'abi', 'Stamina.json');
 const staminaABI = JSON.parse(fs.readFileSync(staminaJSON).toString()).abi;
+
 const DEFAULT_PAD_LENGTH = 2 * 32;
 const REVERT = '0x0';
 
 const rootchainJSON = path.join(__dirname, '..', 'build', 'contracts', 'RootChain.json');
 const rootchainABI = JSON.parse(fs.readFileSync(rootchainJSON).toString()).abi;
-const defaultChildChainURL = 'http://127.0.0.1:8547';
 
+let childchainURL;
 let web3ForChildChain;
 let rootchainContract, staminaContract;
 let operator, user;
@@ -33,12 +34,13 @@ module.exports = async function (callback) {
   program
     .command('test')
     .description('for plasma-evm test')
-    .option('--child-chain-url [url]', 'A child chain URL')
+    .option('--child-chain-url [url]', 'A child chain URL', 'http://127.0.0.1:8547')
     .option('-r --request <number of requests>', 'make enter/exit requests')
     .option('-b --bulk <number of transactions>', 'send bulk transactions')
     .option('-s --stamina')
     .option('--network <network>')
     .action(cmd => {
+      childchainURL = cmd.childChainUrl;
       if (cmd.request) checkNumberType(cmd.request);
       if (cmd.bulk) checkNumberType(cmd.bulk);
       test(cmd.request, cmd.bulk);
@@ -46,11 +48,13 @@ module.exports = async function (callback) {
 
   program
     .command('faucet <accounts...>')
+    .option('--child-chain-url [url]', 'A child chain URL', 'http://127.0.0.1:8547')
     .option('-p --plasma')
     .option('-s --sender <address>')
     .option('-v --value <amount>')
     .option('--network <network>')
     .action((accounts, cmd) => {
+      childchainURL = cmd.childChainUrl;
       checkAddress(...accounts, cmd.sender);
       checkNumberType(cmd.value);
       faucet(cmd.plasma, cmd.sender, accounts, cmd.value);
@@ -58,12 +62,14 @@ module.exports = async function (callback) {
 
   program
     .command('send-tx')
+    .option('--child-chain-url [url]', 'A child chain URL', 'http://127.0.0.1:8547')
     .option('-p --plasma')
     .option('--p, --privatekey <private key>')
     .option('-b --bulk <number of transactions')
     .option('-i --interval <seconds>')
     .option('--network <network>')
     .action(cmd => {
+      childchainURL = cmd.childChainUrl;
       checkNumberType(cmd.bulk, cmd.interval);
       sendBulkTransaction(cmd.plasma, cmd.privatekey, cmd.bulk, cmd.interval);
     });
@@ -71,8 +77,10 @@ module.exports = async function (callback) {
   // truffle exec scripts/test-run.js apply-request 10
   program
     .command('apply-request <number of requests>')
+    .option('--child-chain-url [url]', 'A child chain URL', 'http://127.0.0.1:8547')
     .option('--network <network>')
     .action(async n => {
+      childchainURL = cmd.childChainUrl;
       checkNumberType(n);
       applyRequest(n);
     });
@@ -92,7 +100,7 @@ module.exports = async function (callback) {
 
 /* command */
 async function test (n, bulk) {
-  await init(defaultChildChainURL);
+  await init();
 
   const etherAmount = new BigNumber(10e30);
   const faucet = await web3ForChildChain.eth.sendTransactionAsync({ from: operator, to: user, value: etherAmount });
@@ -222,6 +230,8 @@ async function test (n, bulk) {
 }
 
 async function makeBulkSerializedTx (web3, pk, serializedTxs) {
+  await init();
+
   const privateKey = new Buffer(pk, 'hex');
   const sender = '0x' + ethUtil.privateToAddress('0x' + pk).toString('hex');
   let nonce;
@@ -250,7 +260,7 @@ async function makeBulkSerializedTx (web3, pk, serializedTxs) {
 }
 
 async function sendBulkTransaction (plasma, pk, bulk, interval) {
-  await init(defaultChildChainURL);
+  await init();
 
   const _web3 = !plasma ? web3 : web3ForChildChain;
   const serializedTxs = [];
@@ -286,7 +296,7 @@ async function sendBulkTransaction (plasma, pk, bulk, interval) {
 }
 
 async function faucet (plasma, sender, receivers, amount) {
-  await init(defaultChildChainURL);
+  await init();
 
   const _web3 = !plasma ? web3 : web3ForChildChain;
   const accounts = await _web3.eth.getAccountsAsync();
@@ -308,7 +318,7 @@ async function faucet (plasma, sender, receivers, amount) {
 }
 
 async function applyRequest (n) {
-  await init(defaultChildChainURL);
+  await init();
 
   for (let i = 0; i < n; i++) {
     let hash;
@@ -334,26 +344,25 @@ async function setDelegator (delegator) {
 }
 
 /* helper */
-async function init (childChainURL) {
+async function init () {
+  printMessage('Setting web3, RootChain contract and operator...');
   // web3 is connected at rootchain and web3ForChildChain is connected at childchain.
-  web3ForChildChain = new Web3(new Web3.providers.HttpProvider(childChainURL));
+  web3ForChildChain = new Web3(new Web3.providers.HttpProvider(childchainURL));
 
   // use bluebird
   const Promise = require('bluebird');
   Promise.promisifyAll(web3.eth, { suffix: 'Async' });
   Promise.promisifyAll(web3ForChildChain.eth, { suffix: 'Async' });
-  // Promise.promisifyAll(web3Provider.eth, { suffix: 'Async' });
 
-  // number of accounts must be greater than 2.
   try {
     accountsAtRootChain = await web3.eth.getAccountsAsync();
     accountsAtChildChain = await web3ForChildChain.eth.getAccountsAsync();
     if (accountsAtRootChain.length < 2) {
       console.error('There are not enough accounts to test in rootchain.');
     }
-    // TODO: classify operator / user
-    operator = accountsAtRootChain[0];
-    user = accountsAtRootChain[1];
+    // // TODO: classify operator / user
+    // operator = accountsAtRootChain[0];
+    // user = accountsAtRootChain[1];
   } catch (err) {
     console.error(`Failed to get accounts: ${err}`);
   }
@@ -363,16 +372,34 @@ async function init (childChainURL) {
     const rootchainAddr = await web3ForChildChain.eth.rootchain();
     rootchainContract = await web3.eth.contract(rootchainABI).at(rootchainAddr);
     Promise.promisifyAll(rootchainContract, { suffix: 'Async' });
+    printValue(`RootChain contract: ${rootchainContract.address}`);
   } catch (err) {
-    console.error(`Failed to get rootchain contract: ${err}`);
+    exitWithMessage(`Failed to get rootchain contract: ${err}`);
   }
 
-//   console.log(`
-// RootChain: ${rootchainContract.address}
-// operator: ${operator}
-// user: ${user}
-//   `
-//   );
+  // get operator address from RootChain contract.
+  try {
+    operator = await rootchainContract.operatorAsync();
+    printValue(`operator address: ${operator}`);
+  } catch (err) {
+    exitWithMessage(`Failed to get operator account: ${err}`);
+  }
+
+  console.log(accountsAtRootChain[0], operator);
+
+  // get operator's stamina.
+  try {
+    staminaContract = web3ForChildChain.eth.contract(staminaABI).at('0x000000000000000000000000000000000000dead');
+    Promise.promisifyAll(staminaContract, { suffix: 'Async' });
+  } catch (err) {
+    exitWithMessage(`Failed to wrap stmaina contract: ${err}`);
+  }
+  try {
+    const stamina = await staminaContract.getStaminaAsync(operator);
+    printValue(`operator's stamina: ${stamina.toNumber()}`);
+  } catch (err) {
+    exitWithMessage(`Failed to get operator's stamina: ${err}`);
+  }
 }
 
 // NRB: number of NRBs
@@ -560,4 +587,12 @@ async function printTokenBalance (state, tokenAtRoot, tokenAtChild) {
   } catch (err) {
     exitWithMessage(`Filed to get balance: ${err}`);
   }
+}
+
+function printValue (log) {
+  console.log(`  ${log}`);
+}
+
+function printMessage (log) {
+  console.log(`${log}`);
 }
