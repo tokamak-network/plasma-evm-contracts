@@ -15,6 +15,8 @@ const requestSimpleTokenJSON = path.join(__dirname, '..', 'build', 'contracts', 
 const requestSimpleTokenABI = JSON.parse(fs.readFileSync(requestSimpleTokenJSON).toString()).abi;
 const requestSimpleTokenBytecode = JSON.parse(fs.readFileSync(requestSimpleTokenJSON).toString()).bytecode;
 
+const staminaJSON = path.join(__dirname, 'abi', 'Stamina.json');
+const staminaABI = JSON.parse(fs.readFileSync(staminaJSON).toString()).abi;
 const DEFAULT_PAD_LENGTH = 2 * 32;
 const REVERT = '0x0';
 
@@ -23,7 +25,7 @@ const rootchainABI = JSON.parse(fs.readFileSync(rootchainJSON).toString()).abi;
 const defaultChildChainURL = 'http://127.0.0.1:8547';
 
 let web3ForChildChain;
-let rootchainContract;
+let rootchainContract, staminaContract;
 let operator, user;
 let accountsAtRootChain, accountsAtChildChain;
 
@@ -34,6 +36,7 @@ module.exports = async function (callback) {
     .option('--child-chain-url [url]', 'A child chain URL')
     .option('-r --request <number of requests>', 'make enter/exit requests')
     .option('-b --bulk <number of transactions>', 'send bulk transactions')
+    .option('-s --stamina')
     .option('--network <network>')
     .action(cmd => {
       if (cmd.request) checkNumberType(cmd.request);
@@ -72,6 +75,16 @@ module.exports = async function (callback) {
     .action(async n => {
       checkNumberType(n);
       applyRequest(n);
+    });
+
+  program
+    .command('set-delegator <address>')
+    .option('--child-chain-url [url]', 'A child chain URL', 'http://127.0.0.1:8547')
+    .option('--network <network>')
+    .action(async (delegator, cmd) => {
+      childchainURL = cmd.childChainUrl;
+      checkAddress(delegator);
+      setDelegator(delegator);
     });
 
   program.parse(convertArgv(process.argv));
@@ -305,6 +318,18 @@ async function applyRequest (n) {
       exitWithMessage(`Failed to finalize request: ${err}`);
     }
     await waitTx(web3, hash);
+  }
+}
+
+async function setDelegator (delegator) {
+  await init();
+
+  try {
+    const tx = await staminaContract.setDelegatorAsync(delegator, { from: operator, gasPrice: '0x01', });
+    await waitTx(web3ForChildChain, tx);
+    printMessage(`\nComplete setting delegator(${delegator})`);
+  } catch (err) {
+    exitWithMessage(`Failed to set delegator: ${err}`);
   }
 }
 
