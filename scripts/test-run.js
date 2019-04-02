@@ -28,17 +28,13 @@ let operator, user;
 let accountsAtRootChain, accountsAtChildChain;
 
 module.exports = async function (callback) {
-  // truffle exec options
-  program
-    .option('--network')
-    .option('--compile');
-
   program
     .command('test')
     .description('for plasma-evm test')
     .option('--child-chain-url [url]', 'A child chain URL')
     .option('-r --request <number of requests>', 'make enter/exit requests')
     .option('-b --bulk <number of transactions>', 'send bulk transactions')
+    .option('--network <network>')
     .action(cmd => {
       if (cmd.request) checkNumberType(cmd.request);
       if (cmd.bulk) checkNumberType(cmd.bulk);
@@ -50,6 +46,7 @@ module.exports = async function (callback) {
     .option('-p --plasma')
     .option('-s --sender <address>')
     .option('-v --value <amount>')
+    .option('--network <network>')
     .action((accounts, cmd) => {
       checkAddress(...accounts, cmd.sender);
       checkNumberType(cmd.value);
@@ -62,6 +59,7 @@ module.exports = async function (callback) {
     .option('--p, --privatekey <private key>')
     .option('-b --bulk <number of transactions')
     .option('-i --interval <seconds>')
+    .option('--network <network>')
     .action(cmd => {
       checkNumberType(cmd.bulk, cmd.interval);
       sendBulkTransaction(cmd.plasma, cmd.privatekey, cmd.bulk, cmd.interval);
@@ -70,6 +68,7 @@ module.exports = async function (callback) {
   // truffle exec scripts/test-run.js apply-request 10
   program
     .command('apply-request <number of requests>')
+    .option('--network <network>')
     .action(async n => {
       checkNumberType(n);
       applyRequest(n);
