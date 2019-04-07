@@ -5,6 +5,7 @@ const Web3 = require('web3');
 const BigNumber = web3.BigNumber;
 const Tx = require('ethereumjs-tx');
 const ethUtil = require('ethereumjs-util');
+const readlineSync = require('readline-sync');
 
 const { appendHex } = require('../test/helpers/appendHex');
 const { marshalString, unmarshalString } = require('../test/helpers/marshal');
@@ -33,17 +34,11 @@ let accountsAtRootChain, accountsAtChildChain;
 module.exports = async function (callback) {
   program
     .command('test')
-    .description('for plasma-evm test')
     .option('--child-chain-url [url]', 'A child chain URL', 'http://127.0.0.1:8547')
-    .option('-r --request <number of requests>', 'make enter/exit requests')
-    .option('-b --bulk <number of transactions>', 'send bulk transactions')
-    .option('-s --stamina')
     .option('--network <network>')
     .action(cmd => {
       childchainURL = cmd.childChainUrl;
-      if (cmd.request) checkNumberType(cmd.request);
-      if (cmd.bulk) checkNumberType(cmd.bulk);
-      test(cmd.request, cmd.bulk);
+      test();
     });
 
   program
@@ -98,135 +93,177 @@ module.exports = async function (callback) {
   program.parse(convertArgv(process.argv));
 };
 
+function questionAboutYesOrNo (q) {
+  while (true) {
+    a = readlineSync.question(`\n${q}`);
+    if (a == 'y') break;
+    if (a == 'n') process.exit(1);
+  }
+}
+
+function questionAboutNumber (q) {
+  while (true) {
+    a = readlineSync.question(`${q}`);
+    if (!isNaN(a)) return a;
+  }
+}
+
+async function questionAboutAddress (q) {
+  while (true) {
+    a = readlineSync.question(`${q}`);
+    if (!web3.isAddress(a)) {
+      printMessage(`this address(${a}) is not invalid`);
+      continue;
+    } 
+    const accountsAtRootChain = await web3.eth.getAccountsAsync();
+    if (accountsAtRootChain.includes(a.toLowerCase())) {
+      // NOTE: from address must be lower case. If not lower case, happens error like `TypeError: private key should be a Buffer`.
+      return a.toLowerCase();
+    } else {
+      printMessage(`this account(${a}) is not availabe`);
+    }
+  }
+}
+
 /* command */
-async function test (n, bulk) {
+async function test () {
   await init();
 
-  const etherAmount = new BigNumber(10e30);
-  const faucet = await web3ForChildChain.eth.sendTransactionAsync({ from: operator, to: user, value: etherAmount });
-  await waitTx(web3ForChildChain, faucet);
-  console.log(`faucet is complete
-  operator balance: ${await web3ForChildChain.eth.getBalanceAsync(operator)}
-  user balance: ${await web3ForChildChain.eth.getBalanceAsync(user)}\n`);
+  let user = await questionAboutAddress(`\nWhat account do you want to use for test?: `);
+  let userBalance = await web3.eth.getBalanceAsync(user);
+  if (userBalance.toNumber() < 1e18) {
+    exitWithMessage(`user balance for test has to have more than 1 eth`);
+  }
+  printValue(`balance: ${userBalance.toNumber()}`);
 
   let requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain;
+  questionAboutYesOrNo(`Do you want to deploy RequestSimpleToken contract at RootChain? (y/n): `);
   try {
     requestSimpleTokenAtRootChain = await RequestableSimpleToken.new({ from: operator });
-    console.log(`RequestSimpleToken contract(rootchain): ${requestSimpleTokenAtRootChain.address}`);
   } catch (err) {
-    exitWithMessage(`Failed to deploy RequestSimpleToken: ${err}`);
+    exitWithMessage(`Failed to deploy RequestSimpleToken at RootChain: ${err}`);
   }
+  printValue(`hash: ${requestSimpleTokenAtRootChain.transactionHash}`);
+  printValue(`address: ${requestSimpleTokenAtRootChain.address}`);
 
+  questionAboutYesOrNo(`Do you want to deploy RequestSimpleToken contract at ChildChain? (y/n): `);
   try {
+    const waitBlockSubmit1 = checkSubmittedBlock(1);
     const deployed = await web3ForChildChain.eth.contract(requestSimpleTokenABI).new({ from: operator, gas: 30000000, data: requestSimpleTokenBytecode });
     const contractAddress = await waitTx(web3ForChildChain, deployed.transactionHash);
+    await waitBlockSubmit1()
     requestSimpleTokenAtChildChain = await web3ForChildChain.eth.contract(requestSimpleTokenABI).at(contractAddress);
-    console.log(`RequestSimpleToken contract(childchain): ${requestSimpleTokenAtChildChain.address}\n`);
+    printValue(`hash: ${deployed.transactionHash}`);
+    printValue(`address: ${requestSimpleTokenAtChildChain.address}`);
   } catch (err) {
-    exitWithMessage(`Failed to deploy RequestSimpleToekn at childchain: ${err}`);
+    exitWithMessage(`Failed to deploy RequestSimpleToekn at ChildChain: ${err}`);
   }
 
-  console.log('map SimpleRequestToken contracts');
+  questionAboutYesOrNo(`Do you want to request mapping two deployed contract addresses? (y/n): `);
   try {
     const hash = await rootchainContract.mapRequestableContractByOperatorAsync(requestSimpleTokenAtRootChain.address, requestSimpleTokenAtChildChain.address, { from: operator, gas: 2000000 });
     await waitTx(web3, hash);
+    printValue(`hash: ${hash}`);
   } catch (err) {
     exitWithMessage(`Failed to map contracts: ${err}`);
   }
 
-  console.log('mint token');
-  const tokenAmount = new BigNumber(10e18);
+  // TODO: lock check in RootChain and ChildChain.
+  questionAboutYesOrNo(`Do you want to mint token at RootChain? (y/n): `);
+  // TODO: user has sufficient ether in RootChain.
+  let tokenAmount = questionAboutNumber(`How many tokens would you like to mint?: `);
   try {
-    const res = await requestSimpleTokenAtRootChain.mint(user, tokenAmount.mul(100));
+    const res = await requestSimpleTokenAtRootChain.mint(user, tokenAmount);
     await waitTx(web3, res.tx);
+    printValue(`hash: ${res.tx}`);
+    printValue(`amount: ${await requestSimpleTokenAtRootChain.balances(user)}`);
   } catch (err) {
     exitWithMessage(`Failed to mint tokens: ${err}`);
   }
 
-  try {
-    const numEROs = await rootchainContract.getNumEROsAsync();
-    console.log(`\nnumber of EROs: ${numEROs.toNumber()}`);
-  } catch (err) {
-    exitWithMessage(`Failed to get number of EROs: ${err}`);
-  }
+  questionAboutYesOrNo(`Do you want to enter token at ChildChain? (y/n): `);
+  let enterTokenAmount = questionAboutNumber(`How many tokens would you like to enter?: `);
+  await startEnter(user, 5, requestSimpleTokenAtRootChain.address, enterTokenAmount);
 
   const NRELength = await rootchainContract.NRELengthAsync();
-  await printTokenBalance('Start enter request', requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain);
-  await startEnter(user, n, requestSimpleTokenAtRootChain.address, tokenAmount);
-  await makeNRB(NRELength * 2 + 1, bulk); // (* 2 for delayed reuqest, + 1 for ORB to be mining)
+  questionAboutYesOrNo(`NRE length is ${NRELength}, so you should make ${NRELength * 2 + 1} NRB. Do you want to make ${NRELength * 2 + 1} NRB? (y/n): `);
+  await makeNRB(NRELength * 2 + 1);
 
-  try {
-    const numEROs = await rootchainContract.getNumEROsAsync();
-    console.log(`\nnumber of EROs: ${numEROs.toNumber()}`);
-  } catch (err) {
-    exitWithMessage(`Failed to get number of EROs: ${err}`);
+  questionAboutYesOrNo(`You can check whether enter request is applied. Would you check? (y/n): `);
+  printValue(`amount(RootChain): ${await requestSimpleTokenAtRootChain.balances(user)}`);
+  printValue(`amount(ChildChain): ${await requestSimpleTokenAtChildChain.balances(user)}`);
+
+  questionAboutYesOrNo(`Do you want to exit token at ChildChain? (y/n): `);
+  let costERO = await rootchainContract.COST_EROAsync();
+  userBalance = await web3.eth.getBalanceAsync(user);
+  let exitTokenAmount;
+  if (new BigNumber(costERO).comparedTo(new BigNumber(userBalance)) == 1) exitWithMessage(`Cost of ERO is ${costERO} and user balance is ${userBalance}, so you can't exit because of short balance.`);
+  while (true) {
+    exitTokenAmount = questionAboutNumber(`How many tokens would you like to exit?: `);
+    if (exitTokenAmount <= enterTokenAmount) {
+      break; 
+    }
+    printMessage(`It is impossible to exit, because token amount(${exitTokenAmount}) is more than enter token amount(${enterTokenAmount})`);
   }
-  await printTokenBalance('Finish enter request', requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain);
+  await startExit(user, 5, requestSimpleTokenAtRootChain.address, exitTokenAmount, costERO);
+  
+  questionAboutYesOrNo(`NRE length is ${NRELength}, so you should make ${NRELength * 2 + 1} NRB. Do you want to make ${NRELength * 2 + 1} NRB? (y/n): `);
+  await makeNRB(NRELength * 2 + 1);
 
-  const costERO = await rootchainContract.COST_EROAsync();
-  console.log(`\nCost of ERO: ${costERO}`);
-  await printTokenBalance('Start exit request', requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain);
-  await startExit(user, n, requestSimpleTokenAtRootChain.address, tokenAmount, costERO);
-  await makeNRB(NRELength * 2 + 1, bulk);
-
-  try {
-    const numEROs = await rootchainContract.getNumEROsAsync();
-    console.log(`\nnumber of EROs: ${numEROs.toNumber()}`);
-  } catch (err) {
-    console.error(err);
-  }
-  await printTokenBalance('Finish exit request', requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain);
+  questionAboutYesOrNo(`You can check whether exit request is applied. Would you check? (y/n): `);
+  printValue(`amount(RootChain): ${await requestSimpleTokenAtRootChain.balances(user)}`);
+  printValue(`amount(ChildChain): ${await requestSimpleTokenAtChildChain.balances(user)}`);
 
   const target = web3ForChildChain.eth.blockNumber;
   let lastFinalizedBlock = await rootchainContract.getLastFinalizedBlockAsync(0);
-  console.log('\n');
-  while (lastFinalizedBlock.toNumber() < target) {
-    console.log(`Last finalized block number: ${lastFinalizedBlock}, target block number: ${target}`);
+  questionAboutYesOrNo(`You have to wait until last finalized block number(${lastFinalizedBlock}) and current block number(${target}) is the same. Would you want to finalize? (y/n): `);
+  while (true) {
     let hash;
     try {
-      hash = await rootchainContract.finalizeBlockAsync({ from: user });
+      hash = await rootchainContract.finalizeBlockAsync({ from: operator, gas: 2000000 });
     } catch (err) {
       exitWithMessage(`Failed to finalize block: ${err}`);
     }
     await waitTx(web3, hash);
     lastFinalizedBlock = await rootchainContract.getLastFinalizedBlockAsync(0);
-  }
-  console.log(`Last finalized block number: ${lastFinalizedBlock}, target block number: ${target}`);
+    printValue(`last finalized block number: ${lastFinalizedBlock}, target block number: ${target}`);
+    if (target == lastFinalizedBlock) break;
 
-  // wait challenger period
-  console.log('\nWaiting challenger period for 20 seconds');
+    questionAboutYesOrNo(`last finalized block number(${lastFinalizedBlock}) and current block number(${target}) are not yet the same. Would you want to finalize? (y/n): `);
+  }
+
+  questionAboutYesOrNo(`You should wait for 20 seconds(challenger period). Would you wait? (y/n): `)
   await wait(20);
 
+  questionAboutYesOrNo(`Do you want to finalize enter request? (y/n): `);
   // apply enter request
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < 5; i++) {
     let hash;
     try {
       hash = await rootchainContract.finalizeRequestAsync({ from: user, gas: 2000000 });
     } catch (err) {
       exitWithMessage(`Failed to finalize request: ${err}`);
     }
-    if (await waitTx(web3, hash)) {
-      await printTokenBalance('Succeess to apply enter request', requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain);
-    }
+    await waitTx(web3, hash);
   }
-  await printTokenBalance('After apply enter requests', requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain, tokenAmount);
-  console.log('\n');
+  printValue(`amount(RootChain): ${await requestSimpleTokenAtRootChain.balances(user)}`);
+  printValue(`amount(ChildChain): ${await requestSimpleTokenAtChildChain.balances(user)}`);
 
+  questionAboutYesOrNo(`Do you want to finalize exit request? (y/n): `);
   // apply exit request
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < 5; i++) {
     let hash;
     try {
       hash = await rootchainContract.finalizeRequestAsync({ from: user, gas: 2000000 });
     } catch (err) {
       exitWithMessage(`Failed to finalize request: ${err}`);
     }
-    if (await waitTx(web3, hash)) {
-      await printTokenBalance('Succeess to apply exit request', requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain);
-    }
+    await waitTx(web3, hash);
   }
-  await printTokenBalance('After apply exit requests', requestSimpleTokenAtRootChain, requestSimpleTokenAtChildChain);
+  printValue(`amount(RootChain): ${await requestSimpleTokenAtRootChain.balances(user)}`);
+  printValue(`amount(ChildChain): ${await requestSimpleTokenAtChildChain.balances(user)}`);
 
-  process.exit(0);
+  exitWithMessage(`\ntest complete...`);
 }
 
 async function makeBulkSerializedTx (web3, pk, serializedTxs) {
@@ -335,7 +372,7 @@ async function setDelegator (delegator) {
   await init();
 
   try {
-    const tx = await staminaContract.setDelegatorAsync(delegator, { from: operator, gasPrice: '0x01', });
+    const tx = await staminaContract.setDelegatorAsync(delegator, { from: operator, gasPrice: '0x01' });
     await waitTx(web3ForChildChain, tx);
     printMessage(`\nComplete setting delegator(${delegator})`);
   } catch (err) {
@@ -354,18 +391,18 @@ async function init () {
   Promise.promisifyAll(web3.eth, { suffix: 'Async' });
   Promise.promisifyAll(web3ForChildChain.eth, { suffix: 'Async' });
 
-  try {
-    accountsAtRootChain = await web3.eth.getAccountsAsync();
-    accountsAtChildChain = await web3ForChildChain.eth.getAccountsAsync();
-    if (accountsAtRootChain.length < 2) {
-      console.error('There are not enough accounts to test in rootchain.');
-    }
-    // // TODO: classify operator / user
-    // operator = accountsAtRootChain[0];
-    // user = accountsAtRootChain[1];
-  } catch (err) {
-    console.error(`Failed to get accounts: ${err}`);
-  }
+  // try {
+  //   accountsAtRootChain = await web3.eth.getAccountsAsync();
+  //   accountsAtChildChain = await web3ForChildChain.eth.getAccountsAsync();
+  //   if (accountsAtRootChain.length < 2) {
+  //     console.error('There are not enough accounts to test in rootchain.');
+  //   }
+  //   // // TODO: classify operator / user
+  //   // operator = accountsAtRootChain[0];
+  //   // user = accountsAtRootChain[1];
+  // } catch (err) {
+  //   console.error(`Failed to get accounts: ${err}`);
+  // }
 
   // get rootchain.
   try {
@@ -374,7 +411,7 @@ async function init () {
     Promise.promisifyAll(rootchainContract, { suffix: 'Async' });
     printValue(`RootChain contract: ${rootchainContract.address}`);
   } catch (err) {
-    exitWithMessage(`Failed to get rootchain contract: ${err}`);
+    exitWithMessage(`Failed to get RootChain contract: ${err}`);
   }
 
   // get operator address from RootChain contract.
@@ -384,8 +421,6 @@ async function init () {
   } catch (err) {
     exitWithMessage(`Failed to get operator account: ${err}`);
   }
-
-  console.log(accountsAtRootChain[0], operator);
 
   // get operator's stamina.
   try {
@@ -402,9 +437,22 @@ async function init () {
   }
 }
 
+async function makeNRB (number) {
+  for (let i = 0; i < number; i++){
+    try {
+      const waitBlockSubmit1 = checkSubmittedBlock(1);
+      await web3ForChildChain.eth.sendTransactionAsync({ from: operator, to: operator, value: 0 });
+      await waitBlockSubmit1();
+      printValue(`NRB is created...`)
+    } catch (err) {
+      exitWithMessage(`Failed to send empty transaction: ${err}`);
+    }
+  }
+}
+
 // NRB: number of NRBs
 // bulk: number of bulk transactions
-async function makeNRB (NRB, bulk) {
+async function makeNRBs (NRB, bulk) {
   let nonce = await web3ForChildChain.eth.getTransactionCountAsync(operator);
   for (let i = 0; i < NRB; i++) {
     if (bulk) {
@@ -445,10 +493,9 @@ async function startEnter (user, n, tokenAddr, tokenAmount) {
   }
   try {
     const enterTxs = await Promise.all(promises);
-    console.log('Enter transactions:\n', enterTxs);
-
     for (const tx of enterTxs) {
       await waitTx(web3, tx);
+      printValue(`hash: ${tx}`);
     }
   } catch (err) {
     exitWithMessage(`Failed to enter: ${err}`);
@@ -462,10 +509,9 @@ async function startExit (user, n, tokenAddr, tokenAmount, cost) {
   }
   try {
     const exitTxs = await Promise.all(promises);
-    console.log('Exit transactions:\n', exitTxs);
-
     for (const tx of exitTxs) {
       await waitTx(web3, tx);
+      printValue(`hash: ${tx}`);
     }
   } catch (err) {
     exitWithMessage(`Failed to exit: ${err}`);
@@ -511,6 +557,7 @@ async function isUnlockedAccount (web3, account) {
     // NOTE:
     // web3.eth.sign(address, dataToSign [, callback]) // web3.js 0.x.x
     // web3.eth.sign(dataToSign, address [, callback]) // web3.js 1.0
+    // not work when I use HDWalletProvider
     await web3.eth.signAsync(account, '');
   } catch (err) {
     exitWithMessage('locked account');
@@ -526,7 +573,6 @@ function checkSubmittedBlock (n) {
 
     while (cur + n > next) {
       next = (await rootchainContract.lastBlockAsync(0)).toNumber();
-      console.log('wait block submission...');
       await wait(2);
     }
   };
