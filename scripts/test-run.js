@@ -127,6 +127,7 @@ async function test () {
   await init();
 
   const user = await questionAboutAddress('\nWhat account do you want to use for test?: ');
+  if (operator.toLowerCase() === user) exitWithMessage(`user address can't be same as operator address`);
   let userBalance = await web3.eth.getBalanceAsync(user);
   if (userBalance.toNumber() < 1e18) {
     exitWithMessage('user balance has to have more than 1 eth for test');
