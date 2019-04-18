@@ -9,22 +9,34 @@ const rootchainJSON = path.join(__dirname, 'RootChain.json');
 const rootchainABI = JSON.parse(fs.readFileSync(rootchainJSON).toString()).abi;
 
 const RootChain = web3Root.eth.contract(rootchainABI);
-const RootChainIns = RootChain.at('0x880EC53Af800b5Cd051531672EF4fc4De233bD5d');
+const RootChainIns = RootChain.at('0x154C5E3762FbB57427d6B03E7302BDA04C497226');
 
 //use bluebird
 const Promise = require('bluebird');
 Promise.promisifyAll(web3Root.eth, { suffix: 'Async' });
 Promise.promisifyAll(web3Child.eth, { suffix: 'Async' });
 
-//test 1
-(async () => {
-  try {
-    let rootAccounts = await web3Root.eth.getAccountsAsync();
-    let plsAccounts = await web3Child.eth.getAccountsAsync();
-    console.log(rootAccounts, plsAccounts)
-    
-  } catch (e) {
-    console.log(e);
-  }
+setInterval(() => {
+  web3Child.eth.sendTransaction({from:web3Child.eth.accounts[0], to:web3Child.eth.accounts[1], value:1}, (e,r) => {
+    console.log(r);
+  });
+},20000);
 
-})();
+let event = RootChainIns.BlockSubmitted({toBlock: 'latest'});
+
+let timer = false;
+event.watch(function(error, result){
+
+   if (!error) {
+     if(timer){
+       clearInterval(timer);
+       timer = false;
+     } else {
+       timer = setInterval(() => {
+         web3Root.eth.getTransaction(result.transactionHash, (e,r) => {
+           console.log(result.transactionHash, r.blockNumber);
+         });
+       }, 1000);
+     }
+    }
+});
