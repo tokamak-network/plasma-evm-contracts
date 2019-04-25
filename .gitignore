@@ -4,7 +4,3 @@ build
 
 # testrpc
 .node-xml*
-
-# scripts
-scripts/fork.js
-scripts/reorg.js
