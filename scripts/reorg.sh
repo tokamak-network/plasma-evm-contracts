@@ -10,9 +10,14 @@ PRIVATEKEY2="78ae75d1cd5960d87e76a69760cb451a58928eee7890780c352186d23094a114"
 ADDRESS1="0x71562b71999873db5b286df957af199ec94617f7"
 ADDRESS2="0x3616be06d68dd22886505e9c2caaa9eca84564b8"
 
+mkdir $(pwd)/scripts/temp
+
 echo "forkinterval=$FORKINTERVAL, reorginterval=$REORGINTERVAL"
 
-geth attach http://127.0.0.1:8545 << EOF | grep "Data: " | sed "s/Data: //"
+# https://ethereum.stackexchange.com/questions/10033/can-i-pass-arguments-to-a-js-script-on-geth 
+echo "personal.importRawKey('$PRIVATEKEY1', '', function (err) {}); personal.importRawKey('$PRIVATEKEY2', '', function (err) {}); personal.unlockAccount('$ADDRESS1', '', 0); personal.unlockAccount('$ADDRESS2', '', 0); console.log('Data: accounts=[' + eth.accounts + ']');" > $(pwd)/scripts/temp/init.js
+geth --jspath "$(pwd)/scripts/temp" --exec 'loadScript("init.js")' \
+attach http://127.0.0.1:8545 | grep "Data: " | sed "s/Data: //"
 
 if [ "$TXREMOVED" = true ]
 then
@@ -21,21 +26,27 @@ else
     geth --exec "miner.setGasPrice(1)" attach http://127.0.0.1:8645 | grep "Data: " | sed "s/Data: //"
 fi
 
-# reference: https://ethereum.stackexchange.com/questions/10033/can-i-pass-arguments-to-a-js-script-on-geth 
-echo "miner.stop(); admin.addPeer('$ENODE'); admin.sleepBlocks($REORGINTERVAL); console.log('Data: mining=' + eth.mining + ', peers=' + admin.peers.length + ', number=' + eth.blockNumber);" > $(pwd)/scripts/fork.js
-echo "miner.start(); admin.removePeer('$ENODE'); admin.sleepBlocks($FORKINTERVAL); console.log('Data: mining=' + eth.mining + ', peers=' + admin.peers.length + ', number=' + eth.blockNumber);" > $(pwd)/scripts/reorg.js
+echo "miner.stop(); admin.addPeer('$ENODE'); admin.sleepBlocks($REORGINTERVAL); console.log('Data: mining=' + eth.mining + ', peers=' + admin.peers.length + ', number=' + eth.blockNumber);" > $(pwd)/scripts/temp/fork.js
+echo "miner.start(); admin.removePeer('$ENODE'); admin.sleepBlocks($FORKINTERVAL); console.log('Data: mining=' + eth.mining + ', peers=' + admin.peers.length + ', number=' + eth.blockNumber);" > $(pwd)/scripts/temp/reorg.js
 
 reorg() {
     echo start reorg
-    geth --jspath "$(pwd)/scripts" --exec 'loadScript("fork.js")' \
+    geth --jspath "$(pwd)/scripts/temp" --exec 'loadScript("fork.js")' \
     attach http://127.0.0.1:8545 | grep "Data: " | sed "s/Data: //"
 }
  
 fork() {
     echo start fork
-    geth --jspath "$(pwd)/scripts" --exec 'loadScript("reorg.js")' \
+    geth --jspath "$(pwd)/scripts/temp" --exec 'loadScript("reorg.js")' \
     attach http://127.0.0.1:8545 | grep "Data: " | sed "s/Data: //"
 }
+
+clean() {
+    rm -rf $(pwd)/scripts/temp
+    exit 2
+}
+
+trap 'clean' SIGINT 
 
 while true
 do
