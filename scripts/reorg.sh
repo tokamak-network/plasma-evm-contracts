@@ -49,7 +49,8 @@ fork() {
 }
 
 pinggeth() {
-    if ! nc -vz localhost 8545; then
+    if ! nc -vz localhost 8545 >/dev/null 2>&1; then
+        echo 'Connection refused'
         clean
     fi
 }
