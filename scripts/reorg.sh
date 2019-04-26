@@ -12,6 +12,13 @@ ADDRESS2="0x3616be06d68dd22886505e9c2caaa9eca84564b8"
 
 mkdir $(pwd)/scripts/temp
 
+clean() {
+    rm -rf $(pwd)/scripts/temp
+    exit 2
+}
+
+trap clean SIGINT 
+
 echo "forkinterval=$FORKINTERVAL, reorginterval=$REORGINTERVAL"
 
 # https://ethereum.stackexchange.com/questions/10033/can-i-pass-arguments-to-a-js-script-on-geth 
@@ -19,7 +26,7 @@ echo "personal.importRawKey('$PRIVATEKEY1', '', function (err) {}); personal.imp
 geth --jspath "$(pwd)/scripts/temp" --exec 'loadScript("init.js")' \
 attach http://127.0.0.1:8545 | grep "Data: " | sed "s/Data: //"
 
-if [ "$TXREMOVED" = true ]
+if [ "$TXREMOVED" == true ]
 then
     geth --exec "miner.setGasPrice(1e18)" attach http://127.0.0.1:8645 | grep "Data: " | sed "s/Data: //"
 else
@@ -41,16 +48,15 @@ fork() {
     attach http://127.0.0.1:8545 | grep "Data: " | sed "s/Data: //"
 }
 
-clean() {
-    rm -rf $(pwd)/scripts/temp
-    exit 2
+pinggeth() {
+    if ! nc -vz localhost 8545; then
+        clean
+    fi
 }
-
-trap 'clean' SIGINT 
 
 while true
 do
     # reorg -> 1 2 3 4 5 6 7 8 9 10 (fork interval) -> fork -> 11 12 13 14 15 (reorg interval) -> reorg -> ...
-    reorg
-    fork
+    pinggeth; reorg
+    pinggeth; fork
 done
