@@ -42,6 +42,7 @@
     "ganache-cli": "^6.2.5",
     "lodash": "^4.17.11",
     "openzeppelin-solidity": "^1.12.0",
+    "requestable-simple-token": "https://github.com/Onther-Tech/requestable-simple-token/tarball/master",
     "solidity-coverage": "^0.5.4",
     "solium": "^1.1.8",
     "truffle": "^4.1.14",
