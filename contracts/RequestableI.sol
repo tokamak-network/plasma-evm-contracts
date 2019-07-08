@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 interface RequestableI {
   function applyRequestInRootChain(
@@ -6,7 +6,7 @@ interface RequestableI {
     uint256 requestId,
     address requestor,
     bytes32 trieKey,
-    bytes trieValue
+    bytes calldata trieValue
   ) external returns (bool success);
 
   function applyRequestInChildChain(
@@ -14,6 +14,6 @@ interface RequestableI {
     uint256 requestId,
     address requestor,
     bytes32 trieKey,
-    bytes trieValue
+    bytes calldata trieValue
   ) external returns (bool success);
 }

@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 /**
  * @title RLPReader
@@ -155,7 +155,7 @@ library RLP {
         if (b0 < DATA_SHORT_START) {
             memPtr = start;
             len = 1;
-            return;
+            return (memPtr, len);
         }
         if (b0 < DATA_LONG_START) {
             len = self._unsafeLength - 1;
@@ -168,7 +168,7 @@ library RLP {
             len = self._unsafeLength - 1 - bLen;
             memPtr = start + bLen + 1;
         }
-        return;
+        return (memPtr, len);
     }
 
     /// @dev Return the RLP encoded bytes.
@@ -181,7 +181,7 @@ library RLP {
     {
         uint len = self._unsafeLength;
         if (len == 0)
-            return;
+            return bts;
         bts = new bytes(len);
         _copyToBytes(self._unsafeMemPtr, bts, len);
     }

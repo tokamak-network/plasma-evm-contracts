@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 import "./lib/SafeMath.sol";
 import "./lib/Math.sol";
@@ -19,7 +19,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
   using BMT for *;
 
   constructor() public {
-    epochHandler = this;
+    epochHandler = address(this);
   }
 
   /**

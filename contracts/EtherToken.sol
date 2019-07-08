@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 import "../requestable-erc20-wrapper-token/contracts/RequestableERC20Wrapper.sol";
 
@@ -26,7 +26,7 @@ contract EtherToken is RequestableERC20Wrapper {
     swapEnabled = _swapEnabled;
   }
 
-  function() public payable {
+  function() external payable {
     swapFromEth();
   }
 
@@ -41,7 +41,7 @@ contract EtherToken is RequestableERC20Wrapper {
   function swapToEth(uint _amount) public {
     require(swapEnabled);
 
-    require(transferFrom(msg.sender, this, _amount));
+    require(transferFrom(msg.sender, address(this), _amount));
     burn(msg.sender, _amount);
   }
 }

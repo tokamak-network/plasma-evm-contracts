@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 import "../lib/BMT.sol";
 
@@ -18,7 +18,7 @@ contract BMTMock {
     leaves.push(_leaf);
   }
 
-  function addLeaves(bytes32[] _leaves) public {
+  function addLeaves(bytes32[] memory _leaves) public {
     require(_leaves.length > 0);
     for(uint i = 0; i < _leaves.length; i++) {
       leaves.push(_leaves[i]);

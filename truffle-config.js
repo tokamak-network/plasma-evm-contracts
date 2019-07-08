@@ -50,10 +50,14 @@ module.exports = {
     useColors: true,
     enableTimeouts: false,
   },
-  solc: {
-    optimizer: {
-      enabled: true,
-      runs: 200,
+  compilers: {
+    solc: {
+      settings: {
+        optimizer: {
+          enabled: true,
+          runs: 200,
+        },
+      },
     },
   },
 };

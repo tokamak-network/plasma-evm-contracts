@@ -1,5 +1,5 @@
-pragma solidity ^0.4.24;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.5.0;
+
 
 import "./SafeMath.sol";
 import "./Math.sol";
@@ -135,7 +135,7 @@ library Data {
     }
 
     _f.lastBlock = uint64(blockNumber);
-    return;
+    return (epochNumber, blockNumber);
   }
 
   function getLastEpochNumber(Fork storage _f, bool _isRequest) internal returns (uint) {
@@ -274,6 +274,7 @@ library Data {
     uint64 numEnter;
     uint64 nextEnterEpoch;
     uint64 timestamp;
+    bytes32 epochHash;
     bool isEmpty;
     bool initialized;
     bool isRequest;
@@ -386,7 +387,7 @@ library Data {
     bool finalized;
     bool challenged;
     uint128 value;
-    address requestor;
+    address payable requestor;
     address to;
     bytes32 trieKey;
     bytes32 hash;
@@ -455,7 +456,7 @@ library Data {
     returns (bytes memory out)
   {
     if (self.isTransfer && !self.isExit) {
-      return;
+      return out;
     }
 
     bytes4 funcSig = _rootchain ? APPLY_IN_ROOTCHAIN_SIGNATURE : APPLY_IN_CHILDCHAIN_SIGNATURE;
@@ -465,7 +466,7 @@ library Data {
       abi.encode(
         bytes32(uint(self.isExit ? 1 : 0)),
         _requestId,
-        bytes32(self.requestor),
+        bytes32(bytes20(self.requestor)),
         self.trieKey,
         self.trieValue
       )

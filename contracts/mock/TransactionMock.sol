@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 import "../lib/Data.sol";
 
@@ -13,7 +13,7 @@ contract TransactionMock {
     uint64 gasLimit,
     address to,
     uint256 value,
-    bytes data,
+    bytes memory data,
     uint256 v,
     uint256 r,
     uint256 s

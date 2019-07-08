@@ -1,4 +1,5 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
+pragma experimental ABIEncoderV2;
 
 import "./lib/SafeMath.sol";
 import "./lib/Math.sol";
@@ -9,6 +10,7 @@ import "./lib/BMT.sol";
 
 import "./RootChainStorage.sol";
 import "./RootChainEvent.sol";
+
 
 // TODO: use SafeMath
 // TODO: remove state. use epoch.isRequest and epoch.userActivated
@@ -140,7 +142,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
     // finalizeBlocks
   {
     // delegate to epoch handler
-    require(epochHandler.delegatecall(bytes4(keccak256("prepareToSubmitURB()"))));
+    (bool success, bytes memory returnData) = epochHandler.delegatecall(abi.encodeWithSelector(bytes4(keccak256("prepareToSubmitURB()"))));
+    require(success);
   }
 
   // TODO: Delegate the validity check to TrueBit Verification Game contracts
@@ -192,7 +195,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
         _prepareToSubmitORB();
       }
 
-      return;
+      return true;
     }
 
     // Otherwise, compare to block in previous fork
@@ -305,7 +308,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
         _prepareToSubmitNRB();
       }
 
-      return;
+      return true;
     }
 
     // Otherwise, compare to block in previous fork
@@ -458,8 +461,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
     uint _forkNumber,
     uint _blockNumber,
     uint _index,
-    bytes _receiptData,
-    bytes _proof
+    bytes calldata _receiptData,
+    bytes calldata _proof
   ) external {
     Data.Fork storage fork = forks[_forkNumber];
     Data.PlasmaBlock storage pb = fork.blocks[_blockNumber];
@@ -487,8 +490,8 @@ contract RootChain is RootChainStorage, RootChainEvent {
     Data.RequestBlock storage _rb,
     Data.Request[] storage _rs,
     uint _index,
-    bytes _receiptData,
-    bytes _proof
+    bytes memory _receiptData,
+    bytes memory _proof
   )
     internal
     returns (uint requestId)
@@ -512,7 +515,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
 
     r.challenged = true;
 
-    return;
+    return requestId;
   }
 
   /**
@@ -520,10 +523,10 @@ contract RootChain is RootChainStorage, RootChainEvent {
    */
   function challengeNullAddress(
     uint _blockNumber,
-    bytes _key,
-    bytes _txByte, // RLP encoded transaction
+    bytes calldata _key,
+    bytes calldata _txByte, // RLP encoded transaction
     uint _branchMask,
-    bytes32[] _siblings
+    bytes32[] calldata  _siblings
   ) external {
     Data.Fork storage fork = forks[currentFork];
     Data.PlasmaBlock storage pb = fork.blocks[_blockNumber];
@@ -556,7 +559,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
   function startExit(
     address _to,
     bytes32 _trieKey,
-    bytes _trieValue
+    bytes memory _trieValue
   )
     public
     payable
@@ -573,7 +576,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
   function startEnter(
     address _to,
     bytes32 _trieKey,
-    bytes _trieValue
+    bytes memory _trieValue
   )
     public
     payable
@@ -594,7 +597,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
   function makeERU(
     address _to,
     bytes32 _trieKey,
-    bytes _trieValue
+    bytes memory _trieValue
   )
     public
     payable
@@ -749,99 +752,21 @@ contract RootChain is RootChainStorage, RootChainEvent {
   function getEpoch(
     uint forkNumber,
     uint epochNumber
-  ) public view returns (
-    uint64 requestStart,
-    uint64 requestEnd,
-    uint64 startBlockNumber,
-    uint64 endBlockNumber,
-    uint64 firstRequestBlockId,
-    uint64 numEnter,
-    bool isEmpty,
-    bool initialized,
-    bool isRequest,
-    bool userActivated,
-    bool rebase
+  ) external view returns (
+    Data.Epoch memory epoch
   ) {
-    Data.Epoch storage epoch = forks[forkNumber].epochs[epochNumber];
-
-    return
-    (
-      epoch.requestStart,
-      epoch.requestEnd,
-      epoch.startBlockNumber,
-      epoch.endBlockNumber,
-      epoch.firstRequestBlockId,
-      epoch.numEnter,
-      epoch.isEmpty,
-      epoch.initialized,
-      epoch.isRequest,
-      epoch.userActivated,
-      epoch.rebase
-    );
+    return forks[forkNumber].epochs[epochNumber];
   }
 
-  function getLastEpoch() public view returns (
-    uint64 requestStart,
-    uint64 requestEnd,
-    uint64 startBlockNumber,
-    uint64 endBlockNumber,
-    uint64 firstRequestBlockId,
-    uint64 numEnter,
-    bool isEmpty,
-    bool initialized,
-    bool isRequest,
-    bool userActivated,
-    bool rebase
-  ) {
-    Data.Epoch storage epoch = forks[currentFork].epochs[forks[currentFork].lastEpoch];
-
-    return
-    (
-      epoch.requestStart,
-      epoch.requestEnd,
-      epoch.startBlockNumber,
-      epoch.endBlockNumber,
-      epoch.firstRequestBlockId,
-      epoch.numEnter,
-      epoch.isEmpty,
-      epoch.initialized,
-      epoch.isRequest,
-      epoch.userActivated,
-      epoch.rebase
-    );
+  function getLastEpoch() public view returns (Data.Epoch memory) {
+    return forks[currentFork].epochs[forks[currentFork].lastEpoch];
   }
 
   function getBlock(
     uint forkNumber,
     uint blockNumber
-  ) public view returns (
-    uint64 epochNumber,
-    uint64 requestBlockId,
-    uint64 referenceBlock,
-    uint64 timestamp,
-    bytes32 statesRoot,
-    bytes32 transactionsRoot,
-    bytes32 receiptsRoot,
-    bool isRequest,
-    bool userActivated,
-    bool challenged,
-    bool challenging,
-    bool finalized
-  ) {
-    epochNumber = forks[forkNumber].blocks[blockNumber].epochNumber;
-    requestBlockId = forks[forkNumber].blocks[blockNumber].requestBlockId;
-    referenceBlock = forks[forkNumber].blocks[blockNumber].referenceBlock;
-    timestamp = forks[forkNumber].blocks[blockNumber].timestamp;
-    statesRoot = forks[forkNumber].blocks[blockNumber].statesRoot;
-    transactionsRoot = forks[forkNumber].blocks[blockNumber].transactionsRoot;
-    receiptsRoot = forks[forkNumber].blocks[blockNumber].receiptsRoot;
-    isRequest = forks[forkNumber].blocks[blockNumber].isRequest;
-    userActivated = forks[forkNumber].blocks[blockNumber].userActivated;
-    challenged = forks[forkNumber].blocks[blockNumber].challenged;
-    challenging = forks[forkNumber].blocks[blockNumber].challenging;
-    finalized = forks[forkNumber].blocks[blockNumber].finalized;
-
-    return;
+  ) public view returns (Data.PlasmaBlock memory) {
+    return forks[forkNumber].blocks[blockNumber];
   }
 
   function getBlockFinalizedAt(
@@ -882,7 +807,7 @@ contract RootChain is RootChainStorage, RootChainEvent {
     address _to,
     uint _weiAmount,
     bytes32 _trieKey,
-    bytes _trieValue,
+    bytes memory _trieValue,
     bool _isExit,
     bool _userActivated
   )
@@ -945,22 +870,26 @@ contract RootChain is RootChainStorage, RootChainEvent {
    */
   function _prepareToSubmitORB() internal {
     // delegate to epoch handler
-    require(epochHandler.delegatecall(bytes4(keccak256("_prepareToSubmitORB()"))));
+    (bool success, bytes memory returnData) = epochHandler.delegatecall(abi.encodeWithSelector(bytes4(keccak256("_prepareToSubmitORB()"))));
+    require(success);
   }
 
   function _prepareToSubmitNRB() internal {
     // delegate to epoch handler
-    require(epochHandler.delegatecall(bytes4(keccak256("_prepareToSubmitNRB()"))));
+    (bool success, bytes memory returnData) = epochHandler.delegatecall(abi.encodeWithSelector(bytes4(keccak256("_prepareToSubmitNRB()"))));
+    require(success);
   }
 
   function prepareOREAfterURE() internal {
     // delegate to epoch handler
-    require(epochHandler.delegatecall(bytes4(keccak256("prepareOREAfterURE()"))));
+    (bool success, bytes memory returnData) = epochHandler.delegatecall(abi.encodeWithSelector(bytes4(keccak256("prepareOREAfterURE()"))));
+    require(success);
   }
 
   function prepareNREAfterURE() internal {
     // delegate to epoch handler
-    require(epochHandler.delegatecall(bytes4(keccak256("prepareNREAfterURE()"))));
+    (bool success, bytes memory returnData) = epochHandler.delegatecall(abi.encodeWithSelector(bytes4(keccak256("prepareNREAfterURE()"))));
+    require(success);
   }
 
   /**

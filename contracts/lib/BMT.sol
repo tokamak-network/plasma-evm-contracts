@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 
 
 library BMT {
@@ -30,7 +30,7 @@ library BMT {
     bytes32 leaf,
     uint256 index,
     bytes32 rootHash,
-    bytes proof
+    bytes memory proof
   )
     internal
     pure
@@ -40,7 +40,7 @@ library BMT {
 
     uint256 numElements = proof.length / 32;
     require(numElements < 16);
-    
+
     bytes32 proofElement;
     bytes32 computedHash = leaf;
 

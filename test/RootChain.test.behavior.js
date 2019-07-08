@@ -9,7 +9,7 @@ const { appendHex } = require('./helpers/appendHex');
 const Data = require('./lib/Data');
 
 const RootChain = artifacts.require('RootChain.sol');
-const MintableToken = artifacts.require('MintableToken.sol');
+const ERC20Mintable = artifacts.require('ERC20Mintable.sol');
 const EtherToken = artifacts.require('EtherToken.sol');
 const RequestableSimpleToken = artifacts.require('RequestableSimpleToken.sol');
 
@@ -40,7 +40,7 @@ contract('RootChain', async ([
   ...others
 ]) => {
   let rootchain;
-  let token, mintableToken, etherToken;
+  let token, ERC20Mintable, etherToken;
 
   const tokenInChildChain = '0x000000000000000000000000000000000000dead';
 
@@ -102,17 +102,17 @@ contract('RootChain', async ([
     }
 
     rootchain = await RootChain.deployed();
-    mintableToken = await MintableToken.deployed();
+    ERC20Mintable = await ERC20Mintable.deployed();
     etherToken = await EtherToken.deployed();
     token = await RequestableSimpleToken.new();
 
     // mint tokens
     await Promise.all(others.map(other => token.mint(other, tokenAmount.mul(100))));
-    await Promise.all(others.map(other => mintableToken.mint(other, tokenAmount.mul(100))));
+    await Promise.all(others.map(other => ERC20Mintable.mint(other, tokenAmount.mul(100))));
 
-    // swap MintableToken to EtherToken
+    // swap ERC20Mintable to EtherToken
     await Promise.all(others.map(async (other) => {
-      await mintableToken.approve(etherToken.address, tokenAmount.mul(100), { from: other });
+      await ERC20Mintable.approve(etherToken.address, tokenAmount.mul(100), { from: other });
       await etherToken.deposit(tokenAmount.mul(100), { from: other });
     }));
 

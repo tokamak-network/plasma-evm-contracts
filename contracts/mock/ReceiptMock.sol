@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 import "../lib/Data.sol";
@@ -13,14 +13,14 @@ contract ReceiptMock {
     // logs = receipt.logs;
   }
 
-  function set(bytes receiptData) public {
+  function set(bytes memory receiptData) public {
     Data.Receipt memory r = Data.toReceipt(receiptData);
     receipt.status = r.status;
     receipt.cumulativeGasUsed = r.cumulativeGasUsed;
     receipt.bloom = r.bloom;
   }
 
-  function toReceiptStatus(bytes receiptData) public view returns (uint) {
+  function toReceiptStatus(bytes memory receiptData) public view returns (uint) {
       return Data.toReceiptStatus(receiptData);
   }
 }
