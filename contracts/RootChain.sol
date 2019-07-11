@@ -146,103 +146,34 @@ contract RootChain is RootChainStorage, RootChainEvent {
     require(success);
   }
 
-  // TODO: Delegate the validity check to TrueBit Verification Game contracts
-  function submitNRB(
-    uint _pos,
-    bytes32 _statesRoot,
-    bytes32 _transactionsRoot,
-    bytes32 _receiptsRoot
-  )
-    external
+  function submitNRE(
+    uint _pos1, // forknumber + epochNumber
+    uint _pos2, // startBlockNumber + endBlockNumber
+    bytes32 _epochStateRoot,
+    bytes32 _epochTransactionsRoot,
+    bytes32 _epochReceiptsRoot
+  ) external
     payable
     onlyOperator
     onlyValidCost(COST_NRB)
     finalizeBlocks
     returns (bool success)
   {
-    uint forkNumber;
-    uint blockNumber;
+    (uint forkNumber, uint epochNumber) = _pos1.decodePos();
+    require(currentFork == forkNumber, "currentFork == forkNumber");
 
-    (forkNumber, blockNumber) = _pos.decodePos();
+    (uint startBlockNumber, uint endBlockNumber) = _pos2.decodePos();
 
-    require(currentFork == forkNumber);
-    require(forks[forkNumber].lastBlock + 1 == blockNumber);
-
-    Data.Fork storage curFork = forks[forkNumber];
-
-    uint epochNumber;
-
-    // If not forked or already rebased
-    if (forkNumber == 0 || forks[forkNumber - 1].forkedBlock != 0 && curFork.rebased) {
-      (epochNumber, blockNumber) = curFork.insertBlock(
-        _statesRoot,
-        _transactionsRoot,
-        _receiptsRoot,
-        false,
-        false,
-        false
-      );
-
-      emit BlockSubmitted(
-        forkNumber,
-        epochNumber,
-        blockNumber,
-        false,
-        false
-      );
-
-      if (blockNumber == curFork.epochs[epochNumber].endBlockNumber) {
-        _prepareToSubmitORB();
-      }
-
-      return true;
-    }
-
-    // Otherwise, compare to block in previous fork
-    (epochNumber, blockNumber) = curFork.insertBlock(
-      _statesRoot,
-      _transactionsRoot,
-      _receiptsRoot,
-      false,
-      false,
-      true
-    );
-
-    curFork.blocks[blockNumber].referenceBlock = curFork.nextBlockToRebase;
-
-    Data.Fork storage preFork = forks[forkNumber - 1];
-
-    require(_transactionsRoot == preFork.blocks[curFork.nextBlockToRebase].transactionsRoot);
-
-    emit BlockSubmitted(
-      forkNumber,
+    forks[forkNumber].insertNRE(
       epochNumber,
-      blockNumber,
-      false,
-      false
+      _epochStateRoot,
+      _epochTransactionsRoot,
+      _epochReceiptsRoot,
+      startBlockNumber,
+      endBlockNumber
     );
 
-    // if NRB' is filled.
-    if (curFork.checkNextNRBToRebase(preFork)) {
-      curFork.epochs[epochNumber].endBlockNumber = uint64(blockNumber);
-      curFork.rebased = true;
-
-      emit EpochRebased(
-        forkNumber,
-        epochNumber,
-        curFork.epochs[epochNumber].startBlockNumber,
-        blockNumber,
-        0,
-        0,
-        false,
-        false,
-        false
-      );
-
-      _prepareToSubmitNRB();
-    }
-
-    // set next block to rebase iterating epochs
+    _prepareToSubmitORB();
     return true;
   }
 

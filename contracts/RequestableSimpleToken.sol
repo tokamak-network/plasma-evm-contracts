@@ -50,7 +50,7 @@ contract RequestableSimpleToken is Ownable, RequestableI {
     // require(msg.sender == address(rootchain));
     // require(!getRequestApplied(requestId)); // check double applying
 
-    require(!appliedRequests[requestId]);
+    require(!appliedRequests[requestId], "RequestableSimpleToken: request already applied");
 
     if (isExit) {
       // exit must be finalized.
@@ -79,11 +79,11 @@ contract RequestableSimpleToken is Ownable, RequestableI {
       // apply enter
       if (bytes32(uint(0)) == trieKey) {
         // only owner (in root chain) can enter `owner` variable.
-        require(owner == requestor);
+        require(requestor == owner, "RequestSimpleToken: request must be owner");
         // do nothing in root chain
       } else if (bytes32(uint(1)) == trieKey) {
         // no one can enter `totalSupply` variable.
-        revert();
+        revert("RequestableSimpleToken: cannot enter total supply");
       } else if (getBalanceTrieKey(requestor) == trieKey) {
         // this checks trie key equals to `balances[requestor]`.
         // only token holder can enter one's token.
@@ -92,7 +92,7 @@ contract RequestableSimpleToken is Ownable, RequestableI {
         balances[requestor] -= decodeTrieValue(trieValue);
       } else {
         // cannot apply request on other variables.
-        revert();
+        revert("RequestableSimpleToken: unknown trie key");
       }
     }
 
@@ -107,7 +107,7 @@ contract RequestableSimpleToken is Ownable, RequestableI {
 
 
   function decodeTrieValue(bytes memory trieValue) public pure returns (uint v) {
-    require(trieValue.length == 0x20);
+    require(trieValue.length == 0x20, "RequestableSimpleToken: length of trie value must be 0x20");
 
     assembly {
        v := mload(add(trieValue, 0x20))
@@ -126,28 +126,28 @@ contract RequestableSimpleToken is Ownable, RequestableI {
   ) external returns (bool success) {
     // TODO: adpot child chain
     // require(msg.sender == NULL_ADDRESS);
-    require(!appliedRequests[requestId]);
+    require(!appliedRequests[requestId], "RequestableSimpleToken: request already applied");
 
     if (isExit) {
       if (bytes32(uint(0)) == trieKey) {
         // only owner (in child chain) can exit `owner` variable.
-        require(requestor == owner);
+        require(requestor == owner, "RequestSimpleToken: request must be owner");
 
         // do nothing when exit `owner` in child chain
       } else if (bytes32(uint(1)) == trieKey) {
         // no one can exit `totalSupply` variable.
-        revert();
+        revert("RequestableSimpleToken: cannot enter total supply");
       } else if (getBalanceTrieKey(requestor) == trieKey) {
         // this checks trie key equals to `balances[tokenHolder]`.
         // only token holder can exit one's token.
         // exiting means moving tokens from child chain to root chain.
 
         // revert provides a proof for `exitChallenge`.
-        require(balances[requestor] >= decodeTrieValue(trieValue));
+        require(balances[requestor] >= decodeTrieValue(trieValue), "RequestSimpileToken: not enough balance to exit");
 
         balances[requestor] -= decodeTrieValue(trieValue);
       } else { // cannot exit other variables.
-        revert();
+        revert("RequestableSimpleToken: unknown trie key");
       }
     } else { // apply enter
       if (bytes32(uint(0)) == trieKey) {
@@ -157,6 +157,7 @@ contract RequestableSimpleToken is Ownable, RequestableI {
         owner = requestor;
       } else if (bytes32(uint(1)) == trieKey) {
         // no one can enter `totalSupply` variable.
+        revert("RequestableSimpleToken: cannot enter total supply");
       } else if (getBalanceTrieKey(requestor) == trieKey) {
         // this checks trie key equals to `balances[tokenHolder]`.
         // only token holder can enter one's token.
@@ -164,7 +165,7 @@ contract RequestableSimpleToken is Ownable, RequestableI {
         balances[requestor] += decodeTrieValue(trieValue);
       } else {
         // cannot apply request on other variables.
-        revert();
+        revert("RequestableSimpleToken: unknown trie key");
       }
     }
 
