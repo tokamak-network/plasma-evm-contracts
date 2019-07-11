@@ -1,24 +1,21 @@
 const { range, last, first } = require('lodash');
-const expectEvent = require('openzeppelin-solidity/test/helpers/expectEvent');
-const { increaseTime, increaseTimeTo } = require('openzeppelin-solidity/test/helpers/increaseTime');
-const { latestTime } = require('openzeppelin-solidity/test/helpers/latestTime');
-const { EVMRevert } = require('openzeppelin-solidity/test/helpers/EVMRevert');
+const { BN, ether,
+  latestTime, increaseTime, increaseTimeTo,
+  expectEvent, expectRevert,
+} = require('openzeppelin-test-helpers');
+const chai = require('chai');
+chai.use(require('chai-bn')(BN));
 
 const { padLeft } = require('./helpers/pad');
 const { appendHex } = require('./helpers/appendHex');
-const Data = require('./lib/Data');
+
+const { expect } = chai;
 
 const RootChain = artifacts.require('RootChain.sol');
 const ERC20Mintable = artifacts.require('ERC20Mintable.sol');
 const EtherToken = artifacts.require('EtherToken.sol');
 const RequestableSimpleToken = artifacts.require('RequestableSimpleToken.sol');
 
-require('chai')
-  .use(require('chai-as-promised'))
-  .use(require('chai-bignumber')(web3.BigNumber))
-  .should();
-
-const BigNumber = web3.BigNumber;
 const LOGTX = process.env.LOGTX || false;
 const VERBOSE = process.env.VERBOSE || false;
 
@@ -26,21 +23,27 @@ const dummyStatesRoot = '0xdb431b544b2f5468e3f771d7843d9c5df3b4edcf8bc1c599f18f0
 const dummyTransactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
 const dummyReceiptsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
 
-const etherAmount = new BigNumber(10e18);
-const tokenAmount = new BigNumber(10e18);
-const exitAmount = tokenAmount.div(1000);
+const etherAmount = ether('10');
+const tokenAmount = ether('10');
+const exitAmount = tokenAmount.div(new BN('1000'));
 const emptyBytes32 = 0;
 
 // eslint-disable-next-line max-len
 const failedReceipt = '0xf9010800825208b9010000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0';
 const dummyProof = '0x00';
 
+/* eslint-disable no-extend-native */
+String.prototype.sub = function (n) { return (web3.utils.toBN(this.toString())).sub(web3.utils.toBN(n)); };
+String.prototype.add = function (n) { return (web3.utils.toBN(this.toString())).add(web3.utils.toBN(n)); };
+String.prototype.cmp = function (n) { return (web3.utils.toBN(this.toString())).cmp(web3.utils.toBN(n)); };
+/* eslint-enable no-extend-native */
+
 contract('RootChain', async ([
   operator,
   ...others
 ]) => {
   let rootchain;
-  let token, ERC20Mintable, etherToken;
+  let token, mintableToken, etherToken;
 
   const tokenInChildChain = '0x000000000000000000000000000000000000dead';
 
@@ -79,9 +82,7 @@ contract('RootChain', async ([
     const lastFinalizedBlock = last(forks).lastFinalizedBlock;
 
     const firstBlock = lastFinalizedBlock + 1;
-    const firstEpoch = new Data.PlasmaBlock(
-      await rootchain.getBlock(currentFork, firstBlock)
-    ).epochNumber.toNumber();
+    const firstEpoch = (await rootchain.getBlock(currentFork, firstBlock)).epochNumber.toNumber();
 
     currentFork += 1;
     forks.push({
@@ -102,18 +103,18 @@ contract('RootChain', async ([
     }
 
     rootchain = await RootChain.deployed();
-    ERC20Mintable = await ERC20Mintable.deployed();
+    mintableToken = await ERC20Mintable.deployed();
     etherToken = await EtherToken.deployed();
     token = await RequestableSimpleToken.new();
 
     // mint tokens
-    await Promise.all(others.map(other => token.mint(other, tokenAmount.mul(100))));
-    await Promise.all(others.map(other => ERC20Mintable.mint(other, tokenAmount.mul(100))));
+    await Promise.all(others.map(other => token.mint(other, tokenAmount.mul(new BN('100)))')))));
+    await Promise.all(others.map(other => mintableToken.mint(other, tokenAmount.mul(new BN('100)))')))));
 
     // swap ERC20Mintable to EtherToken
     await Promise.all(others.map(async (other) => {
-      await ERC20Mintable.approve(etherToken.address, tokenAmount.mul(100), { from: other });
-      await etherToken.deposit(tokenAmount.mul(100), { from: other });
+      await mintableToken.approve(etherToken.address, tokenAmount.mul(new BN('100)))')), { from: other });
+      await etherToken.deposit(tokenAmount.mul(new BN('100)))')), { from: other });
     }));
 
     await rootchain.mapRequestableContractByOperator(etherToken.address, etherToken.address);
@@ -174,20 +175,23 @@ contract('RootChain', async ([
       // },
     };
 
+    // TODO: event listening doesn't work...
     if (VERBOSE) {
-      for (const eventName of targetEvents) {
-        const event = rootchain[eventName]({});
-        event.watch((err, e) => {
-          if (!err) {
-            log(`[${eventName}]: ${JSON.stringify(e.args)}`);
-            if (typeof eventHandlers[eventName] === 'function') {
-              eventHandlers[eventName](e);
-            }
-          } else {
-            console.error(`[${eventName}]`, err);
-          }
-        });
-      }
+      rootchain.allEvents().on('data', (e) => {
+        const eventName = e.event;
+        console.log(`[${eventName}]: ${JSON.stringify(e.args)}`, e);
+      });
+
+      // for (const eventName of targetEvents) {
+      //   rootchain[eventName]().on('data', (e) => {
+      //     console.log("New Event!");
+      //     log(`[${eventName}]: ${JSON.stringify(e.args)}`, e);
+
+      //     if (typeof eventHandlers[eventName] === 'function') {
+      //       eventHandlers[eventName](e);
+      //     }
+      //   });
+      // }
     }
   });
 
@@ -195,32 +199,33 @@ contract('RootChain', async ([
     const forkNumber = currentFork;
     const fork = forks[forkNumber];
 
-    const block = new Data.PlasmaBlock(await rootchain.getBlock(forkNumber, blockNumber));
-    const epoch = new Data.Epoch(await rootchain.getEpoch(forkNumber, block.epochNumber));
-    const requestBlock = new Data.RequestBlock(await rootchain.ORBs(block.requestBlockId));
+    const block = await rootchain.getBlock(forkNumber, blockNumber);
+    const epoch = await rootchain.getEpoch(forkNumber, block.epochNumber);
+    const requestBlock = await rootchain.ORBs(block.requestBlockId);
 
-    let perviousEpochNumber = block.epochNumber.sub(2);
-    let perviousEpoch = new Data.Epoch(await rootchain.getEpoch(forkNumber, perviousEpochNumber));
+    let perviousEpochNumber = block.epochNumber.sub(new BN('2'));
+    let perviousEpoch = await rootchain.getEpoch(forkNumber, perviousEpochNumber);
 
     // in case of first ORE after forked (not ORE')
     if (forkNumber !== 0 && block.epochNumber.cmp(fork.firstEpoch + 4) === 0) {
-      perviousEpochNumber = block.epochNumber.sub(3);
-      perviousEpoch = new Data.Epoch(await rootchain.getEpoch(forkNumber, perviousEpochNumber));
+      perviousEpochNumber = block.epochNumber.sub(new BN('3'));
+      perviousEpoch = await rootchain.getEpoch(forkNumber, perviousEpochNumber);
     }
 
     const firstFilledORENumber = await rootchain.firstFilledORENumber(currentFork);
 
-    if (!epoch.rebase) {
-      await logEpoch(forkNumber, perviousEpochNumber);
-    }
+    // if (!epoch.rebase) {
+    //   await logEpoch(forkNumber, perviousEpochNumber);
+    // }
 
+    await logEpoch(forkNumber, perviousEpochNumber);
     await logEpoch(forkNumber, block.epochNumber);
     await logBlock(forkNumber, blockNumber);
     log(`      RequestBlock#${block.requestBlockId} ${JSON.stringify(requestBlock)}`);
 
-    block.isRequest.should.be.equal(true);
-    epoch.isRequest.should.be.equal(true);
-    epoch.isEmpty.should.be.equal(false);
+    expect(block.isRequest).to.equal(true);
+    expect(epoch.isRequest).to.equal(true);
+    expect(epoch.isEmpty).to.equal(false);
 
     // check previous and current epoch wrt delayed request
     (async function () {
@@ -229,33 +234,33 @@ contract('RootChain', async ([
 
         // check ORE#2
         if (perviousEpochNumber.cmp(0) === 0) {
-          epoch.firstRequestBlockId.should.be.bignumber.equal(0);
-          epoch.requestStart.should.be.bignumber.equal(0);
-          epoch.requestEnd.should.be.bignumber.equal(0);
-          epoch.isEmpty.should.be.equal(true);
+          expect(epoch.firstRequestBlockId).to.be.equal(String(0));
+          expect(epoch.requestStart).to.be.equal(String(0));
+          expect(epoch.requestEnd).to.be.equal(String(0));
+          expect(epoch.isEmpty).to.equal(true);
           return;
         }
 
         if (firstFilledORENumber.cmp(block.epochNumber) === 0) {
-          perviousEpoch.initialized.should.be.equal(true);
-          perviousEpoch.isRequest.should.be.equal(true);
+          expect(perviousEpoch.initialized).to.equal(true);
+          expect(perviousEpoch.isRequest).to.equal(true);
 
           // this epoch is the first request epoch
-          (await rootchain.firstFilledORENumber(forkNumber)).should.be.bignumber.equal(block.epochNumber);
+          expect(await rootchain.firstFilledORENumber(forkNumber)).to.be.bignumber.equal(block.epochNumber);
         }
 
         if (perviousEpoch.isEmpty) {
           if (epoch.isEmpty || perviousEpoch.firstRequestBlockId.cmp(0) === 0) {
-            epoch.firstRequestBlockId.should.be.bignumber.equal(perviousEpoch.firstRequestBlockId);
+            expect(new BN(epoch.firstRequestBlockId)).to.be.bignumber.equal(perviousEpoch.firstRequestBlockId);
           } else {
-            epoch.firstRequestBlockId.should.be.bignumber.equal(perviousEpoch.firstRequestBlockId.add(1));
+            expect(new BN(epoch.firstRequestBlockId)).to.be.bignumber.equal(perviousEpoch.firstRequestBlockId.add(new BN('1')));
           }
         } else {
           // previous request epoch is not empty
-          const numPreviousBlocks = perviousEpoch.endBlockNumber.sub(perviousEpoch.startBlockNumber).add(1);
+          const numPreviousBlocks = perviousEpoch.endBlockNumber.sub(perviousEpoch.startBlockNumber).add(new BN('1'));
           const expectedFirstRequestBlockId = perviousEpoch.firstRequestBlockId.add(numPreviousBlocks);
 
-          epoch.firstRequestBlockId.should.be.bignumber.equal(expectedFirstRequestBlockId);
+          expect(new BN(epoch.firstRequestBlockId)).to.be.bignumber.equal(expectedFirstRequestBlockId);
         }
       } else {
         // check ORE'
@@ -263,12 +268,11 @@ contract('RootChain', async ([
         if (epoch.endBlockNumber.cmp(0) !== 0) {
           const previousForkNumber = forkNumber - 1;
           const previousFork = forks[previousForkNumber];
-          const forkedBlock = new Data.PlasmaBlock(await rootchain.getBlock(previousForkNumber, previousFork.forkedBlock));
+          const forkedBlock = await rootchain.getBlock(previousForkNumber, previousFork.forkedBlock);
 
           const previousEpochNumbers = range(forkedBlock.epochNumber, previousFork.lastEpoch + 1);
-          const previousEpochs = (await Promise.all(previousEpochNumbers
-            .map(epochNumber => rootchain.getEpoch(previousForkNumber, epochNumber))))
-            .map(e => new Data.Epoch(e));
+          const previousEpochs = await Promise.all(previousEpochNumbers
+            .map(epochNumber => rootchain.getEpoch(previousForkNumber, epochNumber)));
 
           const previousRequestEpochs = [];
           const proms = [];
@@ -285,13 +289,13 @@ contract('RootChain', async ([
           // log all previous request epochs
           await proms;
           const noRequestEpoch = previousRequestEpochs.length === 0;
-          noRequestEpoch.should.be.equal(false);
+          expect(noRequestEpoch).to.be.equal(false);
 
           const firstRequestEpochAfterFork = first(previousRequestEpochs).epoch;
           const lastRequestEpochAfterFork = last(previousRequestEpochs).epoch;
 
-          epoch.requestStart.should.be.bignumber.equal(firstRequestEpochAfterFork.requestStart);
-          epoch.requestEnd.should.be.bignumber.equal(lastRequestEpochAfterFork.requestEnd);
+          expect(new BN(epoch.requestStart)).to.be.bignumber.equal(firstRequestEpochAfterFork.requestStart);
+          expect(new BN(epoch.requestEnd)).to.be.bignumber.equal(lastRequestEpochAfterFork.requestEnd);
 
           // test previous block and referenceBlock
           let currentBlockNumber = Number(blockNumber);
@@ -299,10 +303,10 @@ contract('RootChain', async ([
             const referenceEpoch = e.epoch;
             for (const referenceBlockNumber of range(
               referenceEpoch.startBlockNumber.toNumber(), referenceEpoch.endBlockNumber.toNumber())) {
-              const referenceBlock = new Data.PlasmaBlock(await rootchain.getBlock(previousForkNumber, referenceBlockNumber));
-              const currentBlock = new Data.PlasmaBlock(await rootchain.getBlock(currentFork, currentBlockNumber));
-              currentBlock.referenceBlock.should.be.bignumber.equal(referenceBlockNumber);
-              currentBlock.requestBlockId.should.be.bignumber.equal(referenceBlock.requestBlockId);
+              const referenceBlock = await rootchain.getBlock(previousForkNumber, referenceBlockNumber);
+              const currentBlock = await rootchain.getBlock(currentFork, currentBlockNumber);
+              expect(new BN(currentBlock.referenceBlock)).to.be.bignumber.equal(referenceBlockNumber);
+              expect(new BN(currentBlock.requestBlockId)).to.be.bignumber.equal(referenceBlock.requestBlockId);
 
               currentBlockNumber += 1;
             }
@@ -312,17 +316,16 @@ contract('RootChain', async ([
     })();
 
     // check request block
-    const numBlocks = epoch.endBlockNumber.sub(epoch.startBlockNumber).add(1);
-    block.requestBlockId.should.be.bignumber.gte(epoch.firstRequestBlockId);
-    block.requestBlockId.should.be.bignumber.lt(epoch.firstRequestBlockId.add(numBlocks));
-
-    epoch.requestStart.should.be.bignumber.lte(requestBlock.requestStart);
-    epoch.requestEnd.should.be.bignumber.gte(requestBlock.requestEnd);
+    const numBlocks = epoch.endBlockNumber.sub(epoch.startBlockNumber).add(new BN('1'));
+    expect(new BN(block.requestBlockId)).to.be.bignumber.gte(epoch.firstRequestBlockId);
+    expect(new BN(block.requestBlockId)).to.be.bignumber.lessThan(epoch.firstRequestBlockId.add(numBlocks));
+    expect(new BN(epoch.requestStart)).to.be.bignumber.lte(requestBlock.requestStart);
+    expect(new BN(epoch.requestEnd)).to.be.bignumber.gte(requestBlock.requestEnd);
   }
 
   async function checkLastBlockNumber () {
-    (await rootchain.lastBlock(currentFork))
-      .should.be.bignumber.equal(forks[currentFork].lastBlock);
+    expect(await rootchain.lastBlock(currentFork))
+      .to.be.bignumber.equal(String(forks[currentFork].lastBlock));
   }
 
   function makePos (forkNumber, blockNumber) {
@@ -381,15 +384,15 @@ contract('RootChain', async ([
   async function finalizeBlocks () {
     // finalize blocks until all blocks are fianlized
     const lastFinalizedBlockNumber = await rootchain.getLastFinalizedBlock(currentFork);
-    const blockNumberToFinalize = lastFinalizedBlockNumber.add(1);
-    const block = new Data.PlasmaBlock(await rootchain.getBlock(currentFork, blockNumberToFinalize));
+    const blockNumberToFinalize = lastFinalizedBlockNumber.add(new BN('1'));
+    const block = await rootchain.getBlock(currentFork, blockNumberToFinalize);
 
     // short circuit if all blocks are finalized
     if (lastFinalizedBlockNumber.gte(forks[currentFork].lastBlock)) {
       return;
     }
 
-    const finalizedAt = block.timestamp.add(CP_WITHHOLDING + 1);
+    const finalizedAt = block.timestamp.add(CP_WITHHOLDING.add(new BN('1')));
 
     if (await latestTime() < finalizedAt) {
       await increaseTimeTo(finalizedAt);
@@ -404,17 +407,17 @@ contract('RootChain', async ([
   async function logEpoch (forkNumber, epochNumber) {
     if (epochNumber < 0) return;
 
-    const epoch = new Data.Epoch(await rootchain.getEpoch(forkNumber, epochNumber));
+    const epoch = await rootchain.getEpoch(forkNumber, epochNumber);
     log(`      Epoch#${forkNumber}.${epochNumber} ${JSON.stringify(epoch)}`);
   }
 
   async function logBlock (forkNumber, blockNumber) {
-    const block = new Data.PlasmaBlock(await rootchain.getBlock(forkNumber, blockNumber));
+    const block = await rootchain.getBlock(forkNumber, blockNumber);
     log(`      Block#${forkNumber}.${blockNumber} ${JSON.stringify(block)}`);
   }
 
   async function logEpochAndBlock (forkNumber, epochNumber) {
-    const epoch = new Data.Epoch(await rootchain.getEpoch(forkNumber, epochNumber));
+    const epoch = await rootchain.getEpoch(forkNumber, epochNumber);
     log(`
       Epoch#${forkNumber}.${epochNumber} ${JSON.stringify(epoch)}
       ORBs.length: ${await rootchain.getNumORBs()}
@@ -425,7 +428,7 @@ contract('RootChain', async ([
       epoch.endBlockNumber.toNumber() + 1
     )) {
       log(`
-        Block#${i} ${JSON.stringify(new Data.PlasmaBlock(await rootchain.getBlock(forkNumber, i)))}`);
+        Block#${i} ${JSON.stringify(await rootchain.getBlock(forkNumber, i))}`);
     }
   }
 
@@ -444,10 +447,10 @@ contract('RootChain', async ([
     const requestIds = range(0, 4);
 
     before('check NRE', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(false);
-      epoch.isEmpty.should.be.equal(false);
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      expect(epoch.initialized).to.equal(true);
+      expect(epoch.isRequest).to.equal(false);
+      expect(epoch.isEmpty).to.equal(false);
     });
 
     it('operator should submits NRB#1', async () => {
@@ -459,7 +462,7 @@ contract('RootChain', async ([
 
       await Promise.all(users.map(async other => {
         const trieKey = await etherToken.getBalanceTrieKey(other);
-        const trieValue = padLeft(web3.fromDecimal(etherAmount));
+        const trieValue = padLeft(web3.utils.numberToHex(etherAmount));
 
         const tx = await rootchain.startEnter(etherToken.address, trieKey, trieValue, {
           from: other,
@@ -469,11 +472,10 @@ contract('RootChain', async ([
       }));
 
       await Promise.all(requestIds.map(async (requestId) => {
-        const ERO = new Data.Request(await rootchain.EROs(requestId));
-
-        ERO.isTransfer.should.be.equal(isTransfer);
-        ERO.finalized.should.be.equal(false);
-        ERO.isExit.should.be.equal(false);
+        const ERO = await rootchain.EROs(requestId);
+        expect(ERO.isTransfer).to.equal(isTransfer);
+        expect(ERO.finalized).to.equal(false);
+        expect(ERO.isExit).to.equal(false);
       }));
     });
 
@@ -482,40 +484,40 @@ contract('RootChain', async ([
     });
 
     it('NRE#1 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
+      expect(epoch.startBlockNumber).to.equal(String(first(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.equal(String(last(NRBNumbers)));
     });
 
     it('ORE#2 should be empty', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(ORBId);
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(true);
-      epoch.isEmpty.should.be.equal(true);
-      epoch.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
+      expect(epoch.startBlockNumber).to.be.equal(String(last(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(ORBId));
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(true);
+      expect(epoch.isEmpty).to.be.equal(true);
+      expect(epoch.requestStart).to.be.equal(String(first(previousRequestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(previousRequestIds)));
     });
 
     it('Next request block should be sealed', async () => {
-      const requestBlock = new Data.RequestBlock(await rootchain.ORBs(NextORBId));
+      const requestBlock = await rootchain.ORBs(NextORBId);
 
-      requestBlock.submitted.should.be.equal(true);
-      requestBlock.requestStart.should.be.bignumber.equal(first(requestIds));
-      requestBlock.requestEnd.should.be.bignumber.equal(last(requestIds));
+      expect(requestBlock.submitted).to.be.equal(true);
+      expect(requestBlock.requestStart).to.be.bignumber.equal(String(first(requestIds)));
+      expect(requestBlock.requestEnd).to.be.bignumber.equal(String(last(requestIds)));
     });
 
     it('Next ORE#4 should have correct request ids', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NextORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
 
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(requestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(requestIds));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(NextORBId);
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(requestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(requestIds)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
   });
 
@@ -534,33 +536,33 @@ contract('RootChain', async ([
     const requestIds = range(4, 8);
 
     before('check NRE', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(false);
-      epoch.isEmpty.should.be.equal(false);
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(false);
+      expect(epoch.isEmpty).to.be.equal(false);
     });
 
     it('user can make enter requests for Token deposit (requests: [4, 8))', async () => {
       const isTransfer = false;
 
       await Promise.all(users.map(async other => {
-        const trieKey = calcTrieKey(other);
-        const trieValue = padLeft(web3.fromDecimal(tokenAmount));
+        const trieKey = await token.getBalanceTrieKey(other);
+        const trieValue = padLeft(web3.utils.numberToHex(tokenAmount));
 
         const tokenBalance = await token.balances(other);
 
         const tx = await rootchain.startEnter(token.address, trieKey, trieValue, { from: other });
         logtx(tx);
 
-        (await token.balances(other)).should.be.bignumber.equal(tokenBalance.sub(tokenAmount));
+        expect((await token.balances(other))).to.be.bignumber.equal(tokenBalance.sub(tokenAmount));
       }));
 
       await Promise.all(requestIds.map(async (requestId) => {
-        const ERO = new Data.Request(await rootchain.EROs(requestId));
+        const ERO = await rootchain.EROs(requestId);
 
-        ERO.isTransfer.should.be.equal(isTransfer);
-        ERO.finalized.should.be.equal(false);
-        ERO.isExit.should.be.equal(false);
+        expect(ERO.isTransfer).to.be.equal(isTransfer);
+        expect(ERO.finalized).to.be.equal(false);
+        expect(ERO.isExit).to.be.equal(false);
       }));
     });
 
@@ -573,56 +575,56 @@ contract('RootChain', async ([
     });
 
     it('NRE#3 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('operator should submit ORB#5', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = new Data.RequestBlock(await rootchain.ORBs(ORBId));
-      requestBlock.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      requestBlock.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
-      requestBlock.submitted.should.be.equal(true);
-      // requestBlock.epochNumber.should.be.bignumber.equal(ORENumber);
+      const requestBlock = await rootchain.ORBs(ORBId);
+      expect(requestBlock.requestStart).to.be.bignumber.equal(String(first(previousRequestIds)));
+      expect(requestBlock.requestEnd).to.be.bignumber.equal(String(last(previousRequestIds)));
+      expect(requestBlock.submitted).to.be.equal(true);
+      // expect(requestBlock.epochNumber).to.be.equal(String(ORENumber));
     });
 
     it('Next request block should be sealed', async () => {
-      const nextRequestBlock = new Data.RequestBlock(await rootchain.ORBs(NextORBId));
+      const nextRequestBlock = await rootchain.ORBs(NextORBId);
 
-      nextRequestBlock.submitted.should.be.equal(true);
-      nextRequestBlock.requestStart.should.be.bignumber.equal(first(requestIds));
-      nextRequestBlock.requestEnd.should.be.bignumber.equal(last(requestIds));
+      expect(nextRequestBlock.submitted).to.be.equal(true);
+      expect(nextRequestBlock.requestStart).to.be.bignumber.equal(String(first(requestIds)));
+      expect(nextRequestBlock.requestEnd).to.be.bignumber.equal(String(last(requestIds)));
     });
 
     it('ORE#4 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(ORBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(ORBNumbers));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(ORBId);
+      expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(ORBId));
     });
 
     it('ORE#4 should have previous requests', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.firstRequestBlockId.should.be.bignumber.equal(ORBId);
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(true);
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(ORBId));
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(true);
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(previousRequestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(previousRequestIds)));
     });
 
     it('Next ORE#6 should have correct request ids', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NextORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
 
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(requestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(requestIds));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(NextORBId);
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(requestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(requestIds)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
   });
 
@@ -641,10 +643,10 @@ contract('RootChain', async ([
     const requestIds = [7];
 
     before('check NRE', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(false);
-      epoch.isEmpty.should.be.equal(false);
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(false);
+      expect(epoch.isEmpty).to.be.equal(false);
     });
 
     it('operator should submits NRB#6', async () => {
@@ -656,48 +658,48 @@ contract('RootChain', async ([
     });
 
     it('NRE#5 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('operator should submit ORB#8', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = new Data.RequestBlock(await rootchain.ORBs(ORBId));
-      requestBlock.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      requestBlock.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
-      requestBlock.submitted.should.be.equal(true);
-      // requestBlock.epochNumber.should.be.bignumber.equal(ORENumber);
+      const requestBlock = await rootchain.ORBs(ORBId);
+      expect(requestBlock.requestStart).to.be.bignumber.equal(String(first(previousRequestIds)));
+      expect(requestBlock.requestEnd).to.be.bignumber.equal(String(last(previousRequestIds)));
+      expect(requestBlock.submitted).to.be.equal(true);
+      // expect(requestBlock.epochNumber).to.be.bignumber.equal(String(ORENumber));
     });
 
     it('ORE#6 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(ORBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(ORBNumbers));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(ORBId);
+      expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(ORBId));
     });
 
     it('ORE#6 should have previous requests', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.firstRequestBlockId.should.be.bignumber.equal(ORBId);
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(true);
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(ORBId));
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(true);
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(previousRequestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(previousRequestIds)));
     });
 
     it('Next empty ORE#8 should have correct request block id', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NextORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
 
-      epoch.isEmpty.should.be.equal(true);
-      epoch.requestStart.should.be.bignumber.equal(first(requestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(requestIds));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(NextORBId);
+      expect(epoch.isEmpty).to.be.equal(true);
+      expect(epoch.requestStart).to.be.equal(String(first(requestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(requestIds)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
   });
 
@@ -716,10 +718,10 @@ contract('RootChain', async ([
     const requestIds = range(8, 12);
 
     before('check NRE', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(false);
-      epoch.isEmpty.should.be.equal(false);
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(false);
+      expect(epoch.isEmpty).to.be.equal(false);
     });
 
     it('user can make exit requests for token withdrawal (requests: [8, 12))', async () => {
@@ -727,19 +729,19 @@ contract('RootChain', async ([
       const isExit = true;
 
       await Promise.all(users.map(async other => {
-        const trieKey = calcTrieKey(other);
-        const trieValue = padLeft(web3.fromDecimal(tokenAmount));
+        const trieKey = await token.getBalanceTrieKey(other);
+        const trieValue = padLeft(web3.utils.numberToHex(tokenAmount));
 
         const tx = await rootchain.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
         logtx(tx);
       }));
 
       await Promise.all(requestIds.map(async (requestId) => {
-        const ERO = new Data.Request(await rootchain.EROs(requestId));
+        const ERO = await rootchain.EROs(requestId);
 
-        ERO.isTransfer.should.be.equal(isTransfer);
-        ERO.finalized.should.be.equal(false);
-        ERO.isExit.should.be.equal(isExit);
+        expect(ERO.isTransfer).to.be.equal(isTransfer);
+        expect(ERO.finalized).to.be.equal(false);
+        expect(ERO.isExit).to.be.equal(isExit);
       }));
     });
 
@@ -752,37 +754,37 @@ contract('RootChain', async ([
     });
 
     it('NRE#7 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('ORE#8 should be empty', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(ORBId);
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(true);
-      epoch.isEmpty.should.be.equal(true);
-      epoch.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
+      expect(epoch.startBlockNumber).to.be.equal(String(last(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(ORBId));
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(true);
+      expect(epoch.isEmpty).to.be.equal(true);
+      expect(epoch.requestStart).to.be.equal(String(first(previousRequestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(previousRequestIds)));
     });
 
     it('Next request block should be sealed', async () => {
-      const nextRequestBlock = new Data.RequestBlock(await rootchain.ORBs(NextORBId));
-      nextRequestBlock.submitted.should.be.equal(true);
+      const nextRequestBlock = await rootchain.ORBs(NextORBId);
+      expect(nextRequestBlock.submitted).to.be.equal(true);
     });
 
     it('Next ORE#10 should have correct request ids', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NextORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
 
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(requestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(requestIds));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(NextORBId);
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(requestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(requestIds)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
   });
 
@@ -801,10 +803,10 @@ contract('RootChain', async ([
     const requestIds = range(12, 52);
 
     before('check NRE', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(false);
-      epoch.isEmpty.should.be.equal(false);
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(false);
+      expect(epoch.isEmpty).to.be.equal(false);
     });
 
     it('user can make exit requests for token withdrawal (requests: [12, 52))', async () => {
@@ -813,20 +815,19 @@ contract('RootChain', async ([
 
       for (const _ of range(requestIds.length / others.length)) {
         await Promise.all(others.map(async other => {
-          const trieKey = calcTrieKey(other);
-          const trieValue = padLeft(web3.fromDecimal(tokenAmount));
+          const trieKey = await token.getBalanceTrieKey(other);
+          const trieValue = padLeft(web3.utils.numberToHex(tokenAmount));
 
           return rootchain.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
         }));
       }
 
-      const EROs = (await Promise.all(requestIds.map(i => rootchain.EROs(i))))
-        .map(r => new Data.Request(r));
+      const EROs = await Promise.all(requestIds.map(i => rootchain.EROs(i)));
 
       EROs.forEach(ERO => {
-        ERO.isTransfer.should.be.equal(isTransfer);
-        ERO.finalized.should.be.equal(false);
-        ERO.isExit.should.be.equal(isExit);
+        expect(ERO.isTransfer).to.be.equal(isTransfer);
+        expect(ERO.finalized).to.be.equal(false);
+        expect(ERO.isExit).to.be.equal(isExit);
       });
     });
 
@@ -839,58 +840,58 @@ contract('RootChain', async ([
     });
 
     it('NRE#9 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('operator should submit ORB#13', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = new Data.RequestBlock(await rootchain.ORBs(ORBId));
-      requestBlock.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      requestBlock.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
-      requestBlock.submitted.should.be.equal(true);
-      // requestBlock.epochNumber.should.be.bignumber.equal(ORENumber);
+      const requestBlock = await rootchain.ORBs(ORBId);
+      expect(requestBlock.requestStart).to.be.bignumber.equal(String(first(previousRequestIds)));
+      expect(requestBlock.requestEnd).to.be.bignumber.equal(String(last(previousRequestIds)));
+      expect(requestBlock.submitted).to.be.equal(true);
+      // expect(requestBlock.epochNumber).to.be.bignumber.equal(String(ORENumber));
     });
 
     it('Next request blocks should be sealed', async () => {
-      const nextRequestBlock0 = new Data.RequestBlock(await rootchain.ORBs(NextORBIds[0]));
-      const nextRequestBlock1 = new Data.RequestBlock(await rootchain.ORBs(NextORBIds[1]));
+      const nextRequestBlock0 = await rootchain.ORBs(NextORBIds[0]);
+      const nextRequestBlock1 = await rootchain.ORBs(NextORBIds[1]);
 
-      nextRequestBlock0.submitted.should.be.equal(true);
-      nextRequestBlock1.submitted.should.be.equal(true);
-      nextRequestBlock0.requestStart.should.be.bignumber.equal(first(requestIds));
-      nextRequestBlock1.requestEnd.should.be.bignumber.equal(last(requestIds));
+      expect(nextRequestBlock0.submitted).to.be.equal(true);
+      expect(nextRequestBlock1.submitted).to.be.equal(true);
+      expect(nextRequestBlock0.requestStart).to.be.bignumber.equal(String(first(requestIds)));
+      expect(nextRequestBlock1.requestEnd).to.be.bignumber.equal(String(last(requestIds)));
     });
 
     it('ORE#10 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(ORBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(ORBNumbers));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(ORBId);
+      expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(ORBId));
     });
 
     it('ORE#10 should have previous requests', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.firstRequestBlockId.should.be.bignumber.equal(ORBId);
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(true);
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(ORBId));
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(true);
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(previousRequestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(previousRequestIds)));
     });
 
     it('Next ORE#12 should have correct request ids', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NextORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
 
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(requestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(requestIds));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(NextORBIds[0]);
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(requestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(requestIds)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(NextORBIds[0]));
     });
   });
 
@@ -909,10 +910,10 @@ contract('RootChain', async ([
     const requestIds = range(52, 80);
 
     before('check NRE', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(false);
-      epoch.isEmpty.should.be.equal(false);
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(false);
+      expect(epoch.isEmpty).to.be.equal(false);
     });
 
     it('user can make exit requests for token withdrawal (requests: [52, 80))', async () => {
@@ -922,8 +923,8 @@ contract('RootChain', async ([
       // 20 requests
       for (const _ of range(2)) {
         await Promise.all(others.map(async other => {
-          const trieKey = calcTrieKey(other);
-          const trieValue = padLeft(web3.fromDecimal(tokenAmount));
+          const trieKey = await token.getBalanceTrieKey(other);
+          const trieValue = padLeft(web3.utils.numberToHex(tokenAmount));
 
           return rootchain.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
         }));
@@ -931,19 +932,18 @@ contract('RootChain', async ([
 
       // 8 requests
       await Promise.all(others.slice(0, 8).map(async other => {
-        const trieKey = calcTrieKey(other);
-        const trieValue = padLeft(web3.fromDecimal(tokenAmount));
+        const trieKey = await token.getBalanceTrieKey(other);
+        const trieValue = padLeft(web3.utils.numberToHex(tokenAmount));
 
         return rootchain.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
       }));
 
-      const EROs = (await Promise.all(requestIds.map(i => rootchain.EROs(i))))
-        .map(r => new Data.Request(r));
+      const EROs = await Promise.all(requestIds.map(i => rootchain.EROs(i)));
 
       EROs.forEach(ERO => {
-        ERO.isTransfer.should.be.equal(isTransfer);
-        ERO.finalized.should.be.equal(false);
-        ERO.isExit.should.be.equal(isExit);
+        expect(ERO.isTransfer).to.be.equal(isTransfer);
+        expect(ERO.finalized).to.be.equal(false);
+        expect(ERO.isExit).to.be.equal(isExit);
       });
     });
 
@@ -956,68 +956,68 @@ contract('RootChain', async ([
     });
 
     it('NRE#11 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('operator should submit ORB#16', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = new Data.RequestBlock(await rootchain.ORBs(ORBIds[0]));
-      requestBlock.requestStart.should.be.bignumber.equal(12);
-      requestBlock.requestEnd.should.be.bignumber.equal(31);
-      requestBlock.submitted.should.be.equal(true);
-      // requestBlock.epochNumber.should.be.bignumber.equal(ORENumber);
+      const requestBlock = await rootchain.ORBs(ORBIds[0]);
+      expect(requestBlock.requestStart).to.be.bignumber.equal(String(12));
+      expect(requestBlock.requestEnd).to.be.bignumber.equal(String(31));
+      expect(requestBlock.submitted).to.be.equal(true);
+      // expect(requestBlock.epochNumber).to.be.bignumber.equal(String(ORENumber));
     });
 
     it('operator should submit ORB#17', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = new Data.RequestBlock(await rootchain.ORBs(ORBIds[1]));
-      requestBlock.requestStart.should.be.bignumber.equal(32);
-      requestBlock.requestEnd.should.be.bignumber.equal(51);
-      requestBlock.submitted.should.be.equal(true);
-      // requestBlock.epochNumber.should.be.bignumber.equal(ORENumber);
+      const requestBlock = await rootchain.ORBs(ORBIds[1]);
+      expect(requestBlock.requestStart).to.be.bignumber.equal(String(32));
+      expect(requestBlock.requestEnd).to.be.bignumber.equal(String(51));
+      expect(requestBlock.submitted).to.be.equal(true);
+      // expect(requestBlock.epochNumber).to.be.bignumber.equal(String(ORENumber));
     });
 
     it('Next request blocks should be sealed', async () => {
-      const nextRequestBlock0 = new Data.RequestBlock(await rootchain.ORBs(NextORBIds[0]));
-      const nextRequestBlock1 = new Data.RequestBlock(await rootchain.ORBs(NextORBIds[1]));
+      const nextRequestBlock0 = await rootchain.ORBs(NextORBIds[0]);
+      const nextRequestBlock1 = await rootchain.ORBs(NextORBIds[1]);
 
-      nextRequestBlock0.submitted.should.be.equal(true);
-      nextRequestBlock1.submitted.should.be.equal(true);
-      nextRequestBlock0.requestStart.should.be.bignumber.equal(first(requestIds));
-      nextRequestBlock1.requestEnd.should.be.bignumber.equal(last(requestIds));
+      expect(nextRequestBlock0.submitted).to.be.equal(true);
+      expect(nextRequestBlock1.submitted).to.be.equal(true);
+      expect(nextRequestBlock0.requestStart).to.be.bignumber.equal(String(first(requestIds)));
+      expect(nextRequestBlock1.requestEnd).to.be.bignumber.equal(String(last(requestIds)));
     });
 
     it('ORE#12 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(ORBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(ORBNumbers));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(first(ORBIds));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(first(ORBIds)));
     });
 
     it('ORE#12 should have previous requests', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.firstRequestBlockId.should.be.bignumber.equal(first(ORBIds));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(true);
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(first(ORBIds)));
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(true);
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(previousRequestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(previousRequestIds)));
     });
 
     it('Next ORE#14 should have correct request ids', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NextORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
 
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(requestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(requestIds));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(NextORBIds[0]);
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(requestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(requestIds)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(NextORBIds[0]));
     });
   });
 
@@ -1036,10 +1036,10 @@ contract('RootChain', async ([
     const requestIds = [79];
 
     before('check NRE', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(false);
-      epoch.isEmpty.should.be.equal(false);
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(false);
+      expect(epoch.isEmpty).to.be.equal(false);
     });
 
     it('operator should submits NRB#18', async () => {
@@ -1051,58 +1051,58 @@ contract('RootChain', async ([
     });
 
     it('NRE#13 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('operator should submit ORB#20', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = new Data.RequestBlock(await rootchain.ORBs(ORBIds[0]));
-      requestBlock.requestStart.should.be.bignumber.equal(52);
-      requestBlock.requestEnd.should.be.bignumber.equal(71);
-      requestBlock.submitted.should.be.equal(true);
-      // requestBlock.epochNumber.should.be.bignumber.equal(ORENumber);
+      const requestBlock = await rootchain.ORBs(ORBIds[0]);
+      expect(requestBlock.requestStart).to.be.bignumber.equal(String(52));
+      expect(requestBlock.requestEnd).to.be.bignumber.equal(String(71));
+      expect(requestBlock.submitted).to.be.equal(true);
+      // expect(requestBlock.epochNumber).to.be.bignumber.equal(String(ORENumber));
     });
 
     it('operator should submit ORB#21', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = new Data.RequestBlock(await rootchain.ORBs(ORBIds[1]));
-      requestBlock.requestStart.should.be.bignumber.equal(72);
-      requestBlock.requestEnd.should.be.bignumber.equal(79);
-      requestBlock.submitted.should.be.equal(true);
-      // requestBlock.epochNumber.should.be.bignumber.equal(ORENumber);
+      const requestBlock = await rootchain.ORBs(ORBIds[1]);
+      expect(requestBlock.requestStart).to.be.bignumber.equal(String(72));
+      expect(requestBlock.requestEnd).to.be.bignumber.equal(String(79));
+      expect(requestBlock.submitted).to.be.equal(true);
+      // expect(requestBlock.epochNumber).to.be.bignumber.equal(String(ORENumber));
     });
 
     it('ORE#14 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(ORBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(ORBNumbers));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(first(ORBIds));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(first(ORBIds)));
     });
 
     it('ORE#14 should have previous requests', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.firstRequestBlockId.should.be.bignumber.equal(first(ORBIds));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(true);
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(first(ORBIds)));
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(true);
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(previousRequestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(previousRequestIds)));
     });
 
     it('Next empty ORE#16 should have correct request ids', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NextORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
 
-      epoch.isEmpty.should.be.equal(true);
-      epoch.requestStart.should.be.bignumber.equal(first(requestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(requestIds));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(NextORBId);
+      expect(epoch.isEmpty).to.be.equal(true);
+      expect(epoch.requestStart).to.be.equal(String(first(requestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(requestIds)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
   });
 
@@ -1120,10 +1120,10 @@ contract('RootChain', async ([
     const requestIds = previousRequestIds;
 
     before('check NRE', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(false);
-      epoch.isEmpty.should.be.equal(false);
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(false);
+      expect(epoch.isEmpty).to.be.equal(false);
     });
 
     it('operator should submits NRB#22', async () => {
@@ -1135,32 +1135,32 @@ contract('RootChain', async ([
     });
 
     it('NRE#15 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('ORE#16 should be empty', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(ORBId);
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(true);
-      epoch.isEmpty.should.be.equal(true);
-      epoch.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
+      expect(epoch.startBlockNumber).to.be.equal(String(last(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(ORBId));
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(true);
+      expect(epoch.isEmpty).to.be.equal(true);
+      expect(epoch.requestStart).to.be.equal(String(first(previousRequestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(previousRequestIds)));
     });
 
     it('Next empty ORE#18 should have correct request ids', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NextORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
 
-      epoch.isEmpty.should.be.equal(true);
-      epoch.requestStart.should.be.bignumber.equal(first(requestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(requestIds));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(NextORBId);
+      expect(epoch.isEmpty).to.be.equal(true);
+      expect(epoch.requestStart).to.be.equal(String(first(requestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(requestIds)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
   });
 
@@ -1178,10 +1178,10 @@ contract('RootChain', async ([
     const requestIds = previousRequestIds;
 
     before('check NRE', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(false);
-      epoch.isEmpty.should.be.equal(false);
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(false);
+      expect(epoch.isEmpty).to.be.equal(false);
     });
 
     it('operator should submits NRB#24', async () => {
@@ -1193,32 +1193,32 @@ contract('RootChain', async ([
     });
 
     it('NRE#17 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('ORE#18 should be empty', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(ORBId);
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(true);
-      epoch.isEmpty.should.be.equal(true);
-      epoch.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
+      expect(epoch.startBlockNumber).to.be.equal(String(last(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(ORBId));
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(true);
+      expect(epoch.isEmpty).to.be.equal(true);
+      expect(epoch.requestStart).to.be.equal(String(first(previousRequestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(previousRequestIds)));
     });
 
     it('Next empty ORE#20 should have correct request ids', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NextORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
 
-      epoch.isEmpty.should.be.equal(true);
-      epoch.requestStart.should.be.bignumber.equal(first(requestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(requestIds));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(NextORBId);
+      expect(epoch.isEmpty).to.be.equal(true);
+      expect(epoch.requestStart).to.be.equal(String(first(requestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(requestIds)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
   });
 
@@ -1237,12 +1237,12 @@ contract('RootChain', async ([
     const requestIds = range(80, 120);
 
     before('check NRE', async () => {
-      (await rootchain.lastEpoch(0)).should.be.bignumber.equal(NRENumber - 1);
+      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(false);
-      epoch.isEmpty.should.be.equal(false);
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(false);
+      expect(epoch.isEmpty).to.be.equal(false);
     });
 
     it('user can make exit requests for token withdrawal (requests: [80, 120))', async () => {
@@ -1251,20 +1251,19 @@ contract('RootChain', async ([
 
       for (const _ of range(requestIds.length / others.length)) {
         await Promise.all(others.map(async other => {
-          const trieKey = calcTrieKey(other);
-          const trieValue = padLeft(web3.fromDecimal(tokenAmount));
+          const trieKey = await token.getBalanceTrieKey(other);
+          const trieValue = padLeft(web3.utils.numberToHex(tokenAmount));
 
           return rootchain.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
         }));
       }
 
-      const EROs = (await Promise.all(requestIds.map(i => rootchain.EROs(i))))
-        .map(r => new Data.Request(r));
+      const EROs = await Promise.all(requestIds.map(i => rootchain.EROs(i)));
 
       EROs.forEach(ERO => {
-        ERO.isTransfer.should.be.equal(isTransfer);
-        ERO.finalized.should.be.equal(false);
-        ERO.isExit.should.be.equal(isExit);
+        expect(ERO.isTransfer).to.be.equal(isTransfer);
+        expect(ERO.finalized).to.be.equal(false);
+        expect(ERO.isExit).to.be.equal(isExit);
       });
     });
 
@@ -1277,42 +1276,42 @@ contract('RootChain', async ([
     });
 
     it('NRE#19 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('ORE#20 should be empty', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(ORBId);
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(true);
-      epoch.isEmpty.should.be.equal(true);
-      epoch.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
+      expect(epoch.startBlockNumber).to.be.equal(String(last(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(ORBId));
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(true);
+      expect(epoch.isEmpty).to.be.equal(true);
+      expect(epoch.requestStart).to.be.equal(String(first(previousRequestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(previousRequestIds)));
     });
 
     it('Next request blocks should be sealed', async () => {
-      const nextRequestBlock0 = new Data.RequestBlock(await rootchain.ORBs(NextORBIds[0]));
-      const nextRequestBlock1 = new Data.RequestBlock(await rootchain.ORBs(NextORBIds[1]));
+      const nextRequestBlock0 = await rootchain.ORBs(NextORBIds[0]);
+      const nextRequestBlock1 = await rootchain.ORBs(NextORBIds[1]);
 
-      nextRequestBlock0.submitted.should.be.equal(true);
-      nextRequestBlock1.submitted.should.be.equal(true);
-      nextRequestBlock0.requestStart.should.be.bignumber.equal(first(requestIds));
-      nextRequestBlock1.requestEnd.should.be.bignumber.equal(last(requestIds));
+      expect(nextRequestBlock0.submitted).to.be.equal(true);
+      expect(nextRequestBlock1.submitted).to.be.equal(true);
+      expect(nextRequestBlock0.requestStart).to.be.bignumber.equal(String(first(requestIds)));
+      expect(nextRequestBlock1.requestEnd).to.be.bignumber.equal(String(last(requestIds)));
     });
 
     it('Next empty ORE#22 should have correct request ids', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NextORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
 
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(requestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(requestIds));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(first(NextORBIds));
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(requestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(requestIds)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(first(NextORBIds)));
     });
   });
 
@@ -1331,10 +1330,10 @@ contract('RootChain', async ([
     const requestIds = [119];
 
     before('check NRE', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(false);
-      epoch.isEmpty.should.be.equal(false);
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(false);
+      expect(epoch.isEmpty).to.be.equal(false);
     });
 
     it('operator should submits NRB#28', async () => {
@@ -1346,58 +1345,58 @@ contract('RootChain', async ([
     });
 
     it('NRE#21 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NRENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(NRBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(NRBNumbers));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('operator should submit ORB#30', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = new Data.RequestBlock(await rootchain.ORBs(ORBIds[0]));
-      requestBlock.requestStart.should.be.bignumber.equal(80);
-      requestBlock.requestEnd.should.be.bignumber.equal(99);
-      requestBlock.submitted.should.be.equal(true);
-      // requestBlock.epochNumber.should.be.bignumber.equal(ORENumber);
+      const requestBlock = await rootchain.ORBs(ORBIds[0]);
+      expect(requestBlock.requestStart).to.be.bignumber.equal(String(80));
+      expect(requestBlock.requestEnd).to.be.bignumber.equal(String(99));
+      expect(requestBlock.submitted).to.be.equal(true);
+      // expect(requestBlock.epochNumber).to.be.bignumber.equal(String(ORENumber));
     });
 
     it('operator should submit ORB#31', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = new Data.RequestBlock(await rootchain.ORBs(ORBIds[1]));
-      requestBlock.requestStart.should.be.bignumber.equal(100);
-      requestBlock.requestEnd.should.be.bignumber.equal(119);
-      requestBlock.submitted.should.be.equal(true);
-      // requestBlock.epochNumber.should.be.bignumber.equal(ORENumber);
+      const requestBlock = await rootchain.ORBs(ORBIds[1]);
+      expect(requestBlock.requestStart).to.be.bignumber.equal(String(100));
+      expect(requestBlock.requestEnd).to.be.bignumber.equal(String(119));
+      expect(requestBlock.submitted).to.be.equal(true);
+      // expect(requestBlock.epochNumber).to.be.bignumber.equal(String(ORENumber));
     });
 
     it('ORE#22 should have correct blocks', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.startBlockNumber.should.be.bignumber.equal(first(ORBNumbers));
-      epoch.endBlockNumber.should.be.bignumber.equal(last(ORBNumbers));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(first(ORBIds));
+      expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
+      expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(first(ORBIds)));
     });
 
     it('ORE#22 should have previous requests', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, ORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
-      epoch.firstRequestBlockId.should.be.bignumber.equal(first(ORBIds));
-      epoch.initialized.should.be.equal(true);
-      epoch.isRequest.should.be.equal(true);
-      epoch.isEmpty.should.be.equal(false);
-      epoch.requestStart.should.be.bignumber.equal(first(previousRequestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(previousRequestIds));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(first(ORBIds)));
+      expect(epoch.initialized).to.be.equal(true);
+      expect(epoch.isRequest).to.be.equal(true);
+      expect(epoch.isEmpty).to.be.equal(false);
+      expect(epoch.requestStart).to.be.equal(String(first(previousRequestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(previousRequestIds)));
     });
 
     it('Next empty ORE#24 should have correct request ids', async () => {
-      const epoch = new Data.Epoch(await rootchain.getEpoch(currentFork, NextORENumber));
+      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
 
-      epoch.isEmpty.should.be.equal(true);
-      epoch.requestStart.should.be.bignumber.equal(first(requestIds));
-      epoch.requestEnd.should.be.bignumber.equal(last(requestIds));
-      epoch.firstRequestBlockId.should.be.bignumber.equal(NextORBId);
+      expect(epoch.isEmpty).to.be.equal(true);
+      expect(epoch.requestStart).to.be.equal(String(first(requestIds)));
+      expect(epoch.requestEnd).to.be.equal(String(last(requestIds)));
+      expect(epoch.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
   });
 
@@ -1410,10 +1409,6 @@ function timeout (sec) {
   return new Promise((resolve) => {
     setTimeout(resolve, sec * 1000);
   });
-}
-
-function calcTrieKey (addr) {
-  return web3.sha3(appendHex(padLeft(addr), padLeft('0x02')), { encoding: 'hex' });
 }
 
 function log (...args) {

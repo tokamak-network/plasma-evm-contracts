@@ -49,6 +49,7 @@ module.exports = {
     },
     useColors: true,
     enableTimeouts: false,
+    bail: true,
   },
   compilers: {
     solc: {
