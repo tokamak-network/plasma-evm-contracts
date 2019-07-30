@@ -472,7 +472,7 @@ library Data {
       abi.encode(
         bytes32(uint(self.isExit ? 1 : 0)),
         _requestId,
-        bytes32(bytes20(self.requestor)),
+        uint256(uint160(self.requestor)),
         self.trieKey,
         self.trieValue
       )
