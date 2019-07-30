@@ -636,11 +636,12 @@ contract RootChain is RootChainStorage, RootChainEvent {
 
     // check next block
     if (requestId == ORB.requestEnd) {
+      // TODO: iterator blocks by NRE length for NRE'
       if (fork.forkedBlock > 0 && lastAppliedBlockNumber == fork.forkedBlock - 1) {
         lastAppliedForkNumber += 1;
       }
 
-      lastAppliedBlockNumber += 1;
+      lastAppliedBlockNumber += NRELength;
     }
 
     lastAppliedERO = requestId + 1;

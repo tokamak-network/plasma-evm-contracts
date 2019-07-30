@@ -170,6 +170,13 @@ library Data {
     epoch.epochTransactionsRoot = _epochTransactionsRoot;
     epoch.epochReceiptsRoot = _epochReceiptsRoot;
 
+    // NOTE: link from block to epoch is required to finalize request and to find reference block when forked.
+    //       but it should be refactored to be less gas-consuming.
+    for (uint i = _startBlockNumber; i <= _endBlockNumber; i++) {
+      _f.blocks[i].epochNumber = uint64(_epochNumber);
+      _f.blocks[i].timestamp = uint64(block.timestamp);
+    }
+
     _f.lastEpoch = uint64(_epochNumber);
     _f.lastBlock = uint64(_endBlockNumber);
   }
