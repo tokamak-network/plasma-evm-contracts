@@ -1,13 +1,13 @@
 pragma solidity ^0.5.0;
 
-import "./lib/SafeMath.sol";
-import "./lib/Math.sol";
-import "./lib/Data.sol";
-import "./lib/Address.sol";
-import "./lib/BMT.sol";
+import "../lib/SafeMath.sol";
+import "../lib/Math.sol";
+import "../lib/Data.sol";
+import "../lib/Address.sol";
+import "../lib/BMT.sol";
 
-import "./RootChainStorage.sol";
-import "./RootChainEvent.sol";
+import "../RootChainStorage.sol";
+import "../RootChainEvent.sol";
 
 
 contract EpochHandler is RootChainStorage, RootChainEvent {
@@ -25,10 +25,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
   /**
    * @notice Declare to submit URB.
    */
-  function prepareToSubmitURB()
-    public
-    payable
-  {
+  function prepareToSubmitURB() public payable {
     Data.Fork storage cur = forks[currentFork];
     Data.Fork storage next = forks[currentFork + 1];
 
@@ -50,19 +47,19 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     epoch.isRequest = true;
     epoch.userActivated = true;
 
-    epoch.requestStart = firstUAF ? 0 : cur.epochs[cur.firstEpoch].requestEnd + 1;
-    epoch.requestEnd = uint64(ERUs.length - 1);
+    epoch.RE.requestStart = firstUAF ? 0 : cur.epochs[cur.firstEpoch].RE.requestEnd + 1;
+    epoch.RE.requestEnd = uint64(ERUs.length - 1);
 
-    assert(epoch.requestStart <= epoch.requestEnd);
+    assert(epoch.RE.requestStart <= epoch.RE.requestEnd);
 
-    uint64 numBlocks = uint64(Data.calcNumBlock(epoch.requestStart, epoch.requestEnd));
+    uint64 numBlocks = uint64(Data.calcNumBlock(epoch.RE.requestStart, epoch.RE.requestEnd));
     epoch.startBlockNumber = next.firstBlock;
     epoch.endBlockNumber = epoch.startBlockNumber
       .add64(numBlocks)
       .sub64(1);
 
-    epoch.firstRequestBlockId = firstUAF ? 0 :
-      cur.epochs[cur.firstEpoch].firstRequestBlockId
+    epoch.RE.firstRequestBlockId = firstUAF ? 0 :
+      cur.epochs[cur.firstEpoch].RE.firstRequestBlockId
         .add64(
           cur.epochs[cur.firstEpoch].endBlockNumber
             .sub64(cur.epochs[cur.firstEpoch].startBlockNumber)
@@ -73,7 +70,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     for (uint64 i = 0; i < numBlocks; i++) {
       next.blocks[epoch.startBlockNumber.add64(i)].isRequest = true;
       next.blocks[epoch.startBlockNumber.add64(i)].userActivated = true;
-      next.blocks[epoch.startBlockNumber.add64(i)].requestBlockId = epoch.firstRequestBlockId + i;
+      next.blocks[epoch.startBlockNumber.add64(i)].requestBlockId = epoch.RE.firstRequestBlockId + i;
     }
 
     emit EpochPrepared(
@@ -81,8 +78,8 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
       next.firstEpoch,
       epoch.startBlockNumber,
       epoch.endBlockNumber,
-      epoch.requestStart,
-      epoch.requestEnd,
+      epoch.RE.requestStart,
+      epoch.RE.requestEnd,
       false,
       epoch.isRequest,
       epoch.userActivated,
@@ -96,7 +93,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
    * @notice prepare to submit ORB. It prevents further new requests from
    * being included in the ORB epoch.
    */
-  function _prepareToSubmitORB() public payable {
+  function prepareToSubmitORB() public payable {
     Data.Fork storage fork = forks[currentFork];
 
     require(currentFork == 0 || fork.rebased);
@@ -109,17 +106,17 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     epoch.timestamp = uint64(block.timestamp);
 
     nextRequestEpoch.isRequest = true;
-    nextRequestEpoch.numEnter = uint64(numEnterForORB);
+    nextRequestEpoch.RE.numEnter = uint64(numEnterForORB);
     numEnterForORB = 0;
 
     // link first enter epoch and last enter epoch
-    if (epoch.numEnter > 0) {
+    if (epoch.RE.numEnter > 0) {
       if (fork.firstEnterEpoch == 0) {
         // NOTE: If chain is forked before the first block of the epoch is submitted,
         //       then fork.firstEnterEpoch > fork.lastEpoch
         fork.firstEnterEpoch = epochNumber;
       } else {
-        fork.epochs[fork.lastEnterEpoch].nextEnterEpoch = epochNumber;
+        fork.epochs[fork.lastEnterEpoch].RE.nextEnterEpoch = epochNumber;
       }
       fork.lastEnterEpoch = epochNumber;
     }
@@ -132,7 +129,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
 
     uint64 numBlocks = epoch.isEmpty
       ? 0
-      : uint64(Math.divCeil(epoch.requestEnd - epoch.requestStart + 1, Data.MAX_REQUESTS()));
+      : uint64(Math.divCeil(epoch.RE.requestEnd - epoch.RE.requestStart + 1, Data.MAX_REQUESTS()));
 
     // set epoch's start and end block number
     if (epoch.isEmpty) {
@@ -144,48 +141,48 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     }
 
     // check if next request epoch is empty
-    if (EROs.length == 0 || EROs.length - 1 == uint(epoch.requestEnd)) {
+    if (EROs.length == 0 || EROs.length - 1 == uint(epoch.RE.requestEnd)) {
       nextRequestEpoch.isEmpty = true;
     }
 
     // set next request epoch's  start and end request id
     if (!nextRequestEpoch.isEmpty) {
       if (firstFilledORENumber[currentFork] == epochNumber && epoch.rebase) {
-        nextRequestEpoch.requestStart = epoch.requestEnd + 1;
-        nextRequestEpoch.firstRequestBlockId = epoch.firstRequestBlockId + 1;
+        nextRequestEpoch.RE.requestStart = epoch.RE.requestEnd + 1;
+        nextRequestEpoch.RE.firstRequestBlockId = epoch.RE.firstRequestBlockId + 1;
       } else if (firstFilledORENumber[currentFork] == 0) {
-        nextRequestEpoch.requestStart = epoch.requestEnd;
-        nextRequestEpoch.firstRequestBlockId = epoch.firstRequestBlockId;
+        nextRequestEpoch.RE.requestStart = epoch.RE.requestEnd;
+        nextRequestEpoch.RE.firstRequestBlockId = epoch.RE.firstRequestBlockId;
       } else if (!epoch.isEmpty) {
-        nextRequestEpoch.requestStart = epoch.requestEnd + 1;
-        nextRequestEpoch.firstRequestBlockId = epoch.firstRequestBlockId + numBlocks;
+        nextRequestEpoch.RE.requestStart = epoch.RE.requestEnd + 1;
+        nextRequestEpoch.RE.firstRequestBlockId = epoch.RE.firstRequestBlockId + numBlocks;
       } else {
-        nextRequestEpoch.requestStart = epoch.requestEnd + 1;
-        nextRequestEpoch.firstRequestBlockId = epoch.firstRequestBlockId + 1;
+        nextRequestEpoch.RE.requestStart = epoch.RE.requestEnd + 1;
+        nextRequestEpoch.RE.firstRequestBlockId = epoch.RE.firstRequestBlockId + 1;
       }
     } else {
-      nextRequestEpoch.requestStart = epoch.requestEnd;
+      nextRequestEpoch.RE.requestStart = epoch.RE.requestEnd;
 
       if (!epoch.isEmpty) {
-        nextRequestEpoch.firstRequestBlockId = epoch.firstRequestBlockId + numBlocks - 1;
+        nextRequestEpoch.RE.firstRequestBlockId = epoch.RE.firstRequestBlockId + numBlocks - 1;
       } else {
-        nextRequestEpoch.firstRequestBlockId = epoch.firstRequestBlockId;
+        nextRequestEpoch.RE.firstRequestBlockId = epoch.RE.firstRequestBlockId;
       }
 
       // if (!epoch.isEmpty) {
-      //   nextRequestEpoch.requestStart = epoch.requestEnd + 1;
-      //   nextRequestEpoch.firstRequestBlockId = epoch.firstRequestBlockId + numBlocks;
+      //   nextRequestEpoch.RE.requestStart = epoch.RE.requestEnd + 1;
+      //   nextRequestEpoch.RE.firstRequestBlockId = epoch.RE.firstRequestBlockId + numBlocks;
       // } else {
-      //   nextRequestEpoch.requestStart = epoch.requestEnd;
-      //   nextRequestEpoch.firstRequestBlockId = epoch.firstRequestBlockId;
+      //   nextRequestEpoch.RE.requestStart = epoch.RE.requestEnd;
+      //   nextRequestEpoch.RE.firstRequestBlockId = epoch.RE.firstRequestBlockId;
       // }
     }
 
     // check next request block is empty
     if (nextRequestEpoch.isEmpty) {
-      nextRequestEpoch.requestEnd = nextRequestEpoch.requestStart;
+      nextRequestEpoch.RE.requestEnd = nextRequestEpoch.RE.requestStart;
     } else {
-      nextRequestEpoch.requestEnd = uint64(EROs.length - 1);
+      nextRequestEpoch.RE.requestEnd = uint64(EROs.length - 1);
 
       // seal last ORB for next request epoch
       ORBs[ORBs.length.sub(1)].submitted = true;
@@ -196,8 +193,8 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
       epochNumber,
       epoch.startBlockNumber,
       epoch.endBlockNumber,
-      epoch.requestStart,
-      epoch.requestEnd,
+      epoch.RE.requestStart,
+      epoch.RE.requestEnd,
       epoch.isEmpty,
       true,
       false,
@@ -207,11 +204,11 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     // no ORB to submit
     if (epoch.isEmpty) {
       fork.lastEpoch = epochNumber;
-      _prepareToSubmitNRB();
+      prepareToSubmitNRB();
     }
   }
 
-  function _prepareToSubmitNRB() public payable {
+  function prepareToSubmitNRB() public payable {
     Data.Fork storage fork = forks[currentFork];
 
     require(currentFork == 0 || fork.rebased);
@@ -245,7 +242,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     );
   }
 
-  function prepareOREAfterURE() public payable {
+  function prepareOREAfterURE() public payable  {
     Data.Fork storage _f = forks[currentFork];
     bool isOREEmpty = _prepareOREAfterURE(_f, forks[currentFork.sub(1)], ORBs);
     uint64 epochNumber = _f.lastEpoch + 1;
@@ -258,8 +255,8 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
       epochNumber,
       _f.epochs[epochNumber].startBlockNumber,
       _f.epochs[epochNumber].endBlockNumber,
-      _f.epochs[epochNumber].requestStart,
-      _f.epochs[epochNumber].requestEnd,
+      _f.epochs[epochNumber].RE.requestStart,
+      _f.epochs[epochNumber].RE.requestEnd,
       isOREEmpty,
       true,
       false,
@@ -276,8 +273,8 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
         epochNumber,
         _f.epochs[epochNumber].startBlockNumber,
         _f.epochs[epochNumber].endBlockNumber,
-        _f.epochs[epochNumber].requestStart,
-        _f.epochs[epochNumber].requestEnd,
+        _f.epochs[epochNumber].RE.requestStart,
+        _f.epochs[epochNumber].RE.requestEnd,
         true,
         true,
         false
@@ -296,7 +293,8 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
       uint64 requestBlockId,
       uint64 requestStart,
       uint64 requestEnd
-    ) {
+    )
+  {
     uint forkNumber = currentFork.sub(1);
 
     while (true) {
@@ -328,8 +326,8 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
 
         return (
           fork.blocks[latestRequestEpoch.startBlockNumber].requestBlockId,
-          firstRequestEpoch.requestStart,
-          latestRequestEpoch.requestEnd
+          firstRequestEpoch.RE.requestStart,
+          latestRequestEpoch.RE.requestEnd
         );
       }
 
@@ -337,7 +335,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     }
   }
 
-  function prepareNREAfterURE() public payable {
+  function prepareNREAfterURE() public payable  {
     Data.Fork storage _f = forks[currentFork];
     bool isNREEmpty = _prepareNREAfterURE(_f, forks[currentFork.sub(1)]);
     uint64 epochNumber = _f.lastEpoch + 1;
@@ -366,13 +364,13 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
         epochNumber,
         _f.epochs[epochNumber].startBlockNumber,
         _f.epochs[epochNumber].endBlockNumber,
-        _f.epochs[epochNumber].requestStart,
-        _f.epochs[epochNumber].requestEnd,
+        _f.epochs[epochNumber].RE.requestStart,
+        _f.epochs[epochNumber].RE.requestEnd,
         true,
         false,
         false
       );
-      _prepareToSubmitNRB();
+      prepareToSubmitNRB();
     }
   }
 
@@ -408,7 +406,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
       forkedEpochNumber + 1;
 
     // find requestBlockId, start, end
-    (epoch.firstRequestBlockId, epoch.requestStart, epoch.requestEnd) = _getLatestRequestInfo();
+    (epoch.RE.firstRequestBlockId, epoch.RE.requestStart, epoch.RE.requestEnd) = _getLatestRequestInfo();
 
     // short circuit if there is no ORE at all.
     if (!_pre.epochs[firstEpochNumber].initialized) {
@@ -432,7 +430,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
 
     // find next ORB to include into forked chain if ORE' is not empty
     uint firstEnterEpoch = firstEpochNumber;
-    while (_pre.epochs[firstEpochNumber].numEnter == 0) {
+    while (_pre.epochs[firstEpochNumber].RE.numEnter == 0) {
       firstEnterEpoch += 2;
     }
 

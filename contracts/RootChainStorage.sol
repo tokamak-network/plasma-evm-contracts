@@ -10,6 +10,7 @@ contract RootChainStorage {
   bool public development; // dev mode
   address public operator;
   address public epochHandler;
+  address public submitHandler;
   address public etherToken;
 
   // 1 epoch = N NRBs or k URBs or k ORBs.

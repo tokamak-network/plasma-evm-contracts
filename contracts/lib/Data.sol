@@ -66,11 +66,12 @@ library Data {
    */
   struct Fork {
     // uint64 blockToRenew;
-    uint64 forkedBlock;
+    uint64 forkedBlock; // TODO: change to forkedEpoch
     uint64 firstEpoch;
     uint64 lastEpoch;
     uint64 firstBlock;
     uint64 lastBlock;
+    uint64 lastFinalizedEpoch;
     uint64 lastFinalizedBlock;
     uint64 timestamp;
     uint64 firstEnterEpoch;
@@ -131,7 +132,7 @@ library Data {
     b.userActivated = _userActivated;
 
     if (_isRequest) {
-      b.requestBlockId = uint64(epoch.firstRequestBlockId + blockNumber - epoch.startBlockNumber);
+      b.requestBlockId = uint64(epoch.RE.firstRequestBlockId + blockNumber - epoch.startBlockNumber);
     }
 
     _f.lastBlock = uint64(blockNumber);
@@ -166,16 +167,10 @@ library Data {
     require(epoch.startBlockNumber == _startBlockNumber);
     require(epoch.endBlockNumber == _endBlockNumber);
 
-    epoch.epochStateRoot = _epochStateRoot;
-    epoch.epochTransactionsRoot = _epochTransactionsRoot;
-    epoch.epochReceiptsRoot = _epochReceiptsRoot;
-
-    // NOTE: link from block to epoch is required to finalize request and to find reference block when forked.
-    //       but it should be refactored to be less gas-consuming.
-    for (uint i = _startBlockNumber; i <= _endBlockNumber; i++) {
-      _f.blocks[i].epochNumber = uint64(_epochNumber);
-      _f.blocks[i].timestamp = uint64(block.timestamp);
-    }
+    epoch.NRE.epochStateRoot = _epochStateRoot;
+    epoch.NRE.epochTransactionsRoot = _epochTransactionsRoot;
+    epoch.NRE.epochReceiptsRoot = _epochReceiptsRoot;
+    epoch.NRE.submittedAt = uint64(block.timestamp);
 
     _f.lastEpoch = uint64(_epochNumber);
     _f.lastBlock = uint64(_endBlockNumber);
@@ -218,7 +213,7 @@ library Data {
       }
 
       // skip until epoch has enter request
-      while (_pre.epochs[epochNumber].numEnter == 0 && _pre.epochs[epochNumber].initialized) {
+      while (_pre.epochs[epochNumber].RE.numEnter == 0 && _pre.epochs[epochNumber].initialized) {
         epochNumber += 2;
         blockNumber = _pre.epochs[epochNumber].startBlockNumber;
       }
@@ -303,7 +298,7 @@ library Data {
    * epochTransactionsRoot  merkle root of [block.transactionsRoot] for block in the epoch.
    * epochReceiptsRoot      merkle root of [block.receiptsRoot] for block in the epoch.
    * isEmpty                true if request epoch has no request block
-   *                        also and requestStart == requestEnd == previousEpoch.requestEnd
+   *                        also and requestStart == requestEnd == previousEpoch.RE.requestEnd
    *                        and startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
    *                        and firstRequestBlockId == previousEpoch.firstRequestBlockId
    * initialized            true if epoch is initialized
@@ -312,27 +307,40 @@ library Data {
    * rebase                 true in case of ORE' or NRE'
    */
   struct Epoch {
-    uint64 requestStart;
-    uint64 requestEnd;
     uint64 startBlockNumber;
     uint64 endBlockNumber;
-    uint64 firstRequestBlockId;
-    uint64 numEnter;
-    uint64 nextEnterEpoch;
     uint64 timestamp;
-    bytes32 epochStateRoot;
-    bytes32 epochTransactionsRoot;
-    bytes32 epochReceiptsRoot;
     bool isEmpty;
     bool initialized;
     bool isRequest;
     bool userActivated;
     bool rebase;
+    RequestEpochMeta RE;
+    NonRequestEpochMeta NRE;
+  }
+
+  struct NonRequestEpochMeta {
+    bytes32 epochStateRoot;
+    bytes32 epochTransactionsRoot;
+    bytes32 epochReceiptsRoot;
+    uint64 submittedAt;
+    uint64 finalizedAt;
+    bool finalized;
+    bool challenging;
+    bool challenged;
+  }
+
+  struct RequestEpochMeta {
+    uint64 requestStart;
+    uint64 requestEnd;
+    uint64 firstRequestBlockId;
+    uint64 numEnter;
+    uint64 nextEnterEpoch;
   }
 
   // function noExit(Epoch storage self) internal returns (bool) {
   //   if (self.rebase) return true;
-  //   return self.requestEnd.sub64(self.requestStart).add64(1) == self.numEnter;
+  //   return self.RE.requestEnd.sub64(self.RE.requestStart).add64(1) == self.RE.firstRequestBlockId;
   // }
 
   function getNumBlocks(Epoch storage _e) internal view returns (uint) {
@@ -342,7 +350,7 @@ library Data {
 
   function getNumRequests(Epoch storage _e) internal view returns (uint) {
     if (_e.isEmpty || _e.rebase && _e.endBlockNumber == 0) return 0;
-    return _e.requestEnd + 1 - _e.requestStart;
+    return _e.RE.requestEnd + 1 - _e.RE.requestStart;
   }
 
   function calcNumBlock(uint _rs, uint _re) internal pure returns (uint) {
@@ -523,7 +531,7 @@ library Data {
   }
 
   // function noExit(RequestBlock storage self) internal returns (bool) {
-  //   return self.requestEnd.sub64(self.requestStart).add64(1) == self.numEnter;
+  //   return self.RE.requestEnd.sub64(self.RE.requestStart).add64(1) == self.RE.firstRequestBlockId;
   // }
 
   function init(RequestBlock storage self) internal {
@@ -545,7 +553,7 @@ library Data {
     /* use binary merkle tree instead of patricia tree
     require(self.trie != address(0));
 
-    uint txIndex = _requestId.sub(self.requestStart);
+    uint txIndex = _requestId.sub(self.RE.requestStart);
 
     bytes memory key = txIndex.encodeUint();
     bytes memory value = toBytes(toTX(_request, _requestId, false));
