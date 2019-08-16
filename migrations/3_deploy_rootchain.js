@@ -1,4 +1,5 @@
 const EpochHandler = artifacts.require('EpochHandler.sol');
+const SubmitHandler = artifacts.require('SubmitHandler.sol');
 const RootChain = artifacts.require('RootChain.sol');
 const EtherToken = artifacts.require('EtherToken.sol');
 
@@ -10,10 +11,17 @@ const transactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc00162
 const receiptsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
 
 module.exports = function (deployer) {
+  let epochHandler;
+
   deployer.deploy(EpochHandler)
-    .then((epochHandler) => deployer.deploy(
+    .then((_epochHandler) => { epochHandler = _epochHandler; })
+    .then(() => deployer.deploy(
+      SubmitHandler,
+      epochHandler.address,
+    )).then((submitHandler) => deployer.deploy(
       RootChain,
       epochHandler.address,
+      submitHandler.address,
       EtherToken.address,
       development,
       NRBEpochLength,

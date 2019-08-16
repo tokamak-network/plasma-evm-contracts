@@ -38,17 +38,17 @@
     "eth-gas-reporter": "^0.1.12",
     "ethereumjs-abi": "^0.6.5",
     "ethjs-abi": "^0.2.1",
-    "ganache-cli": "^6.2.5",
+    "ganache-cli": "^6.5.1",
     "lodash": "^4.17.11",
     "openzeppelin-solidity": "^2.3.0",
-    "openzeppelin-test-helpers": "^0.4.0",
+    "openzeppelin-test-helpers": "^0.4.2",
     "solidity-coverage": "^0.5.4",
     "solidity-docgen": "github:OpenZeppelin/solidity-docgen#03f42b5e271b1e1c1d0b814b921ecdc086055255",
     "solium": "^1.1.8",
-    "truffle": "^5.0.26",
+    "truffle": "^5.0.31",
     "truffle-hdwallet-provider": "0.0.5",
     "truffle-privatekey-provider": "^0.1.0",
-    "web3-utils": "^1.0.0-beta.34"
+    "web3-utils": "^1.2.1"
   },
   "dependencies": {
     "chai-bytes": "^0.1.1",
