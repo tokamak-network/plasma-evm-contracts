@@ -19,11 +19,10 @@ library Data {
   using RLPEncode for *;
   using BMT for *;
 
-  // signature of function applyRequestInChildChain(bool,uint256,address,bytes32,bytes)
-  bytes4 public constant APPLY_IN_CHILDCHAIN_SIGNATURE = 0x141ecf46;
-
-  // signature of function applyRequestInRootChain(bool,uint256,address,bytes32,bytes)
-  bytes4 public constant APPLY_IN_ROOTCHAIN_SIGNATURE = 0xa9f79308;
+  // solium-disable max-len
+  bytes4 public constant APPLY_IN_CHILDCHAIN_SIGNATURE = bytes4(keccak256("applyRequestInChildChain(bool,uint256,address,bytes32,bytes)"));
+  bytes4 public constant APPLY_IN_ROOTCHAIN_SIGNATURE = bytes4(keccak256("applyRequestInRootChain(bool,uint256,address,bytes32,bytes)"));
+  // solium-enable max-len
 
   address public constant NA = address(0);
   uint public constant NA_TX_GAS_PRICE = 1e9;

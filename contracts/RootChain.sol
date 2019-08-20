@@ -96,7 +96,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
     _doFinalizeBlock(fork, genesis, 0);
     _doFinalizeNRE(fork, 0);
 
-    _delegatePrepareToSubmitNRB();
+    _delegatePrepareNRE();
   }
 
   /*

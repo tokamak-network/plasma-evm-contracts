@@ -49,7 +49,7 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
       endBlockNumber
     );
 
-    _delegatePrepareToSubmitORB();
+    _delegatePrepareORE();
     return true;
   }
 
@@ -109,7 +109,7 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
       );
 
       if (blockNumber == curFork.epochs[epochNumber].endBlockNumber) {
-        _delegatePrepareToSubmitNRB();
+        _delegatePrepareNRE();
       }
 
       return true;

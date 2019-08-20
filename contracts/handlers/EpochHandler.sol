@@ -93,7 +93,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
    * @notice prepare to submit ORB. It prevents further new requests from
    * being included in the ORB epoch.
    */
-  function prepareToSubmitORB() public payable {
+  function prepareORE() public payable {
     Data.Fork storage fork = forks[currentFork];
 
     require(currentFork == 0 || fork.rebased);
@@ -120,7 +120,6 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
       }
       fork.lastEnterEpoch = epochNumber;
     }
-
 
     // set if this epoch is the first ORE.
     if (firstFilledORENumber[currentFork] == 0 && !epoch.isEmpty) {
@@ -204,11 +203,11 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     // no ORB to submit
     if (epoch.isEmpty) {
       fork.lastEpoch = epochNumber;
-      prepareToSubmitNRB();
+      prepareNRE();
     }
   }
 
-  function prepareToSubmitNRB() public payable {
+  function prepareNRE() public payable {
     Data.Fork storage fork = forks[currentFork];
 
     require(currentFork == 0 || fork.rebased);
@@ -370,7 +369,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
         false,
         false
       );
-      prepareToSubmitNRB();
+      prepareNRE();
     }
   }
 

@@ -14,8 +14,8 @@ contract RootChainBase is RootChainStorage, RootChainEvent {
 
   // solium-disable mixedcase
   // EpochHandler functions
-  bytes4 constant PREPARE_TO_SUTMIBT_ORB_SIG = bytes4(keccak256("prepareToSubmitORB()"));
-  bytes4 constant PREPARE_TO_SUTMIBT_NRB_SIG = bytes4(keccak256("prepareToSubmitNRB()"));
+  bytes4 constant PREPARE_TO_SUTMIBT_ORB_SIG = bytes4(keccak256("prepareORE()"));
+  bytes4 constant PREPARE_TO_SUTMIBT_NRB_SIG = bytes4(keccak256("prepareNRE()"));
   bytes4 constant PREPARE_TO_SUTMIBT_URB_SIG = bytes4(keccak256("prepareToSubmitURB()"));
   bytes4 constant PREPARE_ORE_AFTER_URE_SIG = bytes4(keccak256("prepareOREAfterURE()"));
   bytes4 constant PREPARE_NRE_AFTER_URE_SIG = bytes4(keccak256("prepareNREAfterURE()"));
@@ -30,14 +30,14 @@ contract RootChainBase is RootChainStorage, RootChainEvent {
    * Functions
    */
   // delegate to epoch handler
-  function _delegatePrepareToSubmitORB() internal {
+  function _delegatePrepareORE() internal {
     // solium-disable-next-line security/no-low-level-calls, max-len, no-unused-vars
     (bool success, bytes memory returnData) = epochHandler.delegatecall(abi.encodeWithSelector(PREPARE_TO_SUTMIBT_ORB_SIG));
     require(success);
   }
 
   // delegate to epoch handler
-  function _delegatePrepareToSubmitNRB() internal {
+  function _delegatePrepareNRE() internal {
     // solium-disable-next-line security/no-low-level-calls, max-len, no-unused-vars
     (bool success, bytes memory returnData) = epochHandler.delegatecall(abi.encodeWithSelector(PREPARE_TO_SUTMIBT_NRB_SIG));
     // (bool success, bytes memory returnData) = epochHandler.delegatecall(abi.encodeWithSelector(PREPARE_TO_SUTMIBT_NRB_SIG));
