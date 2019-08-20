@@ -27,7 +27,6 @@ contract RootChainStorage {
 
   mapping (uint => Data.Fork) public forks;
 
-
   // Enter & Exit requests for ORB / URB
   Data.Request[] public EROs;
   Data.Request[] public ERUs;
@@ -41,9 +40,14 @@ contract RootChainStorage {
 
   // Last applied request
   uint public lastAppliedForkNumber;
+  uint public lastAppliedEpochNumber;
   uint public lastAppliedBlockNumber;
-  uint public lastAppliedERO;
-  uint public lastAppliedERU;
+
+  uint public EROIdToFinalize;
+  uint public ERUIdToFinalize;
+
+  // uint public finalizableEROId = 2^256 - 1;
+  // uint public finalizableERUId = 2^256 - 1;
 
   // Requestable contract address in child chain
   mapping (address => address) public requestableContracts;

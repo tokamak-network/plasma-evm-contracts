@@ -422,6 +422,8 @@ library Data {
     internal
     returns (bool)
   {
+    require(gasleft() > NA_TX_GAS_LIMIT + 5000);
+
     return RequestableI(self.to).applyRequestInRootChain(
       self.isExit,
       _requestId,
@@ -455,6 +457,7 @@ library Data {
 
       require(v > 0);
 
+      // no trieKey and trieValue for EtherToken enter
       out.value = uint128(v);
     } else {
       out.to = _to;

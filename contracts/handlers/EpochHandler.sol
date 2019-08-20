@@ -214,7 +214,7 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     require(currentFork == 0 || fork.rebased);
 
     uint64 epochNumber = fork.lastEpoch + 1;
-    Data.Epoch storage curEpoch = fork.epochs[epochNumber];
+    Data.Epoch storage epoch = fork.epochs[epochNumber];
 
     uint startBlockNumber = 1;
 
@@ -222,23 +222,23 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
       startBlockNumber = fork.epochs[fork.lastEpoch].endBlockNumber + 1;
     }
 
-    curEpoch.initialized = true;
-    curEpoch.timestamp = uint64(block.timestamp);
+    epoch.initialized = true;
+    epoch.timestamp = uint64(block.timestamp);
 
-    curEpoch.startBlockNumber = uint64(startBlockNumber);
-    curEpoch.endBlockNumber = uint64(startBlockNumber + NRELength - 1);
+    epoch.startBlockNumber = uint64(startBlockNumber);
+    epoch.endBlockNumber = uint64(startBlockNumber + NRELength - 1);
 
     emit EpochPrepared(
       currentFork,
       epochNumber,
-      curEpoch.startBlockNumber,
-      curEpoch.endBlockNumber,
+      epoch.startBlockNumber,
+      epoch.endBlockNumber,
       0,
       0,
       false,
       false,
       false,
-      curEpoch.rebase
+      epoch.rebase
     );
   }
 

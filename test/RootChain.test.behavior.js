@@ -226,6 +226,9 @@ contract('RootChain', async ([
     expect(epoch.isRequest).to.equal(true);
     expect(epoch.isEmpty).to.equal(false);
 
+    const offset = new BN(blockNumber).sub(new BN(epoch.startBlockNumber));
+    expect(new BN(block.requestBlockId)).to.be.bignumber.equal(epoch.RE.firstRequestBlockId.add(offset));
+
     // check previous and current epoch wrt delayed request
     (async function () {
       if (!epoch.rebase) {
@@ -416,27 +419,60 @@ contract('RootChain', async ([
     }
   }
 
-  async function finalizeBlocks () {
+  async function finalizeBlocks (nTry = 0) {
+    log('Try:', nTry);
+
     // finalize blocks until all blocks are fianlized
     const lastFinalizedBlockNumber = await rootchain.getLastFinalizedBlock(currentFork);
     const blockNumberToFinalize = lastFinalizedBlockNumber.add(new BN('1'));
     const block = await rootchain.getBlock(currentFork, blockNumberToFinalize);
 
     // short circuit if all blocks are finalized
-    if (lastFinalizedBlockNumber.gte(forks[currentFork].lastBlock)) {
+    if (lastFinalizedBlockNumber.gte(new BN(forks[currentFork].lastBlock))) {
       return;
     }
 
-    const finalizedAt = block.timestamp.add(CP_WITHHOLDING.add(new BN('1')));
-
-    if (await time.latestTime() < finalizedAt) {
-      await time.increaseTimeTo(finalizedAt);
-    }
+    await time.increase(CP_WITHHOLDING + 1);
     await rootchain.finalizeBlock();
 
     forks[currentFork].lastFinalizedBlock = (await rootchain.getLastFinalizedBlock(currentFork)).toNumber();
 
-    return finalizeBlocks();
+    return finalizeBlocks(nTry + 1);
+  }
+
+  async function finalizeRequests (requestIds = []) {
+    await finalizeBlocks();
+
+    // const lastFinalizedBlockNumber = await rootchain.getLastFinalizedBlock(currentFork);
+    // const lastBlockNumber = await rootchain.lastBlock(currentFork, lastFinalizedBlockNumber);
+
+    // expect(lastBlockNumber.cmp(lastFinalizedBlockNumber) === 0, 'Blocks are not finalized yet');
+
+    let requestIdToFinalize = await rootchain.EROIdToFinalize();
+    const numRequests = await rootchain.getNumEROs();
+
+    if (requestIds.length === 0) {
+      requestIds = range(requestIdToFinalize, numRequests);
+    }
+
+    const lastRequestId = new BN(last(requestIds));
+
+    console.log("requestIds", requestIds);
+    console.log("requestIdToFinalize", Number(requestIdToFinalize));
+    console.log("lastRequestId", Number(lastRequestId));
+
+
+
+    for (const requestId of requestIds) {
+      console.log("requestId", requestId);
+
+      expect(requestIdToFinalize).to.be.bignumber.equal(new BN(requestId));
+      await time.increase(CP_EXIT + 1);
+      await rootchain.finalizeRequest();
+      requestIdToFinalize = await rootchain.EROIdToFinalize();
+    }
+
+    expect(requestIdToFinalize.cmp(lastRequestId) === 0, 'Some requests are not finalized yet');
   }
 
   async function logEpoch (forkNumber, epochNumber) {
@@ -554,6 +590,8 @@ contract('RootChain', async ([
       expect(epoch.RE.requestEnd).to.be.equal(String(last(requestIds)));
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
+
+    it('Blocks should be fianlzied', finalizeBlocks);
   });
 
   describe('NRE#3 - ORE#4 (ETH Deposit -> Token Deposit)', async () => {
@@ -642,7 +680,6 @@ contract('RootChain', async ([
       forks[currentFork].lastEpoch += 1;
     });
 
-
     it('ORE#4 should have previous requests', async () => {
       const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
@@ -662,6 +699,10 @@ contract('RootChain', async ([
       expect(epoch.RE.requestEnd).to.be.equal(String(last(requestIds)));
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
+
+    it('Blocks should be fianlzied', finalizeBlocks);
+
+    it('Requests should be fianlzied', async () => finalizeRequests(previousRequestIds));
   });
 
   describe('NRE#5 - ORE#6 (Token Deposit -> empty)', async () => {
@@ -718,7 +759,6 @@ contract('RootChain', async ([
       forks[currentFork].lastEpoch += 1;
     });
 
-
     it('ORE#6 should have previous requests', async () => {
       const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
@@ -738,6 +778,10 @@ contract('RootChain', async ([
       expect(epoch.RE.requestEnd).to.be.equal(String(last(requestIds)));
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
+
+    it('Blocks should be fianlzied', finalizeBlocks);
+
+    it('Requests should be fianlzied', async () => finalizeRequests(previousRequestIds));
   });
 
   describe('NRE#7 - ORE#8 (empty -> token withdrawal)', async () => {
@@ -823,6 +867,8 @@ contract('RootChain', async ([
       expect(epoch.RE.requestEnd).to.be.equal(String(last(requestIds)));
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
+
+    it('Blocks should be fianlzied', finalizeBlocks);
   });
 
   describe('NRE#9 - ORE#10 (token withdrawal -> bulk exit)', async () => {
@@ -911,7 +957,6 @@ contract('RootChain', async ([
       forks[currentFork].lastEpoch += 1;
     });
 
-
     it('ORE#10 should have previous requests', async () => {
       const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
@@ -931,6 +976,10 @@ contract('RootChain', async ([
       expect(epoch.RE.requestEnd).to.be.equal(String(last(requestIds)));
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(NextORBIds[0]));
     });
+
+    it('Blocks should be fianlzied', finalizeBlocks);
+
+    it('Requests should be fianlzied', async () => finalizeRequests(previousRequestIds));
   });
 
   describe('NRE#11 - ORE#12 (bulk request -> bulk requests)', async () => {
@@ -1038,7 +1087,6 @@ contract('RootChain', async ([
       forks[currentFork].lastEpoch += 1;
     });
 
-
     it('ORE#12 should have previous requests', async () => {
       const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
@@ -1058,6 +1106,10 @@ contract('RootChain', async ([
       expect(epoch.RE.requestEnd).to.be.equal(String(last(requestIds)));
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(NextORBIds[0]));
     });
+
+    it('Blocks should be fianlzied', finalizeBlocks);
+
+    it('Requests should be fianlzied', async () => finalizeRequests(previousRequestIds));
   });
 
   describe('NRE#13 - ORE#14 (bulk request -> empty)', async () => {
@@ -1124,7 +1176,6 @@ contract('RootChain', async ([
       forks[currentFork].lastEpoch += 1;
     });
 
-
     it('ORE#14 should have previous requests', async () => {
       const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
@@ -1144,6 +1195,10 @@ contract('RootChain', async ([
       expect(epoch.RE.requestEnd).to.be.equal(String(last(requestIds)));
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
+
+    it('Blocks should be fianlzied', finalizeBlocks);
+
+    it('Requests should be fianlzied', async () => finalizeRequests(previousRequestIds));
   });
 
   describe('NRE#15 - ORE#16 (empty -> empty)', async () => {
@@ -1202,6 +1257,8 @@ contract('RootChain', async ([
       expect(epoch.RE.requestEnd).to.be.equal(String(last(requestIds)));
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
+
+    it('Blocks should be fianlzied', finalizeBlocks);
   });
 
   describe('NRE#17 - ORE#18 (empty -> empty)', async () => {
@@ -1260,6 +1317,8 @@ contract('RootChain', async ([
       expect(epoch.RE.requestEnd).to.be.equal(String(last(requestIds)));
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
+
+    it('Blocks should be fianlzied', finalizeBlocks);
   });
 
   describe('NRE#19 - ORE#20 (empty -> bulk request)', async () => {
@@ -1351,6 +1410,8 @@ contract('RootChain', async ([
       expect(epoch.RE.requestEnd).to.be.equal(String(last(requestIds)));
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(first(NextORBIds)));
     });
+
+    it('Blocks should be fianlzied', finalizeBlocks);
   });
 
   describe('NRE#21 - ORE#22 (bulk request -> empty)', async () => {
@@ -1417,7 +1478,6 @@ contract('RootChain', async ([
       forks[currentFork].lastEpoch += 1;
     });
 
-
     it('ORE#22 should have previous requests', async () => {
       const epoch = await rootchain.getEpoch(currentFork, ORENumber);
 
@@ -1437,11 +1497,16 @@ contract('RootChain', async ([
       expect(epoch.RE.requestEnd).to.be.equal(String(last(requestIds)));
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(NextORBId));
     });
+
+    it('Blocks should be fianlzied', finalizeBlocks);
+
+    it('Requests should be fianlzied', async () => finalizeRequests(previousRequestIds));
   });
 
-  describe('finalization', async () => {
-    it('block should be fianlzied', finalizeBlocks);
-  });
+  // describe('finalization', async () => {
+  //   it('block should be fianlzied', finalizeBlocks);
+  //   it('Requests should be fianlzied', async () => finalizeRequests());
+  // });
 });
 
 function timeout (sec) {

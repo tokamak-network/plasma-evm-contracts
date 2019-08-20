@@ -394,17 +394,16 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
    * TODO: refactor implementation
    */
   function finalizeRequest() public returns (bool success) {
-    uint epochNumber;
     uint requestId;
     Data.Fork storage fork = forks[lastAppliedForkNumber];
+    uint epochNumber = lastAppliedEpochNumber;
 
     require(lastAppliedBlockNumber <= fork.lastBlock);
 
     Data.PlasmaBlock storage pb = fork.blocks[lastAppliedBlockNumber];
-    epochNumber = pb.epochNumber;
-
     Data.Epoch storage epoch = fork.epochs[epochNumber];
 
+    // TODO: execute after finding next request block
     // find next fork
     if (fork.forkedBlock != 0 && lastAppliedBlockNumber >= fork.forkedBlock) {
       lastAppliedForkNumber += 1;
@@ -414,30 +413,39 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
       epoch = fork.epochs[epochNumber];
 
       lastAppliedBlockNumber = fork.firstBlock;
+      lastAppliedEpochNumber = epochNumber;
+
       pb = fork.blocks[lastAppliedBlockNumber];
     }
 
     // find next request block
     if (!pb.isRequest) {
-      while (!epoch.isRequest || epoch.isEmpty) {
-        require(fork.epochs[epochNumber].initialized);
+      epochNumber = epochNumber + 1;
+
+      // TODO: make safe for OOG
+      while (fork.epochs[epochNumber].isEmpty || !fork.epochs[epochNumber].isRequest) {
         epochNumber = epochNumber + 1;
-        epoch = fork.epochs[epochNumber];
       }
 
+      epoch = fork.epochs[epochNumber];
       lastAppliedBlockNumber = epoch.startBlockNumber;
       pb = fork.blocks[lastAppliedBlockNumber];
+    } else {
+      epochNumber = pb.epochNumber;
+      epoch = fork.epochs[epochNumber];
     }
+
+    lastAppliedEpochNumber = epochNumber;
 
     require(!epoch.isEmpty);
     require(epoch.isRequest);
     require(pb.isRequest);
     require(pb.finalized);
-    require(pb.finalizedAt + CP_EXIT < block.timestamp);
+    require(pb.finalizedAt + CP_EXIT <= block.timestamp);
 
     // apply ERU
     if (pb.userActivated) {
-      requestId = lastAppliedERU;
+      requestId = ERUIdToFinalize;
 
       require(ERUs.length > requestId);
 
@@ -455,7 +463,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
         lastAppliedBlockNumber += 1;
       }
 
-      lastAppliedERU = requestId + 1;
+      ERUIdToFinalize = requestId + 1;
 
       if (ERU.isExit && !ERU.challenged) {
         // NOTE: do not check it reverted or not?
@@ -471,11 +479,10 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
     }
 
     // apply ERO
-    requestId = lastAppliedERO;
+    requestId = EROIdToFinalize;
 
     require(EROs.length > requestId);
 
-    Data.Request storage ERO = EROs[requestId];
     Data.RequestBlock storage ORB = ORBs[pb.requestBlockId];
 
     require(ORB.requestStart <= requestId && requestId <= ORB.requestEnd);
@@ -487,18 +494,18 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
         lastAppliedForkNumber += 1;
       }
 
-      lastAppliedBlockNumber += NRELength;
+      lastAppliedBlockNumber += 1;
     }
 
-    lastAppliedERO = requestId + 1;
+    Data.Request storage ERO = EROs[requestId];
+    EROIdToFinalize = requestId + 1;
+    ERO.finalized = true;
 
     if (ERO.isExit && !ERO.challenged) {
-      // NOTE: do not check it reverted or not?
       ERO.applyRequestInRootChain(requestId);
       ERO.requestor.transfer(COST_ERO);
       emit RequestApplied(requestId, false);
     }
-    ERO.finalized = true;
 
     emit RequestFinalized(requestId, false);
     return true;
@@ -685,7 +692,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
 
     // 2. finalize non request epoch
     uint nextEpochNumber = fork.lastFinalizedEpoch + 1;
-    if (fork.epochs[nextEpochNumber].isEmpty) {
+    while (fork.epochs[nextEpochNumber].isRequest) {
       nextEpochNumber += 1;
     }
 
