@@ -167,14 +167,14 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
       } else {
         nextRequestEpoch.RE.firstRequestBlockId = epoch.RE.firstRequestBlockId;
       }
+    }
 
-      // if (!epoch.isEmpty) {
-      //   nextRequestEpoch.RE.requestStart = epoch.RE.requestEnd + 1;
-      //   nextRequestEpoch.RE.firstRequestBlockId = epoch.RE.firstRequestBlockId + numBlocks;
-      // } else {
-      //   nextRequestEpoch.RE.requestStart = epoch.RE.requestEnd;
-      //   nextRequestEpoch.RE.firstRequestBlockId = epoch.RE.firstRequestBlockId;
-      // }
+    if (!epoch.isEmpty) {
+      uint lastEpochNumber = lastNonEmptyRequestEpoch[currentFork];
+      if (lastEpochNumber != 0) {
+        fork.epochs[lastEpochNumber].RE.nextEpoch = epochNumber;
+      }
+      lastNonEmptyRequestEpoch[currentFork] = epochNumber;
     }
 
     // check next request block is empty

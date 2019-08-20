@@ -38,13 +38,18 @@ contract RootChainStorage {
   // count enter requests for epoch
   uint public numEnterForORB;
 
+  // epoch number of last non-empty request epoch. In case of first non-empty epoch, it is 0.
+  mapping(uint => uint) public lastNonEmptyRequestEpoch;
+
   // Last applied request
   uint public lastAppliedForkNumber;
   uint public lastAppliedEpochNumber;
   uint public lastAppliedBlockNumber;
 
+  // solium-disable mixedcase
   uint public EROIdToFinalize;
   uint public ERUIdToFinalize;
+  // solium-enable mixedcase
 
   // uint public finalizableEROId = 2^256 - 1;
   // uint public finalizableERUId = 2^256 - 1;

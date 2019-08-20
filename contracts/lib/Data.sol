@@ -58,6 +58,8 @@ library Data {
    * lastBlock
    * lastFinalizedBlock
    * timestamp
+   * firstEnterEpoch            epoch number of first enter request epoch
+   * lastEnterEpoch             epoch number of last enter request epoch
    * nextBlockToRebase
    * rebased                    true if all blocks are rebased
    * epochs                     epochs in this fork
@@ -85,8 +87,6 @@ library Data {
     require(self.forkedBlock != 0);
     return self.blocks[self.forkedBlock].epochNumber;
   }
-
-
 
   /**
    * @notice Insert a block (ORB / NRB) into the fork.
@@ -285,12 +285,8 @@ library Data {
 
   /**
    *
-   * requestStart           first request id. 0 if the epoch is ORE'.
-   * requestEnd             last request id. 0 if the epoch is ORE'.
    * startBlockNumber       first block number of the epoch.
    * endBlockNumber         last block number of the epoch. 0 if the epoch is ORE' / NRE' until ORE' is filled.
-   * firstRequestBlockId    first id of RequestBlock[]
-   *                        if epochs is ORE', copy from last request epoch in previous fork
    * timestamp              timestamp when the epoch is initialized.
    *                        required for URB / ORB
    * epochStateRoot         merkle root of [block.stateRoot] for block in the epoch.
@@ -329,12 +325,22 @@ library Data {
     bool challenged;
   }
 
+  /**
+   * requestStart           first request id.
+   * requestEnd             last request id.
+   * firstRequestBlockId    first id of RequestBlock[]
+   *                        if epochs is ORE', copy from last request epoch in previous fork
+   * numEnter               number of enter request
+   * nextEnterEpoch         next request epoch including enter request
+   * nextEpoch              next non-empty request epoch
+   */
   struct RequestEpochMeta {
     uint64 requestStart;
     uint64 requestEnd;
     uint64 firstRequestBlockId;
     uint64 numEnter;
     uint64 nextEnterEpoch;
+    uint64 nextEpoch;
   }
 
   // function noExit(Epoch storage self) internal returns (bool) {

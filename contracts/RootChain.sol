@@ -420,12 +420,12 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
 
     // find next request block
     if (!pb.isRequest) {
-      epochNumber = epochNumber + 1;
-
-      // TODO: make safe for OOG
-      while (fork.epochs[epochNumber].isEmpty || !fork.epochs[epochNumber].isRequest) {
-        epochNumber = epochNumber + 1;
+      if (epochNumber == 0) {
+        epochNumber = lastNonEmptyRequestEpoch[lastAppliedForkNumber];
+      } else {
+        epochNumber = fork.epochs[epochNumber].RE.nextEpoch;
       }
+      require(epochNumber != 0);
 
       epoch = fork.epochs[epochNumber];
       lastAppliedBlockNumber = epoch.startBlockNumber;
