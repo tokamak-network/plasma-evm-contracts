@@ -170,6 +170,10 @@ contract EpochHandler is RootChainStorage, RootChainEvent {
     }
 
     if (!epoch.isEmpty) {
+      if (firstNonEmptyRequestEpoch[currentFork] == 0) {
+        firstNonEmptyRequestEpoch[currentFork] = epochNumber;
+      }
+
       uint lastEpochNumber = lastNonEmptyRequestEpoch[currentFork];
       if (lastEpochNumber != 0) {
         fork.epochs[lastEpochNumber].RE.nextEpoch = epochNumber;

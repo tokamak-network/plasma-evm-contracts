@@ -420,8 +420,6 @@ contract('RootChain', async ([
   }
 
   async function finalizeBlocks (nTry = 0) {
-    log('Try:', nTry);
-
     // finalize blocks until all blocks are fianlized
     const lastFinalizedBlockNumber = await rootchain.getLastFinalizedBlock(currentFork);
     const blockNumberToFinalize = lastFinalizedBlockNumber.add(new BN('1'));
@@ -443,11 +441,6 @@ contract('RootChain', async ([
   async function finalizeRequests (requestIds = []) {
     await finalizeBlocks();
 
-    // const lastFinalizedBlockNumber = await rootchain.getLastFinalizedBlock(currentFork);
-    // const lastBlockNumber = await rootchain.lastBlock(currentFork, lastFinalizedBlockNumber);
-
-    // expect(lastBlockNumber.cmp(lastFinalizedBlockNumber) === 0, 'Blocks are not finalized yet');
-
     let requestIdToFinalize = await rootchain.EROIdToFinalize();
     const numRequests = await rootchain.getNumEROs();
 
@@ -457,14 +450,12 @@ contract('RootChain', async ([
 
     const lastRequestId = new BN(last(requestIds));
 
-    console.log("requestIds", requestIds);
-    console.log("requestIdToFinalize", Number(requestIdToFinalize));
-    console.log("lastRequestId", Number(lastRequestId));
-
-
+    log("requestIds", requestIds);
+    log("requestIdToFinalize", Number(requestIdToFinalize));
+    log("lastRequestId", Number(lastRequestId));
 
     for (const requestId of requestIds) {
-      console.log("requestId", requestId);
+      log("requestId", requestId);
 
       expect(requestIdToFinalize).to.be.bignumber.equal(new BN(requestId));
       await time.increase(CP_EXIT + 1);
@@ -701,8 +692,6 @@ contract('RootChain', async ([
     });
 
     it('Blocks should be fianlzied', finalizeBlocks);
-
-    it('Requests should be fianlzied', async () => finalizeRequests(previousRequestIds));
   });
 
   describe('NRE#5 - ORE#6 (Token Deposit -> empty)', async () => {
@@ -781,7 +770,8 @@ contract('RootChain', async ([
 
     it('Blocks should be fianlzied', finalizeBlocks);
 
-    it('Requests should be fianlzied', async () => finalizeRequests(previousRequestIds));
+    // finalize all requests
+    it('Requests should be fianlzied', async () => finalizeRequests());
   });
 
   describe('NRE#7 - ORE#8 (empty -> token withdrawal)', async () => {
@@ -1503,10 +1493,10 @@ contract('RootChain', async ([
     it('Requests should be fianlzied', async () => finalizeRequests(previousRequestIds));
   });
 
-  // describe('finalization', async () => {
-  //   it('block should be fianlzied', finalizeBlocks);
-  //   it('Requests should be fianlzied', async () => finalizeRequests());
-  // });
+  describe('finalization', async () => {
+    // it('block should be fianlzied', finalizeBlocks);
+    it('Requests should be fianlzied', async () => finalizeRequests());
+  });
 });
 
 function timeout (sec) {

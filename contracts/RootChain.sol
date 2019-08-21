@@ -421,7 +421,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
     // find next request block
     if (!pb.isRequest) {
       if (epochNumber == 0) {
-        epochNumber = lastNonEmptyRequestEpoch[lastAppliedForkNumber];
+        epochNumber = firstNonEmptyRequestEpoch[lastAppliedForkNumber];
       } else {
         epochNumber = fork.epochs[epochNumber].RE.nextEpoch;
       }

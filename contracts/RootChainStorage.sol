@@ -38,8 +38,11 @@ contract RootChainStorage {
   // count enter requests for epoch
   uint public numEnterForORB;
 
-  // epoch number of last non-empty request epoch. In case of first non-empty epoch, it is 0.
+  // epoch number of last non-empty request epoch.
   mapping(uint => uint) public lastNonEmptyRequestEpoch;
+
+  // epoch number of first non-empty request epoch.
+  mapping(uint => uint) public firstNonEmptyRequestEpoch;
 
   // Last applied request
   uint public lastAppliedForkNumber;
