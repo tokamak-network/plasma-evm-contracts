@@ -10,6 +10,7 @@ contract RootChainStorage {
   bool public development; // dev mode
   address public operator;
   address public epochHandler;
+  address public submitHandler;
   address public etherToken;
 
   // 1 epoch = N NRBs or k URBs or k ORBs.
@@ -26,7 +27,6 @@ contract RootChainStorage {
 
   mapping (uint => Data.Fork) public forks;
 
-
   // Enter & Exit requests for ORB / URB
   Data.Request[] public EROs;
   Data.Request[] public ERUs;
@@ -38,11 +38,24 @@ contract RootChainStorage {
   // count enter requests for epoch
   uint public numEnterForORB;
 
+  // epoch number of last non-empty request epoch.
+  mapping(uint => uint) public lastNonEmptyRequestEpoch;
+
+  // epoch number of first non-empty request epoch.
+  mapping(uint => uint) public firstNonEmptyRequestEpoch;
+
   // Last applied request
   uint public lastAppliedForkNumber;
+  uint public lastAppliedEpochNumber;
   uint public lastAppliedBlockNumber;
-  uint public lastAppliedERO;
-  uint public lastAppliedERU;
+
+  // solium-disable mixedcase
+  uint public EROIdToFinalize;
+  uint public ERUIdToFinalize;
+  // solium-enable mixedcase
+
+  // uint public finalizableEROId = 2^256 - 1;
+  // uint public finalizableERUId = 2^256 - 1;
 
   // Requestable contract address in child chain
   mapping (address => address) public requestableContracts;

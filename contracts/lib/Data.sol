@@ -19,11 +19,10 @@ library Data {
   using RLPEncode for *;
   using BMT for *;
 
-  // signature of function applyRequestInChildChain(bool,uint256,address,bytes32,bytes)
-  bytes4 public constant APPLY_IN_CHILDCHAIN_SIGNATURE = 0x141ecf46;
-
-  // signature of function applyRequestInRootChain(bool,uint256,address,bytes32,bytes)
-  bytes4 public constant APPLY_IN_ROOTCHAIN_SIGNATURE = 0xa9f79308;
+  // solium-disable max-len
+  bytes4 public constant APPLY_IN_CHILDCHAIN_SIGNATURE = bytes4(keccak256("applyRequestInChildChain(bool,uint256,address,bytes32,bytes)"));
+  bytes4 public constant APPLY_IN_ROOTCHAIN_SIGNATURE = bytes4(keccak256("applyRequestInRootChain(bool,uint256,address,bytes32,bytes)"));
+  // solium-enable max-len
 
   address public constant NA = address(0);
   uint public constant NA_TX_GAS_PRICE = 1e9;
@@ -41,10 +40,10 @@ library Data {
     return 1 hours;
   }
 
-  function decodePos(uint pos) internal pure returns (uint forkNumber, uint blockNumber) {
+  function decodePos(uint _pos) internal pure returns (uint v1, uint v2) {
     assembly {
-      forkNumber := div(pos, exp(2, 128))
-      blockNumber := and(pos, sub(exp(2, 128), 1))
+      v1 := div(_pos, exp(2, 128))
+      v2 := and(_pos, sub(exp(2, 128), 1))
     }
   }
 
@@ -59,6 +58,8 @@ library Data {
    * lastBlock
    * lastFinalizedBlock
    * timestamp
+   * firstEnterEpoch            epoch number of first enter request epoch
+   * lastEnterEpoch             epoch number of last enter request epoch
    * nextBlockToRebase
    * rebased                    true if all blocks are rebased
    * epochs                     epochs in this fork
@@ -66,11 +67,12 @@ library Data {
    */
   struct Fork {
     // uint64 blockToRenew;
-    uint64 forkedBlock;
+    uint64 forkedBlock; // TODO: change to forkedEpoch
     uint64 firstEpoch;
     uint64 lastEpoch;
     uint64 firstBlock;
     uint64 lastBlock;
+    uint64 lastFinalizedEpoch;
     uint64 lastFinalizedBlock;
     uint64 timestamp;
     uint64 firstEnterEpoch;
@@ -85,8 +87,6 @@ library Data {
     require(self.forkedBlock != 0);
     return self.blocks[self.forkedBlock].epochNumber;
   }
-
-
 
   /**
    * @notice Insert a block (ORB / NRB) into the fork.
@@ -131,11 +131,48 @@ library Data {
     b.userActivated = _userActivated;
 
     if (_isRequest) {
-      b.requestBlockId = uint64(epoch.firstRequestBlockId + blockNumber - epoch.startBlockNumber);
+      b.requestBlockId = uint64(epoch.RE.firstRequestBlockId + blockNumber - epoch.startBlockNumber);
     }
 
     _f.lastBlock = uint64(blockNumber);
     return (epochNumber, blockNumber);
+  }
+
+
+  /**
+   * TODO: implement insert rebased non-request epoch
+   * @notice Insert non-request epoch into the fork.
+   */
+  function insertNRE(
+    Fork storage _f,
+    uint _epochNumber,
+    bytes32 _epochStateRoot,
+    bytes32 _epochTransactionsRoot,
+    bytes32 _epochReceiptsRoot,
+    uint _startBlockNumber,
+    uint _endBlockNumber
+  )
+    internal
+  {
+    require(_f.lastEpoch.add(1) == _epochNumber);
+    require(_f.lastBlock.add(1) == _startBlockNumber);
+
+    Data.Epoch storage epoch = _f.epochs[_epochNumber];
+
+    require(!epoch.isRequest);
+    require(!epoch.userActivated);
+    require(!epoch.rebase);
+
+    require(epoch.startBlockNumber == _startBlockNumber);
+    require(epoch.endBlockNumber == _endBlockNumber);
+
+    epoch.NRE.epochStateRoot = _epochStateRoot;
+    epoch.NRE.epochTransactionsRoot = _epochTransactionsRoot;
+    epoch.NRE.epochReceiptsRoot = _epochReceiptsRoot;
+    epoch.NRE.submittedAt = uint64(block.timestamp);
+
+    _f.lastEpoch = uint64(_epochNumber);
+    _f.lastBlock = uint64(_endBlockNumber);
   }
 
   function getLastEpochNumber(Fork storage _f, bool _isRequest) internal returns (uint) {
@@ -175,7 +212,7 @@ library Data {
       }
 
       // skip until epoch has enter request
-      while (_pre.epochs[epochNumber].numEnter == 0 && _pre.epochs[epochNumber].initialized) {
+      while (_pre.epochs[epochNumber].RE.numEnter == 0 && _pre.epochs[epochNumber].initialized) {
         epochNumber += 2;
         blockNumber = _pre.epochs[epochNumber].startBlockNumber;
       }
@@ -248,43 +285,67 @@ library Data {
 
   /**
    *
-   * requestStart         first request id. 0 if the epoch is ORE'.
-   * requestEnd           last request id. 0 if the epoch is ORE'.
-   * startBlockNumber     first block number of the epoch.
-   * endBlockNumber       last block number of the epoch. 0 if the epoch is ORE' / NRE' until ORE' is filled.
-   * firstRequestBlockId  first id of RequestBlock[]
-   *                      if epochs is ORE', copy from last request epoch in previous fork
-   * timestamp            timestamp when the epoch is initialized.
-   *                      required for URB / ORB
-   * isEmpty              true if request epoch has no request block
-   *                      also and requestStart == requestEnd == previousEpoch.requestEnd
-   *                      and startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
-   *                      and firstRequestBlockId == previousEpoch.firstRequestBlockId
-   * initialized          true if epoch is initialized
-   * isRequest            true in case of URB / ORB
-   * userActivated        true in case of URB
-   * rebase               true in case of ORE' or NRE'
+   * startBlockNumber       first block number of the epoch.
+   * endBlockNumber         last block number of the epoch. 0 if the epoch is ORE' / NRE' until ORE' is filled.
+   * timestamp              timestamp when the epoch is initialized.
+   *                        required for URB / ORB
+   * epochStateRoot         merkle root of [block.stateRoot] for block in the epoch.
+   * epochTransactionsRoot  merkle root of [block.transactionsRoot] for block in the epoch.
+   * epochReceiptsRoot      merkle root of [block.receiptsRoot] for block in the epoch.
+   * isEmpty                true if request epoch has no request block
+   *                        also and requestStart == requestEnd == previousEpoch.RE.requestEnd
+   *                        and startBlockNumber == endBlockNumber == previousEpoch.endBlockNumber
+   *                        and firstRequestBlockId == previousEpoch.firstRequestBlockId
+   * initialized            true if epoch is initialized
+   * isRequest              true in case of URB / ORB
+   * userActivated          true in case of URB
+   * rebase                 true in case of ORE' or NRE'
    */
   struct Epoch {
-    uint64 requestStart;
-    uint64 requestEnd;
     uint64 startBlockNumber;
     uint64 endBlockNumber;
-    uint64 firstRequestBlockId;
-    uint64 numEnter;
-    uint64 nextEnterEpoch;
     uint64 timestamp;
-    bytes32 epochHash;
     bool isEmpty;
     bool initialized;
     bool isRequest;
     bool userActivated;
     bool rebase;
+    RequestEpochMeta RE;
+    NonRequestEpochMeta NRE;
+  }
+
+  struct NonRequestEpochMeta {
+    bytes32 epochStateRoot;
+    bytes32 epochTransactionsRoot;
+    bytes32 epochReceiptsRoot;
+    uint64 submittedAt;
+    uint64 finalizedAt;
+    bool finalized;
+    bool challenging;
+    bool challenged;
+  }
+
+  /**
+   * requestStart           first request id.
+   * requestEnd             last request id.
+   * firstRequestBlockId    first id of RequestBlock[]
+   *                        if epochs is ORE', copy from last request epoch in previous fork
+   * numEnter               number of enter request
+   * nextEnterEpoch         next request epoch including enter request
+   * nextEpoch              next non-empty request epoch
+   */
+  struct RequestEpochMeta {
+    uint64 requestStart;
+    uint64 requestEnd;
+    uint64 firstRequestBlockId;
+    uint64 numEnter;
+    uint64 nextEnterEpoch;
+    uint64 nextEpoch;
   }
 
   // function noExit(Epoch storage self) internal returns (bool) {
   //   if (self.rebase) return true;
-  //   return self.requestEnd.sub64(self.requestStart).add64(1) == self.numEnter;
+  //   return self.RE.requestEnd.sub64(self.RE.requestStart).add64(1) == self.RE.firstRequestBlockId;
   // }
 
   function getNumBlocks(Epoch storage _e) internal view returns (uint) {
@@ -294,47 +355,12 @@ library Data {
 
   function getNumRequests(Epoch storage _e) internal view returns (uint) {
     if (_e.isEmpty || _e.rebase && _e.endBlockNumber == 0) return 0;
-    return _e.requestEnd + 1 - _e.requestStart;
+    return _e.RE.requestEnd + 1 - _e.RE.requestStart;
   }
-
-  /**
-   * @notice This returns the request block number if the request is included
-   *         in an epoch. Otherwise, returns 0.
-   */
-  // function getBlockNumber(Epoch memory _e, uint _requestId) internal pure returns (uint) {
-  //   if (!_e.isRequest ||
-  //     _e.isEmpty ||
-  //     _e.requestStart < _requestId ||
-  //     _e.requestEnd > _requestId) {
-  //     return 0;
-  //   }
-
-  //   return uint(_e.startBlockNumber)
-  //     .add(uint(_requestId - _e.requestStart + 1).divCeil(MAX_REQUESTS()));
-  // }
 
   function calcNumBlock(uint _rs, uint _re) internal pure returns (uint) {
     return _re.sub(_rs).add(1).divCeil(MAX_REQUESTS());
   }
-
-  // function getRequestRange(Epoch memory _e, uint _blockNumber, uint _limit)
-  //   internal
-  //   pure
-  //   returns (uint requestStart, uint requestEnd)
-  // {
-  //   require(_e.isRequest);
-  //   require(_blockNumber >= _e.startBlockNumber && _blockNumber <= _e.endBlockNumber);
-
-  //   if (_blockNumber == _e.endBlockNumber) {
-  //     requestStart = _e.requestStart + (getNumBlocks(_e) - 1) * _limit;
-  //     requestEnd = _e.requestEnd;
-  //     return;
-  //   }
-
-  //   requestStart = _e.requestStart + (_blockNumber - _e.startBlockNumber) * _limit;
-  //   requestEnd = requestStart + _limit;
-  //   return;
-  // }
 
   /**
    * epochNumber
@@ -401,6 +427,8 @@ library Data {
     internal
     returns (bool)
   {
+    require(gasleft() > NA_TX_GAS_LIMIT + 5000);
+
     return RequestableI(self.to).applyRequestInRootChain(
       self.isExit,
       _requestId,
@@ -434,6 +462,7 @@ library Data {
 
       require(v > 0);
 
+      // no trieKey and trieValue for EtherToken enter
       out.value = uint128(v);
     } else {
       out.to = _to;
@@ -466,7 +495,7 @@ library Data {
       abi.encode(
         bytes32(uint(self.isExit ? 1 : 0)),
         _requestId,
-        bytes32(bytes20(self.requestor)),
+        uint256(uint160(self.requestor)),
         self.trieKey,
         self.trieValue
       )
@@ -510,7 +539,7 @@ library Data {
   }
 
   // function noExit(RequestBlock storage self) internal returns (bool) {
-  //   return self.requestEnd.sub64(self.requestStart).add64(1) == self.numEnter;
+  //   return self.RE.requestEnd.sub64(self.RE.requestStart).add64(1) == self.RE.firstRequestBlockId;
   // }
 
   function init(RequestBlock storage self) internal {
@@ -532,7 +561,7 @@ library Data {
     /* use binary merkle tree instead of patricia tree
     require(self.trie != address(0));
 
-    uint txIndex = _requestId.sub(self.requestStart);
+    uint txIndex = _requestId.sub(self.RE.requestStart);
 
     bytes memory key = txIndex.encodeUint();
     bytes memory value = toBytes(toTX(_request, _requestId, false));
@@ -593,32 +622,6 @@ library Data {
 
     return packArr.encodeList();
   }
-
-  // function toTX(
-  //   uint64 _nonce,
-  //   uint256 _gasPrice,
-  //   uint64 _gasLimit,
-  //   address _to,
-  //   uint256 _value,
-  //   bytes _data,
-  //   uint256 _v,
-  //   uint256 _r,
-  //   uint256 _s
-  // )
-  //   internal
-  //   pure
-  //   returns (TX memory out)
-  // {
-  //   out.nonce = _nonce;
-  //   out.gasPrice = _gasPrice;
-  //   out.gasLimit = _gasLimit;
-  //   out.to = _to;
-  //   out.value = _value;
-  //   out.data = _data;
-  //   out.v = _v;
-  //   out.r = _r;
-  //   out.s = _s;
-  // }
 
   function hash(TX memory self) internal pure returns (bytes32) {
     bytes memory txBytes = toBytes(self);
