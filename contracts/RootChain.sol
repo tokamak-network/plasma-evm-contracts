@@ -8,12 +8,15 @@ import "./lib/Address.sol";
 import "./lib/BMT.sol";
 // import "./patricia_tree/PatriciaTreeFace.sol";
 
+import "./roles/MapperRole.sol";
+import "./roles/SubmitterRole.sol";
+
 import "./RootChainStorage.sol";
 import "./RootChainEvent.sol";
 import "./RootChainBase.sol";
 
 
-contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
+contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRole, SubmitterRole {
   using SafeMath for uint;
   using SafeMath for uint64;
   using Math for *;
@@ -103,13 +106,26 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
    * External Functions
    */
 
+  function changeOperator(address _operator) external onlyOperator {
+    operator = _operator;
+    emit OperatorChanged(_operator);
+  }
+
+  function addSubmitter(address account) public onlyOperator {
+    _addSubmitter(account);
+  }
+
+  function addMapper(address account) public onlyOperator {
+    _addMapper(account);
+  }
+
   /**
    * @notice map requestable contract in child chain
    * NOTE: only operator?
    */
   function mapRequestableContractByOperator(address _rootchain, address _childchain)
     external
-    onlyOperator
+    onlyMapper
     returns (bool success)
   {
     require(_rootchain.isContract());
@@ -162,7 +178,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
   )
     external
     payable
-    onlyOperator
+    onlySubmitter
     onlyValidCost(COST_NRB)
     finalizeBlocks
     returns (bool success)
@@ -184,7 +200,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase {
   )
     external
     payable
-    onlyOperator
+    onlySubmitter
     onlyValidCost(COST_NRB)
     finalizeBlocks
     returns (bool success)

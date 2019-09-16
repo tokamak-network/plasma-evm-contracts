@@ -4,9 +4,8 @@ import "./lib/Data.sol";
 
 
 contract RootChainEvent {
-  /*
-   * Event
-   */
+  event OperatorChanged(address _newOperator);
+
   event SessionTimeout(bool userActivated);
 
   event Forked(uint newFork, uint epochNumber, uint forkedBlockNumber);
