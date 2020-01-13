@@ -97,5 +97,7 @@ contract RootChainStorage {
 
   // Gas limit for request trasaction
   uint public constant REQUEST_GAS = 100000;
+
+  bool public constant isRootChain = true;
 }
 
