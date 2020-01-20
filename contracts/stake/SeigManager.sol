@@ -190,11 +190,18 @@ contract SeigManager  is DSMath, Ownable {
   //////////////////////////////
 
   function uncomittedRewardOf(address rootchain, address depositor) public view returns (uint256) {
-    // uint256 totAmount = tot.seigPerBlock()
-    //   .mul(block.number - lastCommitBlock[rootchain])
-    //   .mul(rdiv(amount, tot.balanceOf(rootchain)));
-    // totAmount = totAmount.add(amount);
+    CustomIncrementCoinage coinage = coinages[rootchain];
 
+    uint256 prevTotalSupply = coinage.totalSupply();
+    uint256 nextTotalSupply = tot.balanceOf(rootchain);
+    uint256 newFactor = rdiv(nextTotalSupply, prevTotalSupply);
+
+    uint256 uncomitted = rmul(
+      rdiv(coinage.balanceOf(depositor), coinage.factor()),
+      newFactor
+    );
+
+    return uncomitted.sub(rewardOf(rootchain, depositor));
   }
 
   function rewardOf(address rootchain, address depositor) public view returns (uint256) {
