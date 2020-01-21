@@ -10,6 +10,8 @@ import "../RootChainStorage.sol";
 import "../RootChainEvent.sol";
 import "../RootChainBase.sol";
 
+import { SeigManagerI } from "../stake/SeigManagerI.sol";
+
 
 contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
   using SafeMath for uint;
@@ -50,6 +52,11 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
     );
 
     _delegatePrepareORE();
+
+    if (address(seigManager) != address(0)) {
+      require(SeigManagerI(seigManager).onCommit());
+    }
+
     return true;
   }
 
@@ -112,6 +119,10 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
         _delegatePrepareNRE();
       }
 
+      if (address(seigManager) != address(0)) {
+        require(SeigManagerI(seigManager).onCommit());
+      }
+
       return true;
     }
 
@@ -164,6 +175,10 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
       );
 
       _delegatePrepareNREAfterURE();
+    }
+
+    if (address(seigManager) != address(0)) {
+      require(SeigManagerI(seigManager).onCommit());
     }
 
     return true;
@@ -241,6 +256,10 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
     // TODO: use internal function to avoide stack too deep error
     if (blockNumber == epoch.endBlockNumber) {
       _delegatePrepareOREAfterURE();
+    }
+
+    if (address(seigManager) != address(0)) {
+      require(SeigManagerI(seigManager).onCommit());
     }
 
     return true;

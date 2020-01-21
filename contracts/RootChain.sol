@@ -119,6 +119,10 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
     _addMapper(account);
   }
 
+  function setSeigManager(address account) public onlyOperator {
+    seigManager = account;
+  }
+
   /**
    * @notice map requestable contract in child chain
    * NOTE: only operator?

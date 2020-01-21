@@ -30,7 +30,7 @@ contract RootChainRegistry is Ownable {
   }
 
 
-  function registerAndDeploy(
+  function registerAndDeployCoinage(
     address rootchain,
     address seigManager
   ) public returns (bool) {

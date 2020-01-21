@@ -14,3 +14,4 @@
 ## TODOs
 
 1. use concrete implementation of coinage contracts, instead of mocks.
+2. make upgradable

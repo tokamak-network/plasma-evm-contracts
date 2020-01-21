@@ -1,5 +1,6 @@
 const { range, last, first } = require('lodash');
-const { BN, ether, time,
+const {
+ BN, ether, time,
   expectEvent, expectRevert,
 } = require('openzeppelin-test-helpers');
 const chai = require('chai');
@@ -334,7 +335,7 @@ contract('RootChain', async ([
 
   function joinEpochRoots (roots) {
     return web3.utils.soliditySha3(marshalString(
-      roots.map(unmarshalString).reduce((a, b) => a + b, '')
+      roots.map(unmarshalString).reduce((a, b) => a + b, ''),
     ));
   }
 
@@ -376,7 +377,7 @@ contract('RootChain', async ([
       epochStateRoot,
       epochTransactionsRoot,
       epochReceiptsRoots,
-      { value: COST_NRB }
+      { value: COST_NRB },
     );
     logtx(tx);
 
@@ -450,12 +451,12 @@ contract('RootChain', async ([
 
     const lastRequestId = new BN(last(requestIds));
 
-    log("requestIds", requestIds);
-    log("requestIdToFinalize", Number(requestIdToFinalize));
-    log("lastRequestId", Number(lastRequestId));
+    log('requestIds', requestIds);
+    log('requestIdToFinalize', Number(requestIdToFinalize));
+    log('lastRequestId', Number(lastRequestId));
 
     for (const requestId of requestIds) {
-      log("requestId", requestId);
+      log('requestId', requestId);
 
       expect(requestIdToFinalize).to.be.bignumber.equal(new BN(requestId));
       await time.increase(CP_EXIT + 1);
@@ -487,7 +488,7 @@ contract('RootChain', async ([
 
     for (const i of range(
       epoch.startBlockNumber.toNumber(),
-      epoch.endBlockNumber.toNumber() + 1
+      epoch.endBlockNumber.toNumber() + 1,
     )) {
       log(`
         Block#${i} ${JSON.stringify(await rootchain.getBlock(forkNumber, i))}`);

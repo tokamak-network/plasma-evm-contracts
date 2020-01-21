@@ -12,6 +12,7 @@ contract RootChainStorage {
   address public epochHandler;
   address public submitHandler;
   address public etherToken;
+  address public seigManager;
 
   // 1 epoch = N NRBs or k URBs or k ORBs.
   // N consecutive NRBs must be submitted in an epoch. In case of request block,
