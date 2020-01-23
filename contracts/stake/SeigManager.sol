@@ -79,7 +79,8 @@ contract SeigManager  is DSMath, Ownable {
   // the block number when seigniorages are given
   uint256 public lastSeigBlock;
 
-  mapping (address => uint256) totTotalSupplyAtCommit;
+  // tot total supply at commit from root chain
+  mapping (address => uint256) public totTotalSupplyAtCommit;
 
   //////////////////////////////
   // Constants
@@ -256,6 +257,7 @@ contract SeigManager  is DSMath, Ownable {
     return true;
   }
 
+  // TODO: consider ⍺ when root chain did not commit at all.
   // return ⍺, where ⍺ = SEIGS * staked ratio of the root chian * withdrawal ratio of the depositor
   //   - SEIGS                              = tot total supply - tot total supply at last commit from the root chain
   //   - staked ratio of the root chian     = tot balance of the root chain / tot total supply
@@ -265,6 +267,11 @@ contract SeigManager  is DSMath, Ownable {
     view
     returns (uint256 totAmount)
   {
+    // short circuit if no commit
+    if (totTotalSupplyAtCommit[rootchain] == 0) {
+      return 0;
+    }
+
     uint256 prevTotTotalSupply = totTotalSupplyAtCommit[rootchain];
 
     totAmount = rdiv(
