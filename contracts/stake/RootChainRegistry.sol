@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
 
-import { Ownable } from "openzeppelin-solidity/contracts/ownership/OWnable.sol";
-import { CustomIncrementCoinageMock as CustomIncrementCoinage } from "coinage-token/contracts/mock/CustomIncrementCoinageMock.sol";
+import { Ownable } from "../../node_modules/openzeppelin-solidity/contracts/ownership/OWnable.sol";
+import { CustomIncrementCoinageMock as CustomIncrementCoinage } from "../../node_modules/coinage-token/contracts/mock/CustomIncrementCoinageMock.sol";
 import { SeigManagerI } from "./SeigManagerI.sol";
 
 import { RootChainI } from "../RootChainI.sol";

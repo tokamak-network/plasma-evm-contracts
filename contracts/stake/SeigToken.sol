@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
 
-import { Ownable } from "openzeppelin-solidity/contracts/ownership/Ownable.sol";
-import { ERC20 } from "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
+import { Ownable } from "../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import { ERC20 } from "../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
 import { SeigManagerI } from "./SeigManagerI.sol";
 

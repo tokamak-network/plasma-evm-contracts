@@ -1,15 +1,15 @@
 pragma solidity ^0.5.0;
 
-import { Ownable } from "openzeppelin-solidity/contracts/ownership/Ownable.sol";
-import { SafeMath } from "openzeppelin-solidity/contracts/math/SafeMath.sol";
-import { IERC20 } from "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
-import { ERC20Mintable } from "openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
-import { ERC20Burnable } from "openzeppelin-solidity/contracts/token/ERC20/ERC20Burnable.sol";
-import { ERC20Detailed } from "openzeppelin-solidity/contracts/token/ERC20/ERC20Detailed.sol";
-import { SafeERC20 } from "openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
-import { ReentrancyGuard } from "openzeppelin-solidity/contracts/utils/ReentrancyGuard.sol";
+import { Ownable } from "../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import { SafeMath } from "../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import { IERC20 } from "../../node_modules/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
+import { ERC20Mintable } from "../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
+import { ERC20Burnable } from "../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Burnable.sol";
+import { ERC20Detailed } from "../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Detailed.sol";
+import { SafeERC20 } from "../../node_modules/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
+import { ReentrancyGuard } from "../../node_modules/openzeppelin-solidity/contracts/utils/ReentrancyGuard.sol";
 
-import { DSMath } from "coinage-token/contracts/lib/DSMath.sol";
+import { DSMath } from "../../node_modules/coinage-token/contracts/lib/DSMath.sol";
 
 import { SeigManagerI } from "./SeigManagerI.sol";
 import { SeigToken } from "./SeigToken.sol";
