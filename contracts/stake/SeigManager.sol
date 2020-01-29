@@ -6,8 +6,7 @@ import { ERC20Mintable } from "../../node_modules/openzeppelin-solidity/contract
 import { SafeERC20 } from "../../node_modules/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 
 import { DSMath } from "../../node_modules/coinage-token/contracts/lib/DSMath.sol";
-import { FixedIncrementCoinageMock as FixedIncrementCoinage } from "../../node_modules/coinage-token/contracts/mock/FixedIncrementCoinageMock.sol";
-import { CustomIncrementCoinageMock as CustomIncrementCoinage } from "../../node_modules/coinage-token/contracts/mock/CustomIncrementCoinageMock.sol";
+import { CustomIncrementCoinageMock as CustomIncrementCoinage } from "../../node_modules/coinage-token/flatten.sol";
 
 import { RootChainI } from "../RootChainI.sol";
 import { RootChainRegistry } from "./RootChainRegistry.sol";
