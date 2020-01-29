@@ -110,6 +110,7 @@ contract DepositManager is Ownable {
 
     pendingUnstaked[rootchain][msg.sender] = pendingUnstaked[rootchain][msg.sender].add(amount);
     emit WithdrawalRequested(rootchain, msg.sender, amount);
+
     require(seigManager.onUnstake(rootchain, msg.sender, amount));
 
     return true;
@@ -148,6 +149,14 @@ contract DepositManager is Ownable {
       processRequest(rootchain);
     }
     return true;
+  }
+
+  function numPendingRequests(address rootchain, address account) external view returns (uint256) {
+    uint256 numRequests = withdrawalReqeusts[rootchain][msg.sender].length;
+
+    if (numRequests == 0) return 0;
+
+    return numRequests - index;
   }
 
   function _isOperator(address rootchain, address operator) internal view returns (bool) {
