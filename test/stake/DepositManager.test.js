@@ -152,8 +152,6 @@ additionalTotBurnAmount         : ${(await this.seigManager.additionalTotBurnAmo
               this.depositManager.processRequest(this.rootchain.address, { from: tokenOwner }),
               'DepositManager: wait for withdrawal delay',
             );
-
-            // console.log('receipt?', await this.depositManager.processRequest(this.rootchain.address, { from: tokenOwner }));
           });
         });
 
@@ -163,13 +161,50 @@ additionalTotBurnAmount         : ${(await this.seigManager.additionalTotBurnAmo
             await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
           });
 
-          it('should refund WTON to the token owner', async function () {
+          it('should withdraw WTON to the token owner', async function () {
             const { tx } = await this.depositManager.processRequest(this.rootchain.address, { from: tokenOwner });
 
             await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
               from: this.depositManager.address,
               to: tokenOwner,
               value: tokenAmount.toFixed(WTON_UNIT),
+            });
+          });
+        });
+
+        describe('when the token owner make 2 requests', function () {
+          const amount = tokenAmount.div(2);
+
+          beforeEach(async function () {
+            for (const _ of range(2)) {
+              await this.depositManager.requestWithdrawal(this.rootchain.address, amount.toFixed(WTON_UNIT), { from: tokenOwner });
+            }
+          });
+
+          describe('before WITHDRAWAL_DELAY blocks are mined', function () {
+            it('should not process withdrawal request', async function () {
+              await expectRevert(
+                this.depositManager.processRequest(this.rootchain.address, { from: tokenOwner }),
+                'DepositManager: wait for withdrawal delay',
+              );
+            });
+          });
+
+          describe('after WITHDRAWAL_DELAY blocks are mined', function () {
+            beforeEach(async function () {
+              await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
+            });
+
+            it('should process 2 requests', async function () {
+              for (const _ of range(2)) {
+                const { tx } = await this.depositManager.processRequest(this.rootchain.address, { from: tokenOwner });
+
+                await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
+                  from: this.depositManager.address,
+                  to: tokenOwner,
+                  value: amount.toFixed(WTON_UNIT),
+                });
+              }
             });
           });
         });

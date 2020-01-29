@@ -506,7 +506,7 @@ describe('stake/SeigManager', function () {
         });
       }
 
-      describe.only('when 0-th root chain commits 10 times', function () {
+      describe('when 0-th root chain commits 10 times', function () {
         const i = 0;
         const n = 10;
 
