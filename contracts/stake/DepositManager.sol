@@ -183,8 +183,13 @@ contract DepositManager is Ownable {
     return true;
   }
 
+  function numRequests(address rootchain, address account) external view returns (uint256) {
+    return withdrawalReqeusts[rootchain][account].length;
+  }
+
   function numPendingRequests(address rootchain, address account) external view returns (uint256) {
-    uint256 numRequests = withdrawalReqeusts[rootchain][msg.sender].length;
+    uint256 numRequests = withdrawalReqeusts[rootchain][account].length;
+    uint256 index = withdrawalRequestIndex[rootchain][account];
 
     if (numRequests == 0) return 0;
 
