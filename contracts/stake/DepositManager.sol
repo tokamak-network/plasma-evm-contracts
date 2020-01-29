@@ -19,9 +19,17 @@ contract DepositManager is Ownable {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
+  ////////////////////
+  // Storage - contracts
+  ////////////////////
+
   IERC20 public wton;
   RootChainRegistry public registry;
   SeigManager public seigManager;
+
+  ////////////////////
+  // Storage - token amount
+  ////////////////////
 
   // accumulated staked amount
   // rootchian => msg.sender => wton amount
@@ -41,6 +49,10 @@ contract DepositManager is Ownable {
   // rootchain => msg.sender => index
   mapping (address => mapping (address => uint256)) public withdrawalRequestIndex;
 
+  ////////////////////
+  // Storage - configuration
+  ////////////////////
+
   // withdrawal delay in block number
   // @TODO: change delay unit to CYCLE?
   uint256 public WITHDRAWAL_DELAY;
@@ -50,6 +62,10 @@ contract DepositManager is Ownable {
     uint128 amount;
     bool processed;
   }
+
+  ////////////////////
+  // Modifiers
+  ////////////////////
 
   modifier onlyRootChain(address rootchain) {
     require(registry.rootchains(rootchain));
@@ -64,9 +80,14 @@ contract DepositManager is Ownable {
   ////////////////////
   // Events
   ////////////////////
+
   event Deposited(address indexed rootchain, address depositor, uint256 amount);
   event WithdrawalRequested(address indexed rootchain, address depositor, uint256 amount);
   event WithdrawalProcessed(address indexed rootchain, address depositor, uint256 amount);
+
+  ////////////////////
+  // Constructor
+  ////////////////////
 
   constructor (
     IERC20 _wton,
@@ -78,10 +99,18 @@ contract DepositManager is Ownable {
     WITHDRAWAL_DELAY = _WITHDRAWAL_DELAY;
   }
 
+  ////////////////////
+  // SeiManager function
+  ////////////////////
+
   function setSeigManager(SeigManager _seigManager) external onlyOwner {
     require(address(seigManager) == address(0), "DepositManager: SeigManager is already set");
     seigManager = _seigManager;
   }
+
+  ////////////////////
+  // Deposit function
+  ////////////////////
 
   /**
    * @dev deposit `amount` WTON in RAY
@@ -98,6 +127,9 @@ contract DepositManager is Ownable {
     return true;
   }
 
+  ////////////////////
+  // Withdrawal functions
+  ////////////////////
 
   function requestWithdrawal(address rootchain, uint256 amount) public onlyRootChain(rootchain) returns (bool) {
     // TODO: check `amount` WTON can be withdrawable
