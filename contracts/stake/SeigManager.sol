@@ -9,8 +9,10 @@ import { DSMath } from "../../node_modules/coinage-token/contracts/lib/DSMath.so
 import { CustomIncrementCoinageMock as CustomIncrementCoinage } from "../../node_modules/coinage-token/flatten.sol";
 
 import { RootChainI } from "../RootChainI.sol";
-import { RootChainRegistry } from "./RootChainRegistry.sol";
-import { DepositManager } from "./DepositManager.sol";
+
+import { SeigManagerI } from "./SeigManagerI.sol";
+import { RootChainRegistryI } from "./RootChainRegistryI.sol";
+import { DepositManagerI } from "./DepositManagerI.sol";
 
 
 /**
@@ -30,19 +32,19 @@ import { DepositManager } from "./DepositManager.sol";
  *  3. set the root chain's balance of {committed} as the root chain's {tot} balance.
  *
  * For each stake or delegate with amount of {v} to a RootChain,
- *  1. mint {v} {coinages[rootchain]} tokens to the depositor
+ *  1. mint {v} {coinages[rootchain]} tokens to the account
  *  2. mint {v} {tot} tokens to the root chain contract
  *
  * For each unstake or undelegate (or get rewards) with amount of {v} to a RootChain,
- *  1. burn {v} {coinages[rootchain]} tokens from the depositor
+ *  1. burn {v} {coinages[rootchain]} tokens from the account
  *  2. burn {v + ⍺} {tot} tokens from the root chain contract,
- *   where ⍺ = SEIGS * staked ratio of the root chian * withdrawal ratio of the depositor
+ *   where ⍺ = SEIGS * staked ratio of the root chian * withdrawal ratio of the account
  *     - SEIGS                              = tot total supply - tot total supply at last commit from the root chain
  *     - staked ratio of the root chian     = tot balance of the root chain / tot total supply
- *     - withdrawal ratio of the depositor  = amount to withdraw / total supply of coinage
+ *     - withdrawal ratio of the account  = amount to withdraw / total supply of coinage
  *
  */
-contract SeigManager  is DSMath, Ownable {
+contract SeigManager is SeigManagerI, DSMath, Ownable {
   using SafeMath for uint256;
   using SafeERC20 for ERC20Mintable;
 
@@ -50,64 +52,64 @@ contract SeigManager  is DSMath, Ownable {
   // Common contracts
   //////////////////////////////
 
-  RootChainRegistry public registry;
-  DepositManager public depositManager;
+  RootChainRegistryI internal _registry;
+  DepositManagerI internal _depositManager;
 
   //////////////////////////////
   // Token-related
   //////////////////////////////
 
   // WTON token contract
-  ERC20Mintable public ton;
+  ERC20Mintable internal _ton;
 
   // WTON token contract
-  ERC20Mintable public wton; // TODO: use mintable erc20!
+  ERC20Mintable internal _wton; // TODO: use mintable erc20!
 
   // track total deposits of each root chain.
-  CustomIncrementCoinage public tot;
+  CustomIncrementCoinage internal _tot;
 
   // coinage token for each root chain.
-  mapping (address => CustomIncrementCoinage) public coinages;
+  mapping (address => CustomIncrementCoinage) internal _coinages;
 
   // last commit block number for each root chain.
-  mapping (address => uint256) public lastCommitBlock;
+  mapping (address => uint256) internal _lastCommitBlock;
 
   // total seigniorage per block
-  uint256 public seigPerBlock;
+  uint256 internal _seigPerBlock;
 
   // the block number when seigniorages are given
-  uint256 public lastSeigBlock;
+  uint256 internal _lastSeigBlock;
 
   // tot total supply at commit from root chain
-  mapping (address => uint256) public totTotalSupplyAtCommit;
+  mapping (address => uint256) internal _totTotalSupplyAtCommit;
 
   //////////////////////////////
   // Constants
   //////////////////////////////
 
-  uint256 constant public DEFAULT_FACTOR = 10 ** 27;
+  uint256 constant internal _DEFAULT_FACTOR = 10 ** 27;
 
   //////////////////////////////
   // Modifiers
   //////////////////////////////
 
   modifier onlyRegistry() {
-    require(msg.sender == address(registry));
+    require(msg.sender == address(_registry));
     _;
   }
 
   modifier onlyDepositManager() {
-    require(msg.sender == address(depositManager));
+    require(msg.sender == address(_depositManager));
     _;
   }
 
   modifier onlyRootChain(address rootchain) {
-    require(registry.rootchains(rootchain));
+    require(_registry.rootchains(rootchain));
     _;
   }
 
   modifier checkCoinage(address rootchain) {
-    require(address(coinages[rootchain]) != address(0), "SeigManager: coinage has not been deployed yet");
+    require(address(_coinages[rootchain]) != address(0), "SeigManager: coinage has not been deployed yet");
     _;
   }
 
@@ -122,26 +124,26 @@ contract SeigManager  is DSMath, Ownable {
   //////////////////////////////
 
   constructor (
-    ERC20Mintable _ton,
-    ERC20Mintable _wton,
-    RootChainRegistry _registry,
-    DepositManager _depositManager,
-    uint256 _seigPerBlock
+    ERC20Mintable ton,
+    ERC20Mintable wton,
+    RootChainRegistryI registry,
+    DepositManagerI depositManager,
+    uint256 seigPerBlock
   ) public {
-    ton = _ton;
-    wton = _wton;
-    registry = _registry;
-    depositManager = _depositManager;
-    seigPerBlock = _seigPerBlock;
+    _ton = ton;
+    _wton = wton;
+    _registry = registry;
+    _depositManager = depositManager;
+    _seigPerBlock = seigPerBlock;
 
-    tot = new CustomIncrementCoinage(
+    _tot = new CustomIncrementCoinage(
       "",
       "",
-      DEFAULT_FACTOR,
+      _DEFAULT_FACTOR,
       false
     );
 
-    lastSeigBlock = block.number;
+    _lastSeigBlock = block.number;
   }
 
   //////////////////////////////
@@ -154,21 +156,21 @@ contract SeigManager  is DSMath, Ownable {
    */
   function deployCoinage(address rootchain) external onlyRegistry returns (bool) {
     // short circuit if already coinage is deployed
-    if (address(coinages[rootchain]) != address(0)) {
+    if (address(_coinages[rootchain]) != address(0)) {
       return false;
     }
 
     // create new coinage token for the root chain contract
-    if (address(coinages[rootchain]) == address(0)) {
-      coinages[rootchain] = new CustomIncrementCoinage(
+    if (address(_coinages[rootchain]) == address(0)) {
+      _coinages[rootchain] = new CustomIncrementCoinage(
         "",
         "",
-        DEFAULT_FACTOR,
+        _DEFAULT_FACTOR,
         false
       );
-      lastCommitBlock[rootchain] = block.number;
-      totTotalSupplyAtCommit[rootchain] = tot.totalSupply();
-      emit CoinageCreated(rootchain, address(coinages[rootchain]));
+      _lastCommitBlock[rootchain] = block.number;
+      _totTotalSupplyAtCommit[rootchain] = _tot.totalSupply();
+      emit CoinageCreated(rootchain, address(_coinages[rootchain]));
     }
 
     return true;
@@ -191,19 +193,19 @@ contract SeigManager  is DSMath, Ownable {
     _increaseTot();
 
     // 2. increase total supply of {coinages[rootchain]}
-    CustomIncrementCoinage coinage = coinages[msg.sender];
+    CustomIncrementCoinage coinage = _coinages[msg.sender];
 
     uint256 prevTotalSupply = coinage.totalSupply();
-    uint256 nextTotalSupply = tot.balanceOf(msg.sender);
+    uint256 nextTotalSupply = _tot.balanceOf(msg.sender);
 
     coinage.setFactor(_calcNewFactor(prevTotalSupply, nextTotalSupply, coinage.factor()));
 
     // gives seigniorages to the root chain as coinage
 
-    lastCommitBlock[msg.sender] = block.number;
-    totTotalSupplyAtCommit[msg.sender] = tot.totalSupply();
+    _lastCommitBlock[msg.sender] = block.number;
+    _totTotalSupplyAtCommit[msg.sender] = _tot.totalSupply();
 
-    wton.mint(address(this), nextTotalSupply.sub(prevTotalSupply));
+    _wton.mint(address(this), nextTotalSupply.sub(prevTotalSupply));
 
     // emit events
     emit Comitted(msg.sender);
@@ -215,7 +217,7 @@ contract SeigManager  is DSMath, Ownable {
    * @dev A proxy function for a token transfer
    */
   function onTransfer(address sender, address recipient, uint256 amount) external returns (bool) {
-    require(msg.sender == address(ton) || msg.sender == address(wton), "SeigManager: only TON or WTON can call onTransfer");
+    require(msg.sender == address(_ton) || msg.sender == address(_wton), "SeigManager: only TON or WTON can call onTransfer");
     _increaseTot();
     return true;
   }
@@ -223,68 +225,70 @@ contract SeigManager  is DSMath, Ownable {
   /**
    * @dev A proxy function for a new deposit
    */
-  function onStake(address rootchain, address depositor, uint256 amount)
+  function onStake(address rootchain, address account, uint256 amount)
     external
     onlyDepositManager
     checkCoinage(rootchain)
     returns (bool)
   {
-    coinages[rootchain].mint(depositor, amount);
-    tot.mint(rootchain, amount);
+    _coinages[rootchain].mint(account, amount);
+    _tot.mint(rootchain, amount);
     return true;
   }
 
   event UnstakeLog(uint coinageBurnAmount, uint totBurnAmount);
 
-  function onUnstake(address rootchain, address depositor, uint256 amount)
-    public
+  function onUnstake(address rootchain, address account, uint256 amount)
+    external
     onlyDepositManager
     checkCoinage(rootchain)
     returns (bool)
   {
-    require(coinages[rootchain].balanceOf(depositor) >= amount, "SeigManager: insufficiant balance to unstake");
+    require(_coinages[rootchain].balanceOf(account) >= amount, "SeigManager: insufficiant balance to unstake");
 
     // burn {v + ⍺} {tot} tokens to the root chain contract,
-    uint256 totAmount = additionalTotBurnAmount(rootchain, depositor, amount);
-    tot.burnFrom(rootchain, amount.add(totAmount));
+    uint256 totAmount = _additionalTotBurnAmount(rootchain, account, amount);
+    _tot.burnFrom(rootchain, amount.add(totAmount));
 
-    // burn {v} {coinages[rootchain]} tokens to the depositor
-    coinages[rootchain].burnFrom(depositor, amount);
+    // burn {v} {coinages[rootchain]} tokens to the account
+    _coinages[rootchain].burnFrom(account, amount);
 
     emit UnstakeLog(amount, totAmount);
 
     return true;
   }
 
+  function additionalTotBurnAmount(address rootchain, address account, uint256 amount) external view returns (uint256 totAmount) { return _additionalTotBurnAmount(rootchain, account, amount); }
+
   // TODO: consider ⍺ when root chain did not commit at all.
-  // return ⍺, where ⍺ = SEIGS * staked ratio of the root chian * withdrawal ratio of the depositor
+  // return ⍺, where ⍺ = SEIGS * staked ratio of the root chian * withdrawal ratio of the account
   //   - SEIGS                              = tot total supply - tot total supply at last commit from the root chain
   //   - staked ratio of the root chian     = tot balance of the root chain / tot total supply
-  //   - withdrawal ratio of the depositor  = amount to withdraw / total supply of coinage
-  function additionalTotBurnAmount(address rootchain, address depositor, uint256 amount)
-    public
+  //   - withdrawal ratio of the account  = amount to withdraw / total supply of coinage
+  function _additionalTotBurnAmount(address rootchain, address account, uint256 amount)
+    internal
     view
     returns (uint256 totAmount)
   {
     // short circuit if no commit
-    if (totTotalSupplyAtCommit[rootchain] == 0) {
+    if (_totTotalSupplyAtCommit[rootchain] == 0) {
       return 0;
     }
 
-    uint256 prevTotTotalSupply = totTotalSupplyAtCommit[rootchain];
+    uint256 prevTotTotalSupply = _totTotalSupplyAtCommit[rootchain];
 
     totAmount = rdiv(
       rdiv(
         rmul(
           rmul(
-            tot.totalSupply().sub(prevTotTotalSupply),  // `SEIGS`
+            _tot.totalSupply().sub(prevTotTotalSupply),  // `SEIGS`
             amount                                      // times `amount to withdraw`
           ),
-          tot.balanceOf(rootchain)                      // times `tot balance of the root chain`
+          _tot.balanceOf(rootchain)                      // times `tot balance of the root chain`
         ),
-        coinages[rootchain].totalSupply()               // div `total supply of coinage`
+        _coinages[rootchain].totalSupply()               // div `total supply of coinage`
       ),
-      tot.totalSupply()                                 // div `tot total supply`
+      _tot.totalSupply()                                 // div `tot total supply`
     );
   }
 
@@ -292,25 +296,25 @@ contract SeigManager  is DSMath, Ownable {
   // Public and internal functions
   //////////////////////////////
 
-  function uncomittedStakeOf(address rootchain, address depositor) public view returns (uint256) {
-    CustomIncrementCoinage coinage = coinages[rootchain];
+  function uncomittedStakeOf(address rootchain, address account) external view returns (uint256) {
+    CustomIncrementCoinage coinage = _coinages[rootchain];
 
     uint256 prevFactor = coinage.factor();
     uint256 prevTotalSupply = coinage.totalSupply();
-    uint256 nextTotalSupply = tot.balanceOf(rootchain);
+    uint256 nextTotalSupply = _tot.balanceOf(rootchain);
     uint256 newFactor = _calcNewFactor(prevTotalSupply, nextTotalSupply, prevFactor);
 
     uint256 uncomittedBalance = rmul(
-      rdiv(coinage.balanceOf(depositor), prevFactor),
+      rdiv(coinage.balanceOf(account), prevFactor),
       newFactor
     );
 
     return uncomittedBalance
-      .sub(coinages[rootchain].balanceOf(depositor));
+      .sub(_coinages[rootchain].balanceOf(account));
   }
 
-  function stakeOf(address rootchain, address depositor) public view returns (uint256) {
-    return coinages[rootchain].balanceOf(depositor);
+  function stakeOf(address rootchain, address account) external view returns (uint256) {
+    return _coinages[rootchain].balanceOf(account);
   }
 
   function _calcNewFactor(uint256 source, uint256 target, uint256 oldFactor) internal pure returns (uint256) {
@@ -319,12 +323,12 @@ contract SeigManager  is DSMath, Ownable {
 
   function _increaseTot() internal returns (bool) {
     // short circuit if already seigniorage is given.
-    if (block.number == lastSeigBlock) {
+    if (block.number == _lastSeigBlock) {
       return false;
     }
 
-    if (tot.totalSupply() == 0) {
-      lastSeigBlock = block.number;
+    if (_tot.totalSupply() == 0) {
+      _lastSeigBlock = block.number;
       return false;
     }
 
@@ -334,42 +338,42 @@ contract SeigManager  is DSMath, Ownable {
     // 1. increase total supply of {tot} by maximum seigniorages * staked rate
     //    staked rate = total staked amount / total supply of (W)TON
 
-    prevTotalSupply = tot.totalSupply();
+    prevTotalSupply = _tot.totalSupply();
 
     // maximum seigniorages
-    uint256 maxSeig = (block.number - lastSeigBlock).mul(seigPerBlock);
+    uint256 maxSeig = (block.number - _lastSeigBlock).mul(_seigPerBlock);
 
     // maximum seigniorages * staked rate
     uint256 stakedSeig = rdiv(
       rmul(
         maxSeig,
         // total staked amount
-        tot.totalSupply()
+        _tot.totalSupply()
       ),
       // total supply of (W)TON
-      ton.totalSupply()
-        .sub(ton.balanceOf(address(wton)))
+      _ton.totalSupply()
+        .sub(_ton.balanceOf(address(_wton)))
         .mul(10 ** 9)                                   // convert TON total supply into ray
-        .add(wton.totalSupply())                        // add WTON total supply
-        .add(tot.totalSupply()).sub(wton.totalSupply()) // consider additional TOT balance as total supply
+        .add(_wton.totalSupply())                        // add WTON total supply
+        .add(_tot.totalSupply()).sub(_wton.totalSupply()) // consider additional TOT balance as total supply
     );
 
     nextTotalSupply = prevTotalSupply.add(stakedSeig);
-    lastSeigBlock = block.number;
+    _lastSeigBlock = block.number;
 
-    tot.setFactor(_calcNewFactor(prevTotalSupply, nextTotalSupply, tot.factor()));
+    _tot.setFactor(_calcNewFactor(prevTotalSupply, nextTotalSupply, _tot.factor()));
 
 
     emit CommitLog1(
       // total staked amount
-      tot.totalSupply(),
+      _tot.totalSupply(),
 
       // total supply of (W)TON
-      ton.totalSupply()
-        .sub(ton.balanceOf(address(wton)))
+      _ton.totalSupply()
+        .sub(_ton.balanceOf(address(_wton)))
         .mul(10 ** 9)                                   // convert TON total supply into ray
-        .add(wton.totalSupply())                        // add WTON total supply
-        .add(tot.totalSupply()).sub(wton.totalSupply()), // consider additional TOT balance as total supply
+        .add(_wton.totalSupply())                        // add WTON total supply
+        .add(_tot.totalSupply()).sub(_wton.totalSupply()), // consider additional TOT balance as total supply
 
       prevTotalSupply,
       nextTotalSupply
@@ -383,4 +387,22 @@ contract SeigManager  is DSMath, Ownable {
 
     return true;
   }
+
+  //////////////////////////////
+  // Storage getters
+  //////////////////////////////
+
+  function registry() external view returns (RootChainRegistryI) { return _registry; }
+  function depositManager() external view returns (DepositManagerI) { return _depositManager; }
+  function ton() external view returns (ERC20Mintable) { return _ton; }
+  function wton() external view returns (ERC20Mintable) { return _wton; }
+  function tot() external view returns (CustomIncrementCoinage) { return _tot; }
+  function coinages(address rootchain) external view returns (CustomIncrementCoinage) { return _coinages[rootchain]; }
+
+  function lastCommitBlock(address rootchain) external view returns (uint256) { return _lastCommitBlock[rootchain]; }
+  function seigPerBlock() external view returns (uint256) { return _seigPerBlock; }
+  function lastSeigBlock() external view returns (uint256) { return _lastSeigBlock; }
+  function totTotalSupplyAtCommit(address rootchain) external view returns (uint256) { return _totTotalSupplyAtCommit[rootchain]; }
+  function DEFAULT_FACTOR() external view returns (uint256) { return _DEFAULT_FACTOR; }
+
 }

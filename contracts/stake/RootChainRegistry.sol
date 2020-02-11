@@ -1,46 +1,59 @@
 pragma solidity ^0.5.12;
 
 import { Ownable } from "../../node_modules/openzeppelin-solidity/contracts/ownership/OWnable.sol";
-import { SeigManagerI } from "./SeigManagerI.sol";
 
 import { RootChainI } from "../RootChainI.sol";
 
+import { SeigManagerI } from "./SeigManagerI.sol";
+import { RootChainRegistryI } from "./RootChainRegistryI.sol";
+
 
 // TODO: transfer coinages ownership to seig manager
-contract RootChainRegistry is Ownable {
+contract RootChainRegistry is RootChainRegistryI, Ownable {
   // check whether the address is root chain contract or not
-  mapping (address => bool) public rootchains;
+  mapping (address => bool) internal _rootchains;
 
-  function register(address rootchain) public returns (bool) {
-    require(!rootchains[rootchain]);
+  function rootchains(address rootchain) external view returns (bool) {
+    return _rootchains[rootchain];
+  }
+
+  function register(address rootchain) external returns (bool) {
+    return _register(rootchain);
+  }
+
+  function _register(address rootchain) internal returns (bool) {
+    require(!_rootchains[rootchain]);
     require(RootChainI(rootchain).isRootChain());
 
     if (!isOwner()) {
       require(msg.sender == RootChainI(rootchain).operator());
     }
 
-    rootchains[rootchain] = true;
+    _rootchains[rootchain] = true;
 
     return true;
   }
 
-  function deployCoinage(address rootchain, address seigManager) public returns (bool) {
-    return SeigManagerI(seigManager).deployCoinage(rootchain);
+  function deployCoinage(address rootchain, address seigManager) external returns (bool) {
+    return _deployCoinage(rootchain, seigManager);
   }
 
+  function _deployCoinage(address rootchain, address seigManager) internal returns (bool) {
+    return SeigManagerI(seigManager).deployCoinage(rootchain);
+  }
 
   function registerAndDeployCoinage(
     address rootchain,
     address seigManager
-  ) public returns (bool) {
-    require(register(rootchain));
-    require(deployCoinage(rootchain, seigManager));
+  ) external returns (bool) {
+    require(_register(rootchain));
+    require(_deployCoinage(rootchain, seigManager));
     return true;
   }
 
   function unregister(address rootchain) external onlyOwner returns (bool) {
-    require(rootchains[rootchain]);
+    require(_rootchains[rootchain]);
 
-    rootchains[rootchain] = false;
+    _rootchains[rootchain] = false;
   }
 }
