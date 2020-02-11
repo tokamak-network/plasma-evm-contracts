@@ -1,5 +1,5 @@
 // https://github.com/OpenZeppelin/openzeppelin-solidity/blob/master/contracts/utils/Address.sol
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.12;
 
 /**
  * Utility library of inline functions on addresses
