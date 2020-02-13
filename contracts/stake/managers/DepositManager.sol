@@ -278,6 +278,11 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   function accUnstakedRootChain(address rootchain) external view returns (uint256 wtonAmount) { return _accUnstakedRootChain[rootchain]; }
 
   function withdrawalRequestIndex(address rootchain, address account) external view returns (uint256 index) { return _withdrawalRequestIndex[rootchain][account]; }
+  function withdrawalReqeust(address rootchain, address account, uint256 index) external view returns (uint128 withdrawableBlockNumber, uint128 amount, bool processed ) {
+    withdrawableBlockNumber = _withdrawalReqeusts[rootchain][account][index].withdrawableBlockNumber;
+    amount = _withdrawalReqeusts[rootchain][account][index].amount;
+    processed = _withdrawalReqeusts[rootchain][account][index].processed;
+  }
 
   function WITHDRAWAL_DELAY() external view returns (uint256) { return _WITHDRAWAL_DELAY; }
 }
