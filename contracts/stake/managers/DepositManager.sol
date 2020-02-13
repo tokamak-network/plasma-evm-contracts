@@ -39,14 +39,20 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   // accumulated staked amount
   // rootchian => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _accStaked;
+  // rootchian => wton amount
+  mapping (address => uint256) internal _accStakedRootChain;
 
   // pending unstaked amount
   // rootchian => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _pendingUnstaked;
+  // rootchian => wton amount
+  mapping (address => uint256) internal _pendingUnstakedRootChain;
 
   // accumulated unstaked amount
   // rootchian => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _accUnstaked;
+  // rootchian => wton amount
+  mapping (address => uint256) internal _accUnstakedRootChain;
 
   // rootchain => msg.sender => withdrawal requests
   mapping (address => mapping (address => WithdrawalReqeust[])) internal _withdrawalReqeusts;
@@ -153,6 +159,7 @@ contract DepositManager is Ownable, ERC165, OnApprove {
 
   function _deposit(address rootchain, address account, uint256 amount) internal onlyRootChain(rootchain) returns (bool) {
     _accStaked[rootchain][account] = _accStaked[rootchain][account].add(amount);
+    _accStakedRootChain[rootchain] = _accStakedRootChain[rootchain].add(amount);
 
     _wton.safeTransferFrom(account, address(this), amount);
 
@@ -181,6 +188,7 @@ contract DepositManager is Ownable, ERC165, OnApprove {
     }));
 
     _pendingUnstaked[rootchain][msg.sender] = _pendingUnstaked[rootchain][msg.sender].add(amount);
+    _pendingUnstakedRootChain[rootchain] = _pendingUnstakedRootChain[rootchain].add(amount);
     emit WithdrawalRequested(rootchain, msg.sender, amount);
 
     require(_seigManager.onUnstake(rootchain, msg.sender, amount));
@@ -206,7 +214,10 @@ contract DepositManager is Ownable, ERC165, OnApprove {
     uint256 amount = r.amount;
 
     _pendingUnstaked[rootchain][msg.sender] = _pendingUnstaked[rootchain][msg.sender].sub(amount);
+    _pendingUnstakedRootChain[rootchain] = _pendingUnstakedRootChain[rootchain].sub(amount);
+
     _accUnstaked[rootchain][msg.sender] = _accUnstaked[rootchain][msg.sender].add(amount);
+    _accUnstakedRootChain[rootchain] = _accUnstakedRootChain[rootchain].add(amount);
 
     if (receiveTON) {
       require(_wton.swapToTONAndTransfer(msg.sender, amount));
@@ -258,8 +269,14 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   function seigManager() external view returns (SeigManagerI) { return _seigManager; }
 
   function accStaked(address rootchain, address account) external view returns (uint256 wtonAmount) { return _accStaked[rootchain][account]; }
+  function accStakedRootChain(address rootchain) external view returns (uint256 wtonAmount) { return _accStakedRootChain[rootchain]; }
+
   function pendingUnstaked(address rootchain, address account) external view returns (uint256 wtonAmount) { return _pendingUnstaked[rootchain][account]; }
+  function pendingUnstakedRootChain(address rootchain) external view returns (uint256 wtonAmount) { return _pendingUnstakedRootChain[rootchain]; }
+
   function accUnstaked(address rootchain, address account) external view returns (uint256 wtonAmount) { return _accUnstaked[rootchain][account]; }
+  function accUnstakedRootChain(address rootchain) external view returns (uint256 wtonAmount) { return _accUnstakedRootChain[rootchain]; }
+
   function withdrawalRequestIndex(address rootchain, address account) external view returns (uint256 index) { return _withdrawalRequestIndex[rootchain][account]; }
 
   function WITHDRAWAL_DELAY() external view returns (uint256) { return _WITHDRAWAL_DELAY; }
