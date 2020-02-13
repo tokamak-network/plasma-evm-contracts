@@ -87,15 +87,15 @@ describe('stake/SeigManager', function () {
 
   function checkBalance (balanceBN, expected, unit) {
     const v = balanceBN.sub(toBN(expected.toFixed(unit))).abs();
-    if (v.cmp(e) > 0) {
-      console.error(`
-        actual   : ${balanceBN.toString().padStart(40)}
-        expected : ${expected.toFixed(unit).padStart(40)}
-        diff     : ${v.toString().padStart(40)}
-        e        : ${e.toString().padStart(40)}
+    // if (v.cmp(e) > 0) {
+    //   console.error(`
+    //     actual   : ${balanceBN.toString().padStart(40)}
+    //     expected : ${expected.toFixed(unit).padStart(40)}
+    //     diff     : ${v.toString().padStart(40)}
+    //     e        : ${e.toString().padStart(40)}
 
-      `);
-    }
+    //   `);
+    // }
     v.should.be.bignumber.lte(e);
   }
 
@@ -172,7 +172,6 @@ describe('stake/SeigManager', function () {
     // set seig manager to contracts
     await Promise.all([
       this.depositManager,
-      this.ton,
       this.wton,
     ].map(contract => contract.setSeigManager(this.seigManager.address)));
     await Promise.all(this.rootchains.map(rootchain => rootchain.setSeigManager(this.seigManager.address)));
@@ -419,11 +418,11 @@ describe('stake/SeigManager', function () {
               const amount = await this.seigManager.stakeOf(rootchain.address, tokenOwner);
               const additionalTotBurnAmount = await this.seigManager.additionalTotBurnAmount(rootchain.address, tokenOwner, amount);
 
-              console.log(`
-              amount                     ${amount.toString(10).padStart(30)}
-              precomitted                ${precomitted.toString(10).padStart(30)}
-              additionalTotBurnAmount    ${additionalTotBurnAmount.toString(10).padStart(30)}
-              `);
+              // console.log(`
+              // amount                     ${amount.toString(10).padStart(30)}
+              // precomitted                ${precomitted.toString(10).padStart(30)}
+              // additionalTotBurnAmount    ${additionalTotBurnAmount.toString(10).padStart(30)}
+              // `);
 
               const prevWTONBalance = await this.wton.balanceOf(tokenOwner);
               const prevCoinageTotalSupply = await coinage.totalSupply();
@@ -449,20 +448,20 @@ describe('stake/SeigManager', function () {
 
               const { args: { coinageBurnAmount, totBurnAmount } } = await expectEvent.inTransaction(tx.tx, this.seigManager, 'UnstakeLog');
 
-              console.log('coinageBurnAmount  ', coinageBurnAmount.toString(10).padStart(35));
-              console.log('totBurnAmount      ', totBurnAmount.toString(10).padStart(35));
-              console.log('diff               ', toBN(totBurnAmount).sub(toBN(coinageBurnAmount)).toString(10).padStart(35));
+              // console.log('coinageBurnAmount  ', coinageBurnAmount.toString(10).padStart(35));
+              // console.log('totBurnAmount      ', totBurnAmount.toString(10).padStart(35));
+              // console.log('diff               ', toBN(totBurnAmount).sub(toBN(coinageBurnAmount)).toString(10).padStart(35));
 
               expect(await this.depositManager.pendingUnstaked(rootchain.address, tokenOwner)).to.be.bignumber.equal(amount);
               expect(await this.depositManager.accUnstaked(rootchain.address, tokenOwner)).to.be.bignumber.equal('0');
 
               // 2. process the request
-              await expectRevert(this.depositManager.processRequest(rootchain.address, { from: tokenOwner }), 'DepositManager: wait for withdrawal delay');
+              await expectRevert(this.depositManager.processRequest(rootchain.address, false, { from: tokenOwner }), 'DepositManager: wait for withdrawal delay');
 
               await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
 
               expectEvent(
-                await this.depositManager.processRequest(rootchain.address, { from: tokenOwner }),
+                await this.depositManager.processRequest(rootchain.address, false, { from: tokenOwner }),
                 'WithdrawalProcessed',
                 {
                   rootchain: rootchain.address,
@@ -552,19 +551,19 @@ describe('stake/SeigManager', function () {
               .times(totalStaked)
               .div(totTotalSupplyBeforeCommit);
 
-            console.log(`
-            ${j}-th commit
-            this.accSeigs[j]              ${this.accSeigs[j].toString(10).padStart(40)}
-            this.seigs[j]                 ${this.seigs[j].toString(10).padStart(40)}
+            // console.log(`
+            // ${j}-th commit
+            // this.accSeigs[j]              ${this.accSeigs[j].toString(10).padStart(40)}
+            // this.seigs[j]                 ${this.seigs[j].toString(10).padStart(40)}
 
-            nBlocks                       ${nBlocks.toString(10).padStart(40)}
-            accSeigBeforeCommit           ${accSeigBeforeCommit.toString().padStart(40)}
-            totalStaked:                  ${totalStaked.toString().padStart(40)}
-            totTotalSupplyBeforeCommit:   ${totTotalSupplyBeforeCommit.toString().padStart(40)}
-            expectedSeig:                 ${expectedSeig.toString().padStart(40)}
-            this.seigs[j]:                ${this.seigs[j].toString().padStart(40)}
-            ${'-'.repeat(50)}
-            `);
+            // nBlocks                       ${nBlocks.toString(10).padStart(40)}
+            // accSeigBeforeCommit           ${accSeigBeforeCommit.toString().padStart(40)}
+            // totalStaked:                  ${totalStaked.toString().padStart(40)}
+            // totTotalSupplyBeforeCommit:   ${totTotalSupplyBeforeCommit.toString().padStart(40)}
+            // expectedSeig:                 ${expectedSeig.toString().padStart(40)}
+            // this.seigs[j]:                ${this.seigs[j].toString().padStart(40)}
+            // ${'-'.repeat(50)}
+            // `);
 
             checkBalance(
               toBN(this.seigs[j].toFixed(WTON_UNIT)),

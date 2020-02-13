@@ -1,7 +1,7 @@
 pragma solidity ^0.5.12;
 
 import { SeigManagerI } from "./SeigManagerI.sol";
-import { RootChainI } from "../RootChainI.sol";
+import { RootChainI } from "../../RootChainI.sol";
 
 
 interface RootChainRegistryI {

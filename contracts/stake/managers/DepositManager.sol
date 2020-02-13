@@ -1,15 +1,18 @@
 pragma solidity ^0.5.12;
 
-import { Ownable } from "../../node_modules/openzeppelin-solidity/contracts/ownership/OWnable.sol";
-import { SafeMath } from "../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
-import { IERC20 } from "../../node_modules/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "../../node_modules/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
+import { Ownable } from "../../../node_modules/openzeppelin-solidity/contracts/ownership/OWnable.sol";
+import { SafeMath } from "../../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import { IERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
+import { ERC165 } from "../../../node_modules/openzeppelin-solidity/contracts/introspection/ERC165.sol";
 
-import { RootChainI } from "../RootChainI.sol";
+import { RootChainI } from "../../RootChainI.sol";
 
-import { DepositManagerI } from "./DepositManagerI.sol";
-import { RootChainRegistryI } from "./RootChainRegistryI.sol";
-import { SeigManagerI } from "./SeigManagerI.sol";
+import { DepositManagerI } from "../interfaces/DepositManagerI.sol";
+import { RootChainRegistryI } from "../interfaces/RootChainRegistryI.sol";
+import { SeigManagerI } from "../interfaces/SeigManagerI.sol";
+import { WTON } from "../tokens/WTON.sol";
+import { OnApprove } from "../tokens/OnApprove.sol";
 
 // TODO: add events
 // TODO: check deposit/withdraw WTON amount (1e27)
@@ -17,15 +20,15 @@ import { SeigManagerI } from "./SeigManagerI.sol";
 /**
  * @dev DepositManager manages WTON deposit and withdrawal from operator and WTON holders.
  */
-contract DepositManager is Ownable {
+contract DepositManager is Ownable, ERC165, OnApprove {
   using SafeMath for uint256;
-  using SafeERC20 for IERC20;
+  using SafeERC20 for WTON;
 
   ////////////////////
   // Storage - contracts
   ////////////////////
 
-  IERC20 internal _wton;
+  WTON internal _wton;
   RootChainRegistryI internal _registry;
   SeigManagerI internal _seigManager;
 
@@ -52,7 +55,7 @@ contract DepositManager is Ownable {
   mapping (address => mapping (address => uint256)) internal _withdrawalRequestIndex;
 
   ////////////////////
-  // Storage - configuration
+  // Storage - configuration / ERC165 interfaces
   ////////////////////
 
   // withdrawal delay in block number
@@ -92,7 +95,7 @@ contract DepositManager is Ownable {
   ////////////////////
 
   constructor (
-    IERC20 wton,
+    WTON wton,
     RootChainRegistryI registry,
     uint256 WITHDRAWAL_DELAY
   ) public {
@@ -111,20 +114,51 @@ contract DepositManager is Ownable {
   }
 
   ////////////////////
+  // ERC20 Approve callback
+  ////////////////////
+
+  function onApprove(
+    address owner,
+    address spender,
+    uint256 amount,
+    bytes calldata data
+  ) external returns (bool) {
+    require(msg.sender == address(_wton), "DepositManager: only accept WTON approve callback");
+
+    address rootchain = _decodeDepositManagerOnApproveData(data);
+    require(_deposit(rootchain, owner, amount));
+  }
+
+  function _decodeDepositManagerOnApproveData(
+    bytes memory data
+  ) internal pure returns (address rootchain) {
+    require(data.length == 0x20);
+
+    assembly {
+      rootchain := mload(add(data, 0x20))
+    }
+  }
+
+  ////////////////////
   // Deposit function
   ////////////////////
 
   /**
    * @dev deposit `amount` WTON in RAY
    */
-  function deposit(address rootchain, uint256 amount) external onlyRootChain(rootchain) returns (bool) {
-    _accStaked[rootchain][msg.sender] = _accStaked[rootchain][msg.sender].add(amount);
 
-    _wton.safeTransferFrom(msg.sender, address(this), amount);
+  function deposit(address rootchain, uint256 amount) external returns (bool) {
+    require(_deposit(rootchain, msg.sender, amount));
+  }
 
-    emit Deposited(rootchain, msg.sender, amount);
+  function _deposit(address rootchain, address account, uint256 amount) internal onlyRootChain(rootchain) returns (bool) {
+    _accStaked[rootchain][account] = _accStaked[rootchain][account].add(amount);
 
-    require(_seigManager.onStake(rootchain, msg.sender, amount));
+    _wton.safeTransferFrom(account, address(this), amount);
+
+    emit Deposited(rootchain, account, amount);
+
+    require(_seigManager.onStake(rootchain, account, amount));
 
     return true;
   }
@@ -154,11 +188,11 @@ contract DepositManager is Ownable {
     return true;
   }
 
-  function processRequest(address rootchain) external returns (bool) {
-    return _processRequest(rootchain);
+  function processRequest(address rootchain, bool receiveTON) external returns (bool) {
+    return _processRequest(rootchain, receiveTON);
   }
 
-  function _processRequest(address rootchain) internal returns (bool) {
+  function _processRequest(address rootchain, bool receiveTON) internal returns (bool) {
     uint256 index = _withdrawalRequestIndex[rootchain][msg.sender];
     require(_withdrawalReqeusts[rootchain][msg.sender].length > index, "DepositManager: no request to process");
 
@@ -174,7 +208,11 @@ contract DepositManager is Ownable {
     _pendingUnstaked[rootchain][msg.sender] = _pendingUnstaked[rootchain][msg.sender].sub(amount);
     _accUnstaked[rootchain][msg.sender] = _accUnstaked[rootchain][msg.sender].add(amount);
 
-    _wton.safeTransfer(msg.sender, amount);
+    if (receiveTON) {
+      require(_wton.swapToTONAndTransfer(msg.sender, amount));
+    } else {
+      _wton.safeTransfer(msg.sender, amount);
+    }
 
     emit WithdrawalProcessed(rootchain, msg.sender, amount);
     return true;
@@ -186,9 +224,9 @@ contract DepositManager is Ownable {
     return _requestWithdrawal(rootchain, amount);
   }
 
-  function processRequests(address rootchain, uint256 n) external returns (bool) {
+  function processRequests(address rootchain, uint256 n, bool receiveTON) external returns (bool) {
     for (uint256 i = 0; i < n; i++) {
-      _processRequest(rootchain);
+      require(_processRequest(rootchain, receiveTON));
     }
     return true;
   }
@@ -215,7 +253,7 @@ contract DepositManager is Ownable {
   // Storage getters
   ////////////////////
 
-  function wton() external view returns (IERC20) { return _wton; }
+  function wton() external view returns (WTON) { return _wton; }
   function registry() external view returns (RootChainRegistryI) { return _registry; }
   function seigManager() external view returns (SeigManagerI) { return _seigManager; }
 

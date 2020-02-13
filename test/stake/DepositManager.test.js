@@ -8,8 +8,11 @@ const {
   BN, constants, expectEvent, expectRevert, time, ether,
 } = require('@openzeppelin/test-helpers');
 
-const { padLeft } = require('../helpers/pad');
+const { padLeft } = require('web3-utils');
+
+const { marshalString, unmarshalString } = require('../helpers/marshal');
 const { appendHex } = require('../helpers/appendHex');
+const { depositEncoder } = require('../../lib/abi-encoder');
 
 const WTON = contract.fromArtifact('WTON');
 const TON = contract.fromArtifact('TON');
@@ -24,6 +27,8 @@ const SeigManager = contract.fromArtifact('SeigManager');
 const RootChainRegistry = contract.fromArtifact('RootChainRegistry');
 const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
 
+const encodeDeposit = depositEncoder(DepositManager);
+
 const { expect } = require('chai')
   .use(require('chai-bn')(BN))
   .should();
@@ -33,8 +38,10 @@ const VERBOSE = process.env.VERBOSE || false;
 
 const development = true;
 
+const _TON = createCurrency('TON');
 const _WTON = createCurrency('WTON');
 
+const TON_UNIT = 'wei';
 const WTON_UNIT = 'ray';
 
 const [operator, tokenOwner] = accounts;
@@ -84,13 +91,13 @@ describe('stake/DepositManager', function () {
       _WTON('100').toFixed(WTON_UNIT),
     );
 
-    // add WSTON minter role to seig manager
+    // add minter roles
     await this.wton.addMinter(this.seigManager.address);
+    await this.ton.addMinter(this.wton.address);
 
     // set seig manager to contracts
     await Promise.all([
       this.depositManager,
-      this.ton,
       this.wton,
     ].map(contract => contract.setSeigManager(this.seigManager.address)));
     await this.rootchain.setSeigManager(this.seigManager.address);
@@ -107,49 +114,127 @@ describe('stake/DepositManager', function () {
   });
 
   describe('when the token owner tries to deposit', function () {
+    describe('after the token holder approve WTON', function () {
+      beforeEach(async function () {
+        await this.wton.approve(this.depositManager.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+      });
+
+      it('should deposit WTON', async function () {
+        const { tx } = await this.depositManager.deposit(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+
+        await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
+          from: tokenOwner,
+          to: this.depositManager.address,
+          value: tokenAmount.toFixed(WTON_UNIT),
+        });
+
+        await expectEvent.inTransaction(tx, this.depositManager, 'Deposited', {
+          rootchain: this.rootchain.address,
+          depositor: tokenOwner,
+          amount: tokenAmount.toFixed(WTON_UNIT),
+        });
+      });
+    });
+
+    describe('when the token owner tries to deposit with TON.approveAndCall', async function () {
+      beforeEach(async function () {
+        await this.ton.mint(tokenOwner, tokenAmount.toFixed(TON_UNIT));
+      });
+
+      it('should deposit WTON from TON', async function () {
+        const data = marshalString(
+          [this.depositManager.address, this.rootchain.address]
+            .map(unmarshalString)
+            .map(str => padLeft(str, 64))
+            .join(''),
+        );
+
+        const { tx } = await this.ton.approveAndCall(
+          this.wton.address,
+          tokenAmount.toFixed(TON_UNIT),
+          data,
+          { from: tokenOwner },
+        );
+
+        await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
+          from: tokenOwner,
+          to: this.depositManager.address,
+          value: tokenAmount.toFixed(WTON_UNIT),
+        });
+
+        await expectEvent.inTransaction(tx, this.depositManager, 'Deposited', {
+          rootchain: this.rootchain.address,
+          depositor: tokenOwner,
+          amount: tokenAmount.toFixed(WTON_UNIT),
+        });
+      });
+    });
+  });
+
+  describe('after the token owner deposits tokens', function () {
     beforeEach(async function () {
       await this.wton.approve(this.depositManager.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+      await this.depositManager.deposit(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
     });
 
-    it('should deposit WTON', async function () {
-      const { tx } = await this.depositManager.deposit(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
-
-      await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
-        from: tokenOwner,
-        to: this.depositManager.address,
-        value: tokenAmount.toFixed(WTON_UNIT),
-      });
-    });
-
-    // TODO: amount check
-    describe('after the token owner deposits tokens', function () {
-      beforeEach(async function () {
-        await this.depositManager.deposit(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+    describe('when the token owner tries to withdraw', function () {
+      it('should make a withdrawal request', async function () {
+        await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
       });
 
-      describe('when the token owner tries to withdraw', function () {
-        it('should make a withdrawal request', async function () {
-          console.log(`
-tot     total supply            : ${(await this.tot.totalSupply()).toString(10).padStart(35)}
-coinage total supply            : ${(await this.coinage.totalSupply()).toString(10).padStart(35)}
-tot     balance of root chian   : ${(await this.tot.balanceOf(this.rootchain.address)).toString(10).padStart(35)}
-coinage balance of tokwn owner  : ${(await this.coinage.balanceOf(tokenOwner)).toString(10).padStart(35)}
-
-additionalTotBurnAmount         : ${(await this.seigManager.additionalTotBurnAmount(this.rootchain.address, tokenOwner, tokenAmount.toFixed(WTON_UNIT))).toString(10).padStart(35)}
-
-          `);
-
+      describe('before WITHDRAWAL_DELAY blocks are mined', function () {
+        beforeEach(async function () {
           await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
         });
 
-        describe('before WITHDRAWAL_DELAY blocks are mined', function () {
-          beforeEach(async function () {
-            await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
-          });
+        it('should not process withdrawal request', async function () {
+          await expectRevert(
+            this.depositManager.processRequest(this.rootchain.address, false, { from: tokenOwner }),
+            'DepositManager: wait for withdrawal delay',
+          );
+        });
+      });
 
+      describe('after WITHDRAWAL_DELAY blocks are mined', function () {
+        beforeEach(async function () {
+          await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+          await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
+        });
+
+        it('should withdraw deposited WTON to the token owner', async function () {
+          const { tx } = await this.depositManager.processRequest(this.rootchain.address, false, { from: tokenOwner });
+
+          await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
+            from: this.depositManager.address,
+            to: tokenOwner,
+            value: tokenAmount.toFixed(WTON_UNIT),
+          });
+        });
+
+        it('should withdraw deposited WTON to the token owner in TON', async function () {
+          const { tx } = await this.depositManager.processRequest(this.rootchain.address, true, { from: tokenOwner });
+
+          await expectEvent.inTransaction(tx, this.ton, 'Transfer', {
+            from: this.wton.address,
+            to: tokenOwner,
+            value: tokenAmount.toFixed(TON_UNIT),
+          });
+        });
+      });
+
+      describe('when the token owner make 2 requests', function () {
+        const amount = tokenAmount.div(2);
+
+        beforeEach(async function () {
+          for (const _ of range(2)) {
+            await this.depositManager.requestWithdrawal(this.rootchain.address, amount.toFixed(WTON_UNIT), { from: tokenOwner });
+          }
+        });
+
+        describe('before WITHDRAWAL_DELAY blocks are mined', function () {
           it('should not process withdrawal request', async function () {
             await expectRevert(
-              this.depositManager.processRequest(this.rootchain.address, { from: tokenOwner }),
+              this.depositManager.processRequest(this.rootchain.address, false, { from: tokenOwner }),
               'DepositManager: wait for withdrawal delay',
             );
           });
@@ -157,55 +242,19 @@ additionalTotBurnAmount         : ${(await this.seigManager.additionalTotBurnAmo
 
         describe('after WITHDRAWAL_DELAY blocks are mined', function () {
           beforeEach(async function () {
-            await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
             await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
           });
 
-          it('should withdraw WTON to the token owner', async function () {
-            const { tx } = await this.depositManager.processRequest(this.rootchain.address, { from: tokenOwner });
-
-            await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
-              from: this.depositManager.address,
-              to: tokenOwner,
-              value: tokenAmount.toFixed(WTON_UNIT),
-            });
-          });
-        });
-
-        describe('when the token owner make 2 requests', function () {
-          const amount = tokenAmount.div(2);
-
-          beforeEach(async function () {
+          it('should process 2 requests', async function () {
             for (const _ of range(2)) {
-              await this.depositManager.requestWithdrawal(this.rootchain.address, amount.toFixed(WTON_UNIT), { from: tokenOwner });
+              const { tx } = await this.depositManager.processRequest(this.rootchain.address, false, { from: tokenOwner });
+
+              await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
+                from: this.depositManager.address,
+                to: tokenOwner,
+                value: amount.toFixed(WTON_UNIT),
+              });
             }
-          });
-
-          describe('before WITHDRAWAL_DELAY blocks are mined', function () {
-            it('should not process withdrawal request', async function () {
-              await expectRevert(
-                this.depositManager.processRequest(this.rootchain.address, { from: tokenOwner }),
-                'DepositManager: wait for withdrawal delay',
-              );
-            });
-          });
-
-          describe('after WITHDRAWAL_DELAY blocks are mined', function () {
-            beforeEach(async function () {
-              await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
-            });
-
-            it('should process 2 requests', async function () {
-              for (const _ of range(2)) {
-                const { tx } = await this.depositManager.processRequest(this.rootchain.address, { from: tokenOwner });
-
-                await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
-                  from: this.depositManager.address,
-                  to: tokenOwner,
-                  value: amount.toFixed(WTON_UNIT),
-                });
-              }
-            });
           });
         });
       });

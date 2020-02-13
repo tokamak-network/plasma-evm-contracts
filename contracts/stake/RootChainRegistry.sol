@@ -4,8 +4,8 @@ import { Ownable } from "../../node_modules/openzeppelin-solidity/contracts/owne
 
 import { RootChainI } from "../RootChainI.sol";
 
-import { SeigManagerI } from "./SeigManagerI.sol";
-import { RootChainRegistryI } from "./RootChainRegistryI.sol";
+import { SeigManagerI } from "./interfaces/SeigManagerI.sol";
+import { RootChainRegistryI } from "./interfaces/RootChainRegistryI.sol";
 
 
 // TODO: transfer coinages ownership to seig manager

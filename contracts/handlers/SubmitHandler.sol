@@ -10,7 +10,7 @@ import "../RootChainStorage.sol";
 import "../RootChainEvent.sol";
 import "../RootChainBase.sol";
 
-import { SeigManagerI } from "../stake/SeigManagerI.sol";
+import { SeigManagerI } from "../stake/interfaces/SeigManagerI.sol";
 
 
 contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {

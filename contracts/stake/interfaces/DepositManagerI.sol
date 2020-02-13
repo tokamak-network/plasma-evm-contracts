@@ -1,13 +1,13 @@
 pragma solidity ^0.5.12;
 
-import { IERC20 } from "../../node_modules/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import { RootChainRegistryI } from "./RootChainRegistryI.sol";
 import { SeigManagerI } from "./SeigManagerI.sol";
+import { WTON } from "../tokens/WTON.sol";
 
 
 interface DepositManagerI {
-  // function owner() external view returns (address);
-  function wton() external view returns (IERC20);
+  function owner() external view returns (address);
+  function wton() external view returns (WTON);
   function registry() external view returns (RootChainRegistryI);
   function seigManager() external view returns (SeigManagerI);
 
