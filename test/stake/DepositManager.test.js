@@ -27,11 +27,11 @@ const SeigManager = contract.fromArtifact('SeigManager');
 const RootChainRegistry = contract.fromArtifact('RootChainRegistry');
 const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
 
-const encodeDeposit = depositEncoder(DepositManager);
-
-const { expect } = require('chai')
+const chai = require('chai');
+chai
   .use(require('chai-bn')(BN))
   .should();
+const { expect } = chai;
 
 const LOGTX = process.env.LOGTX || false;
 const VERBOSE = process.env.VERBOSE || false;
@@ -120,7 +120,10 @@ describe('stake/DepositManager', function () {
       });
 
       it('should deposit WTON', async function () {
+        const wtonBalance0 = await this.wton.balanceOf(tokenOwner);
+
         const { tx } = await this.depositManager.deposit(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+        const wtonBalance1 = await this.wton.balanceOf(tokenOwner);
 
         await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
           from: tokenOwner,
@@ -133,6 +136,9 @@ describe('stake/DepositManager', function () {
           depositor: tokenOwner,
           amount: tokenAmount.toFixed(WTON_UNIT),
         });
+
+        expect(await this.seigManager.stakeOf(this.rootchain.address, tokenOwner)).to.be.bignumber.equal(tokenAmount.toFixed(WTON_UNIT));
+        expect(wtonBalance0.sub(wtonBalance1)).to.be.bignumber.equal(tokenAmount.toFixed(WTON_UNIT));
       });
     });
 
@@ -142,6 +148,8 @@ describe('stake/DepositManager', function () {
       });
 
       it('should deposit WTON from TON', async function () {
+        const tonBalance0 = await this.ton.balanceOf(tokenOwner);
+
         const data = marshalString(
           [this.depositManager.address, this.rootchain.address]
             .map(unmarshalString)
@@ -155,6 +163,7 @@ describe('stake/DepositManager', function () {
           data,
           { from: tokenOwner },
         );
+        const tonBalance1 = await this.ton.balanceOf(tokenOwner);
 
         await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
           from: tokenOwner,
@@ -167,6 +176,9 @@ describe('stake/DepositManager', function () {
           depositor: tokenOwner,
           amount: tokenAmount.toFixed(WTON_UNIT),
         });
+
+        expect(await this.seigManager.stakeOf(this.rootchain.address, tokenOwner)).to.be.bignumber.equal(tokenAmount.toFixed(WTON_UNIT));
+        expect(tonBalance0.sub(tonBalance1)).to.be.bignumber.equal(tokenAmount.toFixed(TON_UNIT));
       });
     });
   });
@@ -180,6 +192,19 @@ describe('stake/DepositManager', function () {
     describe('when the token owner tries to withdraw', function () {
       it('should make a withdrawal request', async function () {
         await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+      });
+
+      it('should get request data', async function () {
+        const n = 10;
+        for (const index of range(n)) {
+          await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.div(n).toFixed(WTON_UNIT), { from: tokenOwner });
+
+          console.log(await this.depositManager.withdrawalRequest(this.rootchain.address, tokenOwner, index));
+
+          console.log(await this.depositManager.numRequests(this.rootchain.address, tokenOwner));
+          console.log(await this.depositManager.numPendingRequests(this.rootchain.address, tokenOwner));
+          console.log(await this.depositManager.withdrawalRequestIndex(this.rootchain.address, tokenOwner));
+        }
       });
 
       describe('before WITHDRAWAL_DELAY blocks are mined', function () {
