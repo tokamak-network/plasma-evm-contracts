@@ -55,7 +55,7 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   mapping (address => uint256) internal _accUnstakedRootChain;
 
   // rootchain => msg.sender => withdrawal requests
-  mapping (address => mapping (address => WithdrawalReqeust[])) internal _withdrawalReqeusts;
+  mapping (address => mapping (address => WithdrawalReqeust[])) internal _withdrawalRequests;
 
   // rootchain => msg.sender => index
   mapping (address => mapping (address => uint256)) internal _withdrawalRequestIndex;
@@ -181,7 +181,7 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   function _requestWithdrawal(address rootchain, uint256 amount) internal onlyRootChain(rootchain) returns (bool) {
     // TODO: check `amount` WTON can be withdrawable
 
-    _withdrawalReqeusts[rootchain][msg.sender].push(WithdrawalReqeust({
+    _withdrawalRequests[rootchain][msg.sender].push(WithdrawalReqeust({
       withdrawableBlockNumber: uint128(block.number + _WITHDRAWAL_DELAY),
       amount: uint128(amount),
       processed: false
@@ -202,9 +202,9 @@ contract DepositManager is Ownable, ERC165, OnApprove {
 
   function _processRequest(address rootchain, bool receiveTON) internal returns (bool) {
     uint256 index = _withdrawalRequestIndex[rootchain][msg.sender];
-    require(_withdrawalReqeusts[rootchain][msg.sender].length > index, "DepositManager: no request to process");
+    require(_withdrawalRequests[rootchain][msg.sender].length > index, "DepositManager: no request to process");
 
-    WithdrawalReqeust storage r = _withdrawalReqeusts[rootchain][msg.sender][index];
+    WithdrawalReqeust storage r = _withdrawalRequests[rootchain][msg.sender][index];
 
     require(r.withdrawableBlockNumber <= block.number, "DepositManager: wait for withdrawal delay");
     r.processed = true;
@@ -243,11 +243,11 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   }
 
   function numRequests(address rootchain, address account) external view returns (uint256) {
-    return _withdrawalReqeusts[rootchain][account].length;
+    return _withdrawalRequests[rootchain][account].length;
   }
 
   function numPendingRequests(address rootchain, address account) external view returns (uint256) {
-    uint256 numRequests = _withdrawalReqeusts[rootchain][account].length;
+    uint256 numRequests = _withdrawalRequests[rootchain][account].length;
     uint256 index = _withdrawalRequestIndex[rootchain][account];
 
     if (numRequests == 0) return 0;
@@ -278,10 +278,10 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   function accUnstakedRootChain(address rootchain) external view returns (uint256 wtonAmount) { return _accUnstakedRootChain[rootchain]; }
 
   function withdrawalRequestIndex(address rootchain, address account) external view returns (uint256 index) { return _withdrawalRequestIndex[rootchain][account]; }
-  function withdrawalReqeust(address rootchain, address account, uint256 index) external view returns (uint128 withdrawableBlockNumber, uint128 amount, bool processed ) {
-    withdrawableBlockNumber = _withdrawalReqeusts[rootchain][account][index].withdrawableBlockNumber;
-    amount = _withdrawalReqeusts[rootchain][account][index].amount;
-    processed = _withdrawalReqeusts[rootchain][account][index].processed;
+  function withdrawalRequest(address rootchain, address account, uint256 index) external view returns (uint128 withdrawableBlockNumber, uint128 amount, bool processed ) {
+    withdrawableBlockNumber = _withdrawalRequests[rootchain][account][index].withdrawableBlockNumber;
+    amount = _withdrawalRequests[rootchain][account][index].amount;
+    processed = _withdrawalRequests[rootchain][account][index].processed;
   }
 
   function WITHDRAWAL_DELAY() external view returns (uint256) { return _WITHDRAWAL_DELAY; }

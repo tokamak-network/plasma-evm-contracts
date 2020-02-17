@@ -22,7 +22,7 @@ interface DepositManagerI {
 
 
   function withdrawalRequestIndex(address rootchain, address account) external view returns (uint256 index);
-  function withdrawalReqeust(address rootchain, address account, uint256 index) external view returns (uint128 withdrawableBlockNumber, uint128 amount, bool processed );
+  function withdrawalRequest(address rootchain, address account, uint256 index) external view returns (uint128 withdrawableBlockNumber, uint128 amount, bool processed );
 
   function WITHDRAWAL_DELAY() external view returns (uint256);
 
