@@ -8,11 +8,9 @@ const {
   BN, constants, expectEvent, expectRevert, time, ether,
 } = require('@openzeppelin/test-helpers');
 
-const { padLeft } = require('web3-utils');
+const { padLeft, toBN } = require('web3-utils');
 
 const { marshalString, unmarshalString } = require('../helpers/marshal');
-const { appendHex } = require('../helpers/appendHex');
-const { depositEncoder } = require('../../lib/abi-encoder');
 
 const WTON = contract.fromArtifact('WTON');
 const TON = contract.fromArtifact('TON');
@@ -199,11 +197,13 @@ describe('stake/DepositManager', function () {
         for (const index of range(n)) {
           await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.div(n).toFixed(WTON_UNIT), { from: tokenOwner });
 
-          console.log(await this.depositManager.withdrawalRequest(this.rootchain.address, tokenOwner, index));
+          const request = await this.depositManager.withdrawalRequest(this.rootchain.address, tokenOwner, index);
+          expect(request.amount).to.be.bignumber.equal(tokenAmount.div(n).toFixed(WTON_UNIT));
 
-          console.log(await this.depositManager.numRequests(this.rootchain.address, tokenOwner));
-          console.log(await this.depositManager.numPendingRequests(this.rootchain.address, tokenOwner));
-          console.log(await this.depositManager.withdrawalRequestIndex(this.rootchain.address, tokenOwner));
+          expect(await this.depositManager.numRequests(this.rootchain.address, tokenOwner))
+            .to.be.bignumber.equal(toBN(index + 1));
+          expect(await this.depositManager.numPendingRequests(this.rootchain.address, tokenOwner))
+            .to.be.bignumber.equal(toBN(index + 1));
         }
       });
 
