@@ -1,18 +1,23 @@
 pragma solidity ^0.5.12;
 
 import { Ownable } from "../../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import { Pausable } from "../../../node_modules/openzeppelin-solidity/contracts/lifecycle/Pausable.sol";
 import { SafeMath } from "../../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
 import { ERC20Mintable } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
+import { IERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 
 import { DSMath } from "../../../node_modules/coinage-token/contracts/lib/DSMath.sol";
 import { CustomIncrementCoinageMock as CustomIncrementCoinage } from "../../../node_modules/coinage-token/flatten.sol";
+
+import { AuthController } from "../tokens/AuthController.sol";
 
 import { RootChainI } from "../../RootChainI.sol";
 
 import { SeigManagerI } from "../interfaces/SeigManagerI.sol";
 import { RootChainRegistryI } from "../interfaces/RootChainRegistryI.sol";
 import { DepositManagerI } from "../interfaces/DepositManagerI.sol";
+
 
 
 /**
@@ -44,7 +49,7 @@ import { DepositManagerI } from "../interfaces/DepositManagerI.sol";
  *     - withdrawal ratio of the account  = amount to withdraw / total supply of coinage
  *
  */
-contract SeigManager is SeigManagerI, DSMath, Ownable {
+contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController {
   using SafeMath for uint256;
   using SafeERC20 for ERC20Mintable;
 
@@ -59,8 +64,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable {
   // Token-related
   //////////////////////////////
 
-  // WTON token contract
-  ERC20Mintable internal _ton;
+  // TON token contract
+  IERC20 internal _ton;
 
   // WTON token contract
   ERC20Mintable internal _wton; // TODO: use mintable erc20!
@@ -82,6 +87,10 @@ contract SeigManager is SeigManagerI, DSMath, Ownable {
 
   // tot total supply at commit from root chain
   mapping (address => uint256) internal _totTotalSupplyAtCommit;
+
+  // block number when paused or unpaused
+  uint256 internal _pausedBlock;
+  uint256 internal _unpausedBlock;
 
   //////////////////////////////
   // Constants
@@ -147,6 +156,23 @@ contract SeigManager is SeigManagerI, DSMath, Ownable {
   }
 
   //////////////////////////////
+  // Override Pausable
+  //////////////////////////////
+
+  function pause() public onlyPauser whenNotPaused {
+    _pausedBlock = block.number;
+    super.pause();
+  }
+
+  /**
+   * @dev Called by a pauser to unpause, returns to normal state.
+   */
+  function unpause() public onlyPauser whenPaused {
+    _unpausedBlock = block.number;
+    super.unpause();
+  }
+
+  //////////////////////////////
   // External functions
   //////////////////////////////
 
@@ -183,13 +209,18 @@ contract SeigManager is SeigManagerI, DSMath, Ownable {
   event CommitLog1(uint256 totalStakedAmount, uint256 totalSupplyOfWTON, uint256 prevTotalSupply, uint256 nextTotalSupply);
 
   /**
-   * @dev A proxy function for a new commit
+   * @dev Callback for a new commit
    */
   function onCommit()
     external
     checkCoinage(msg.sender)
     returns (bool)
   {
+    // short circuit if paused
+    if (paused()) {
+      return true;
+    }
+
     _increaseTot();
 
     // 2. increase total supply of {coinages[rootchain]}
@@ -214,16 +245,20 @@ contract SeigManager is SeigManagerI, DSMath, Ownable {
   }
 
   /**
-   * @dev A proxy function for a token transfer
+   * @dev Callback for a token transfer
    */
   function onTransfer(address sender, address recipient, uint256 amount) external returns (bool) {
     require(msg.sender == address(_ton) || msg.sender == address(_wton), "SeigManager: only TON or WTON can call onTransfer");
-    _increaseTot();
+
+    if (!paused()) {
+      _increaseTot();
+    }
+
     return true;
   }
 
   /**
-   * @dev A proxy function for a new deposit
+   * @dev Callback for a new deposit
    */
   function onStake(address rootchain, address account, uint256 amount)
     external
@@ -341,7 +376,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable {
     prevTotalSupply = _tot.totalSupply();
 
     // maximum seigniorages
-    uint256 maxSeig = (block.number - _lastSeigBlock).mul(_seigPerBlock);
+    uint256 maxSeig = _calcNumSeigBlocks().mul(_seigPerBlock);
 
     // maximum seigniorages * staked rate
     uint256 stakedSeig = rdiv(
@@ -388,13 +423,24 @@ contract SeigManager is SeigManagerI, DSMath, Ownable {
     return true;
   }
 
+  function _calcNumSeigBlocks() internal returns (uint256) {
+    require(!paused());
+
+    uint256 span = block.number - _lastSeigBlock;
+    if (_unpausedBlock < _lastSeigBlock) {
+      return span;
+    }
+
+    return span - (_unpausedBlock - _pausedBlock);
+  }
+
   //////////////////////////////
   // Storage getters
   //////////////////////////////
 
   function registry() external view returns (RootChainRegistryI) { return _registry; }
   function depositManager() external view returns (DepositManagerI) { return _depositManager; }
-  function ton() external view returns (ERC20Mintable) { return _ton; }
+  function ton() external view returns (IERC20) { return _ton; }
   function wton() external view returns (ERC20Mintable) { return _wton; }
   function tot() external view returns (CustomIncrementCoinage) { return _tot; }
   function coinages(address rootchain) external view returns (CustomIncrementCoinage) { return _coinages[rootchain]; }

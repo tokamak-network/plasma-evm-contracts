@@ -7,6 +7,10 @@ interface MinterRoleRenounceTarget {
   function renounceMinter() external;
 }
 
+interface PauserRoleRenounceTarget {
+  function renouncePauser() external;
+}
+
 interface OwnableTarget {
   function renounceOwnership() external;
   function transferOwnership(address newOwner) external;
@@ -15,6 +19,10 @@ interface OwnableTarget {
 contract AuthController is Ownable {
   function renounceMinter(address target) public onlyOwner {
     MinterRoleRenounceTarget(target).renounceMinter();
+  }
+
+  function renouncePauser(address target) public onlyOwner {
+    PauserRoleRenounceTarget(target).renouncePauser();
   }
 
   function renounceOwnership(address target) public onlyOwner {

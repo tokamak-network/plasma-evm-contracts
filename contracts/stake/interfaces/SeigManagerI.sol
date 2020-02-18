@@ -1,6 +1,7 @@
 pragma solidity ^0.5.12;
 
 import { ERC20Mintable } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
+import { IERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import { CustomIncrementCoinageMock as CustomIncrementCoinage } from "../../../node_modules/coinage-token/flatten.sol";
 
 import { RootChainI } from "../../RootChainI.sol";
@@ -12,7 +13,7 @@ import { DepositManagerI } from "./DepositManagerI.sol";
 interface SeigManagerI {
   function registry() external view returns (RootChainRegistryI);
   function depositManager() external view returns (DepositManagerI);
-  function ton() external view returns (ERC20Mintable);
+  function ton() external view returns (IERC20);
   function wton() external view returns (ERC20Mintable);
   function tot() external view returns (CustomIncrementCoinage);
   function coinages(address rootchain) external view returns (CustomIncrementCoinage);
