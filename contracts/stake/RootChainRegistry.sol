@@ -13,8 +13,21 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
   // check whether the address is root chain contract or not
   mapping (address => bool) internal _rootchains;
 
+  // array-like storages
+  // NOTE: unregistered rootchains could exists in that array. so, should check by rootchains(address)
+  uint256 internal _numRootChains;
+  mapping (uint256 => address) internal _rootchainByIndex;
+
   function rootchains(address rootchain) external view returns (bool) {
     return _rootchains[rootchain];
+  }
+
+  function numRootChains() external view returns (uint256) {
+    return _numRootChains;
+  }
+
+  function rootchainByIndex(uint256 index) external view returns (address) {
+    return _rootchainByIndex[index];
   }
 
   function register(address rootchain) external returns (bool) {
@@ -30,6 +43,8 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
     }
 
     _rootchains[rootchain] = true;
+    _rootchainByIndex[_numRootChains] = rootchain;
+    _numRootChains += 1;
 
     return true;
   }
