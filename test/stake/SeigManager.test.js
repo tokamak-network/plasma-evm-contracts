@@ -601,6 +601,42 @@ describe('stake/SeigManager', function () {
             WTON_UNIT,
           );
         });
+
+        describe('after seig manager is paused', function () {
+          beforeEach(async function () {
+            await this.seigManager.pause();
+          });
+
+          it('commit should not be reverted', async function () {
+            await this._commit(this.rootchains[i]);
+          });
+
+          it('seigniorage must not be given', async function () {
+            const totTotalSupply1 = await this.tot.totalSupply();
+            await this._commit(this.rootchains[i]);
+            const totTotalSupply2 = await this.tot.totalSupply();
+
+            expect(totTotalSupply2).to.be.bignumber.equal(totTotalSupply1);
+          });
+
+          describe('after seig manager is unpaused', function () {
+            beforeEach(async function () {
+              await this.seigManager.unpause();
+            });
+
+            it('commit should not be reverted', async function () {
+              await this._commit(this.rootchains[i]);
+            });
+
+            it('seigniorage must be given', async function () {
+              const totTotalSupply1 = await this.tot.totalSupply();
+              await this._commit(this.rootchains[i]);
+              const totTotalSupply2 = await this.tot.totalSupply();
+
+              expect(totTotalSupply2).to.be.bignumber.gt(totTotalSupply1);
+            });
+          });
+        });
       });
     });
   });
