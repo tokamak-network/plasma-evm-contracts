@@ -602,6 +602,58 @@ describe('stake/SeigManager', function () {
           );
         });
 
+        describe('when the token holder tries to withdraw staked WTON at once', function () {
+          let amount;
+
+          beforeEach(async function () {
+            amount = await this.seigManager.stakeOf(this.rootchains[i].address, tokenOwner);
+          });
+
+          it('should withdraw', async function () {
+            const tokenOwnerWtonBalance0 = await this.wton.balanceOf(tokenOwner);
+            const depositManagerWtonBalance0 = await this.wton.balanceOf(this.depositManager.address);
+
+            await this.depositManager.requestWithdrawal(this.rootchains[i].address, amount, { from: tokenOwner });
+
+            await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
+
+            await this.depositManager.processRequest(this.rootchains[i].address, false, { from: tokenOwner });
+
+            const tokenOwnerWtonBalance1 = await this.wton.balanceOf(tokenOwner);
+            const depositManagerWtonBalance1 = await this.wton.balanceOf(this.depositManager.address);
+
+            expect(depositManagerWtonBalance1.sub(depositManagerWtonBalance0).neg()).to.be.bignumber.equal(amount);
+            expect(tokenOwnerWtonBalance1.sub(tokenOwnerWtonBalance0)).to.be.bignumber.equal(amount);
+          });
+        });
+
+        describe('when the token holder tries to withdraw staked WTON 10 times', function () {
+          const n = 10;
+          const nBN = toBN(n);
+          let amount;
+
+          beforeEach(async function () {
+            amount = (await this.seigManager.stakeOf(this.rootchains[i].address, tokenOwner)).div(nBN);
+          });
+
+          it('should withdraw', async function () {
+            const tokenOwnerWtonBalance0 = await this.wton.balanceOf(tokenOwner);
+            const depositManagerWtonBalance0 = await this.wton.balanceOf(this.depositManager.address);
+
+            await Promise.all(range(n).map(_ => this.depositManager.requestWithdrawal(this.rootchains[i].address, amount, { from: tokenOwner })));
+
+            await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
+
+            await Promise.all(range(n).map(_ => this.depositManager.processRequest(this.rootchains[i].address, false, { from: tokenOwner })));
+
+            const tokenOwnerWtonBalance1 = await this.wton.balanceOf(tokenOwner);
+            const depositManagerWtonBalance1 = await this.wton.balanceOf(this.depositManager.address);
+
+            expect(depositManagerWtonBalance1.sub(depositManagerWtonBalance0).neg()).to.be.bignumber.equal(amount.mul(nBN));
+            expect(tokenOwnerWtonBalance1.sub(tokenOwnerWtonBalance0)).to.be.bignumber.equal(amount.mul(nBN));
+          });
+        });
+
         describe('after seig manager is paused', function () {
           beforeEach(async function () {
             await this.seigManager.pause();
@@ -628,6 +680,7 @@ describe('stake/SeigManager', function () {
               await this._commit(this.rootchains[i]);
             });
 
+            // TODO: check seig amount
             it('seigniorage must be given', async function () {
               const totTotalSupply1 = await this.tot.totalSupply();
               await this._commit(this.rootchains[i]);
