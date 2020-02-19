@@ -85,9 +85,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   // the block number when seigniorages are given
   uint256 internal _lastSeigBlock;
 
-  // tot total supply at commit from root chain
-  mapping (address => uint256) internal _totTotalSupplyAtCommit;
-
   // block number when paused or unpaused
   uint256 internal _pausedBlock;
   uint256 internal _unpausedBlock;
@@ -195,7 +192,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
         false
       );
       _lastCommitBlock[rootchain] = block.number;
-      _totTotalSupplyAtCommit[rootchain] = _tot.totalSupply();
       emit CoinageCreated(rootchain, address(_coinages[rootchain]));
     }
 
@@ -234,7 +230,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     // gives seigniorages to the root chain as coinage
 
     _lastCommitBlock[msg.sender] = block.number;
-    _totTotalSupplyAtCommit[msg.sender] = _tot.totalSupply();
 
     _wton.mint(address(this), nextTotalSupply.sub(prevTotalSupply));
 
@@ -266,8 +261,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     checkCoinage(rootchain)
     returns (bool)
   {
-    _coinages[rootchain].mint(account, amount);
     _tot.mint(rootchain, amount);
+    _coinages[rootchain].mint(account, amount);
     return true;
   }
 
@@ -295,35 +290,20 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
   function additionalTotBurnAmount(address rootchain, address account, uint256 amount) external view returns (uint256 totAmount) { return _additionalTotBurnAmount(rootchain, account, amount); }
 
-  // TODO: consider ⍺ when root chain did not commit at all.
-  // return ⍺, where ⍺ = SEIGS * staked ratio of the root chian * withdrawal ratio of the account
-  //   - SEIGS                              = tot total supply - tot total supply at last commit from the root chain
-  //   - staked ratio of the root chian     = tot balance of the root chain / tot total supply
-  //   - withdrawal ratio of the account  = amount to withdraw / total supply of coinage
+  // return ⍺, where ⍺ = (tot.balanceOf(rootchain) - coinages[rootchain].totalSupply()) * (amount / coinages[rootchain].totalSupply())
   function _additionalTotBurnAmount(address rootchain, address account, uint256 amount)
     internal
     view
     returns (uint256 totAmount)
   {
-    // short circuit if no commit
-    if (_totTotalSupplyAtCommit[rootchain] == 0) {
-      return 0;
-    }
+    uint256 coinageTotalSupply = _coinages[rootchain].totalSupply();
 
-    uint256 prevTotTotalSupply = _totTotalSupplyAtCommit[rootchain];
-
-    totAmount = rdiv(
-      rdiv(
-        rmul(
-          rmul(
-            _tot.totalSupply().sub(prevTotTotalSupply),  // `SEIGS`
-            amount                                      // times `amount to withdraw`
-          ),
-          _tot.balanceOf(rootchain)                      // times `tot balance of the root chain`
-        ),
-        _coinages[rootchain].totalSupply()               // div `total supply of coinage`
+    return rdiv(
+      rmul(
+        _tot.balanceOf(rootchain).sub(coinageTotalSupply),
+        amount
       ),
-      _tot.totalSupply()                                 // div `tot total supply`
+      coinageTotalSupply
     );
   }
 
@@ -388,8 +368,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
       // total supply of (W)TON
       _ton.totalSupply()
         .sub(_ton.balanceOf(address(_wton)))
-        .mul(10 ** 9)                                   // convert TON total supply into ray
-        .add(_wton.totalSupply())                        // add WTON total supply
+        .mul(10 ** 9)                                     // convert TON total supply into ray
+        .add(_wton.totalSupply())                         // add WTON total supply
         .add(_tot.totalSupply()).sub(_wton.totalSupply()) // consider additional TOT balance as total supply
     );
 
@@ -406,9 +386,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
       // total supply of (W)TON
       _ton.totalSupply()
         .sub(_ton.balanceOf(address(_wton)))
-        .mul(10 ** 9)                                   // convert TON total supply into ray
-        .add(_wton.totalSupply())                        // add WTON total supply
-        .add(_tot.totalSupply()).sub(_wton.totalSupply()), // consider additional TOT balance as total supply
+        .mul(10 ** 9)                                       // convert TON total supply into ray
+        .add(_wton.totalSupply())                           // add WTON total supply
+        .add(_tot.totalSupply()).sub(_wton.totalSupply()),  // consider additional TOT balance as total supply
 
       prevTotalSupply,
       nextTotalSupply
@@ -448,7 +428,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   function lastCommitBlock(address rootchain) external view returns (uint256) { return _lastCommitBlock[rootchain]; }
   function seigPerBlock() external view returns (uint256) { return _seigPerBlock; }
   function lastSeigBlock() external view returns (uint256) { return _lastSeigBlock; }
-  function totTotalSupplyAtCommit(address rootchain) external view returns (uint256) { return _totTotalSupplyAtCommit[rootchain]; }
   function DEFAULT_FACTOR() external view returns (uint256) { return _DEFAULT_FACTOR; }
 
 }

@@ -21,7 +21,6 @@ interface SeigManagerI {
   function lastCommitBlock(address rootchain) external view returns (uint256);
   function seigPerBlock() external view returns (uint256);
   function lastSeigBlock() external view returns (uint256);
-  function totTotalSupplyAtCommit(address rootchain) external view returns (uint256);
   function DEFAULT_FACTOR() external view returns (uint256);
 
   function deployCoinage(address rootchain) external returns (bool);
