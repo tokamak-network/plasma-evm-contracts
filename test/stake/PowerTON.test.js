@@ -1,3 +1,4 @@
+const flatten = require('lodash/flatten');
 const range = require('lodash/range');
 const first = require('lodash/first');
 const last = require('lodash/last');
@@ -29,6 +30,7 @@ const { expect } = chai;
 chai.use(require('chai-bn')(BN))
   .should();
 
+const toChecksumAddress = web3.utils.toChecksumAddress;
 const toBN = web3.utils.toBN;
 const LOGTX = process.env.LOGTX || false;
 const VERBOSE = process.env.VERBOSE || false;
@@ -78,7 +80,7 @@ class RootChainState {
   }
 }
 
-describe.only('stake/PowerTON', function () {
+describe('stake/PowerTON', function () {
   function makePos (v1, v2) { return toBN(v1).shln(128).add(toBN(v2)); }
 
   async function checkBalanceProm (balanceProm, expected, unit) {
@@ -116,15 +118,76 @@ describe.only('stake/PowerTON', function () {
     );
   }
 
+  function commits () {
+    return Promise.all(this.rootchains.map(rootchain => this._commit(rootchain)));
+  }
+
   function behaveRootChains () {
     it('RootChains should commit', async function () {
-      await Promise.all(this.rootchains.map(rootchain => this._commit(rootchain)));
+      await commits.call(this);
     });
   }
 
   function behavePowerTONStart () {
     it('should start PowerTON game', async function () {
       await this.powerton.start();
+    });
+  }
+
+  function behaveRound (round = 0, maxRound = 10) {
+    if (round === maxRound) return;
+    const nextRound = round + 1;
+
+    describe(`after round ${round} duration finished`, function () {
+      beforeEach(async function () {
+        await time.increase(ROUND_DURATION.add(toBN(1)));
+        await commits.call(this);
+      });
+
+      behaveRootChains();
+
+      it(`round ${round} should be end`, async function () {
+        await this.powerton.endRound();
+      });
+
+      describe(`after round ${round} ends`, async function () {
+        beforeEach(async function () {
+          await this.powerton.endRound();
+          this.balancesBeforeRoundEnd[nextRound] = await Promise.all(players.map(player => this.ton.balanceOf(player)));
+        });
+
+        it(`round ${nextRound} should be started`, async function () {
+          expect(await this.powerton.currentRound()).to.be.bignumber.equal(String(nextRound));
+        });
+
+        it(`winner of round ${round} should receive TON`, async function () {
+          const winner = await this.powerton.winnerOf(round);
+          const winnerIndex = players.findIndex(p => p.toLowerCase() === winner.toLowerCase());
+
+          expect(winnerIndex).to.be.gte(0);
+
+          const reward = (await this.powerton.rounds(round)).reward;
+
+          players.forEach((_, index) => {
+            const expectedBalance = index === winnerIndex
+              ? this.balancesBeforeRoundEnd[round][index].add(reward.div(toBN(1e9)))
+              : this.balancesBeforeRoundEnd[round][index];
+
+            expect(this.balancesBeforeRoundEnd[nextRound][index]).to.be.bignumber.equal(expectedBalance);
+          });
+        });
+
+        if (nextRound === maxRound) {
+          it('players should receive (almost) equal amount of rewards', async function () {
+            const rewards = this.balancesBeforeRoundEnd[nextRound];
+            rewards.forEach((reward, i) => {
+              console.log(`${i}th player: ${reward.toString(10)}`);
+            });
+          });
+        }
+
+        behaveRound(nextRound, maxRound);
+      });
     });
   }
 
@@ -232,56 +295,11 @@ describe.only('stake/PowerTON', function () {
     this._commit = (rootchain) => submitDummyNRE(rootchain, this.rootchainState[rootchain.address]);
   });
 
-  describe('before setting PowerTON to SeigManager', function () {
-    describe.skip('before deposit TON', function () {
-      behaveRootChains();
-      behavePowerTONStart();
-    });
-
-    describe('after deposit TON', function () {
-      beforeEach(async function () {
-        await Promise.all(
-          this.rootchains.map(
-            rootchain => this._deposit(players[0], rootchain.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
-          ),
-        );
-      });
-
-      behaveRootChains();
-      behavePowerTONStart();
-    });
-  });
-
-  describe('after setting PowerTON to SeigManager', function () {
-    beforeEach(async function () {
-      await this.seigManager.setPowerTON(this.powerton.address);
-    });
-
-    describe.skip('before deposit TON', function () {
-      behaveRootChains();
-      behavePowerTONStart();
-    });
-
-    describe('after deposit TON', function () {
-      beforeEach(async function () {
-        await Promise.all(
-          this.rootchains.map(
-            rootchain => this._deposit(players[0], rootchain.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
-          ),
-        );
-      });
-
-      behaveRootChains();
-      behavePowerTONStart();
-    });
-
-    describe('after PowerTON game starts', function () {
-      beforeEach(async function () {
-        await this.powerton.start();
-      });
-
-      describe.skip('before deposit TON', function () {
+  describe('check compatibility', function () {
+    describe('before setting PowerTON to SeigManager', function () {
+      describe('before deposit TON', function () {
         behaveRootChains();
+        behavePowerTONStart();
       });
 
       describe('after deposit TON', function () {
@@ -294,7 +312,106 @@ describe.only('stake/PowerTON', function () {
         });
 
         behaveRootChains();
+        behavePowerTONStart();
       });
+    });
+
+    describe('after setting PowerTON to SeigManager', function () {
+      beforeEach(async function () {
+        await this.seigManager.setPowerTON(this.powerton.address);
+      });
+
+      describe('before deposit TON', function () {
+        behaveRootChains();
+        behavePowerTONStart();
+      });
+
+      describe('after deposit TON', function () {
+        beforeEach(async function () {
+          await Promise.all(
+            this.rootchains.map(
+              rootchain => this._deposit(players[0], rootchain.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
+            ),
+          );
+        });
+
+        behaveRootChains();
+        behavePowerTONStart();
+      });
+
+      describe('after PowerTON game starts', function () {
+        beforeEach(async function () {
+          await this.powerton.start();
+        });
+
+        describe('before deposit TON', function () {
+          behaveRootChains();
+        });
+
+        describe('after deposit TON', function () {
+          beforeEach(async function () {
+            await Promise.all(
+              this.rootchains.map(
+                rootchain => this._deposit(players[0], rootchain.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
+              ),
+            );
+          });
+
+          behaveRootChains();
+        });
+      });
+    });
+  });
+
+  describe('after PowerTON started', function () {
+    beforeEach(async function () {
+      await this.seigManager.setPowerTON(this.powerton.address);
+      await this.powerton.start();
+
+      this.balancesBeforeRoundEnd = {};
+    });
+
+    describe('when players deposit equal amount of TON', function () {
+      const amount = tokenAmount.div(NUM_ROOTCHAINS);
+
+      beforeEach(async function () {
+        this.receipts = await Promise.all(
+          flatten(
+            players.map(
+              player =>
+                this.rootchains.map(
+                  rootchain => this._deposit(player, rootchain.address, amount.toFixed(WTON_UNIT)),
+                ),
+            ),
+          ),
+        );
+        this.balancesBeforeRoundEnd[0] = await Promise.all(
+          players.map(player => this.ton.balanceOf(player)),
+        );
+      });
+
+      it('should emits PowerIncreased event', async function () {
+        for (const receipt of this.receipts) {
+          const from = toChecksumAddress(receipt.receipt.from);
+          await expectEvent.inTransaction(receipt.tx, this.powerton, 'PowerIncreased', {
+            account: from,
+            amount: amount.toFixed(WTON_UNIT),
+          });
+        }
+      });
+
+      it('players should have same amount of Power as TON', async function () {
+        await Promise.all(players.map(
+          async (player) => {
+            const power = await this.powerton.powerOf(player);
+            expect(power).to.be.bignumber.eq(tokenAmount.toFixed(WTON_UNIT));
+          },
+        ));
+      });
+
+      behaveRootChains();
+
+      behaveRound(0);
     });
   });
 });
