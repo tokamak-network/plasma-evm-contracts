@@ -234,13 +234,13 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     uint256 prevTotalSupply = coinage.totalSupply();
     uint256 nextTotalSupply = _tot.balanceOf(msg.sender);
 
-    coinage.setFactor(_calcNewFactor(prevTotalSupply, nextTotalSupply, coinage.factor()));
-
-    // gives seigniorages to the root chain as coinage
+    if (prevTotalSupply != nextTotalSupply) {
+      // gives seigniorages to the root chain as coinage
+      coinage.setFactor(_calcNewFactor(prevTotalSupply, nextTotalSupply, coinage.factor()));
+      _wton.mint(address(this), nextTotalSupply.sub(prevTotalSupply));
+    }
 
     _lastCommitBlock[msg.sender] = block.number;
-
-    _wton.mint(address(this), nextTotalSupply.sub(prevTotalSupply));
 
     // emit events
     emit Comitted(msg.sender);
