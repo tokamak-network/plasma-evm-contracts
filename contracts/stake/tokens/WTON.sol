@@ -173,10 +173,6 @@ contract WTON is DSMath, ReentrancyGuard, Ownable, ERC20Mintable, ERC20Burnable,
    * @dev transform RAY to WAD
    */
   function _toWAD(uint256 v) internal pure returns (uint256) {
-    if (v % 10 ** 9 != 0) {
-      revert("WAD: precision broken");
-    }
-
     return v / 10 ** 9;
   }
 }

@@ -22,8 +22,9 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   using SortitionSumTreeFactory for SortitionSumTreeFactory.SortitionSumTrees;
 
   struct Round {
-    uint64 startTime;
-    uint64 endTime;
+    uint64  startTime;
+    uint64  endTime;
+    uint256 reward;
     address winner;
   }
 
@@ -53,7 +54,6 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   uint256 internal constant maskLast8Bits = uint256(0xff);
   uint256 internal constant maskFirst248Bits = uint256(~0xff);
 
-
   //////////////////////////////
   // Modifiers
   //////////////////////////////
@@ -71,6 +71,8 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
 
   event RoundStart(uint256 round, uint256 startTime, uint256 endTime);
   event RoundEnd(uint256 round, address winner, uint256 reward);
+  event PowerIncreased(address indexed account, uint256 amount);
+  event PowerDecreased(address indexed account, uint256 amount);
 
   //////////////////////////////
   // Constructor
@@ -117,9 +119,14 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
     _endRound();
   }
 
+  function roundStarted(uint256 round) public view returns (bool) {
+    return rounds[round].startTime != 0 && rounds[round].endTime != 0;
+  }
+
   function roundFinished(uint256 round) public view returns (bool) {
-    Round storage r = rounds[round];
-    return r.endTime != 0 && r.endTime < block.timestamp && r.winner == address(0);
+    return roundStarted(round) &&
+      rounds[round].endTime < block.timestamp &&
+      rounds[round].winner == address(0);
   }
 
 
@@ -141,13 +148,20 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
     require(winner != address(0), "PowerTON: no winner");
     r.winner = winner;
 
-    _currentRound += 1;
 
-    uint256 reward = _giveReward(winner);
+    uint256 reward = IERC20(_wton).balanceOf(address(this))
+      .mul(REWARD_NUMERATOR)
+      .div(REWARD_DENOMINATOR);
+
+    r.reward = reward;
 
     emit RoundEnd(round, winner, reward);
 
+    _currentRound += 1;
     _startRound(_currentRound);
+
+    WTON(_wton).swapToTONAndTransfer(winner, reward);
+
   }
 
   //////////////////////////////
@@ -162,6 +176,8 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
     require(msg.sender == _seigManager);
     _increaseEffectiveBalance(account, amount);
     _totalDeposits = _totalDeposits.add(amount);
+
+    emit PowerIncreased(account, amount);
   }
 
   function onWithdraw(
@@ -172,6 +188,7 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
     require(msg.sender == _seigManager);
     uint256 v = _decreaseEffectiveBalance(account, amount);
     _totalDeposits = _totalDeposits.sub(v);
+    emit PowerDecreased(account, v);
   }
 
   //////////////////////////////
@@ -220,14 +237,6 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
     r.endTime = endTime;
 
     emit RoundStart(round, startTime, endTime);
-  }
-
-  function _giveReward(address winner) internal returns (uint256 reward) {
-    reward = IERC20(_wton).balanceOf(address(this))
-      .mul(REWARD_NUMERATOR)
-      .div(REWARD_DENOMINATOR);
-
-    WTON(_wton).swapToTONAndTransfer(winner, reward);
   }
 
   function _increaseEffectiveBalance(address account, uint256 amount) internal {
