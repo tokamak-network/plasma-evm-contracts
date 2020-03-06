@@ -166,8 +166,9 @@ describe('stake/SeigManager', function () {
       SEIG_PER_BLOCK.toFixed(WTON_UNIT),
     );
 
-    // add WSTON minter role to seig manager
+    // add minter roles
     await this.wton.addMinter(this.seigManager.address);
+    await this.ton.addMinter(this.wton.address);
 
     // set seig manager to contracts
     await Promise.all([

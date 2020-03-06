@@ -17,6 +17,7 @@ import { RootChainI } from "../../RootChainI.sol";
 import { SeigManagerI } from "../interfaces/SeigManagerI.sol";
 import { RootChainRegistryI } from "../interfaces/RootChainRegistryI.sol";
 import { DepositManagerI } from "../interfaces/DepositManagerI.sol";
+import { PowerTONI } from "../interfaces/PowerTONI.sol";
 
 
 
@@ -59,6 +60,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
   RootChainRegistryI internal _registry;
   DepositManagerI internal _depositManager;
+  PowerTONI internal _powerton;
 
   //////////////////////////////
   // Token-related
@@ -173,6 +175,13 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   // External functions
   //////////////////////////////
 
+  /**
+   * @dev set PowerTON contract, only by owner.
+   */
+  function setPowerTON(PowerTONI powerton) external onlyOwner {
+    _powerton = powerton;
+  }
+
 
   /**
    * @dev deploy coinage token for the root chain.
@@ -263,6 +272,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   {
     _tot.mint(rootchain, amount);
     _coinages[rootchain].mint(account, amount);
+    if (address(_powerton) != address(0)) {
+      _powerton.onDeposit(rootchain, account, amount);
+    }
     return true;
   }
 
@@ -282,6 +294,10 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
     // burn {v} {coinages[rootchain]} tokens to the account
     _coinages[rootchain].burnFrom(account, amount);
+
+    if (address(_powerton) != address(0)) {
+      _powerton.onWithdraw(rootchain, account, amount);
+    }
 
     emit UnstakeLog(amount, totAmount);
 
@@ -378,7 +394,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
     _tot.setFactor(_calcNewFactor(prevTotalSupply, nextTotalSupply, _tot.factor()));
 
-
+    // TODO: reduce computation
+    // DEV ONLY
     emit CommitLog1(
       // total staked amount
       _tot.totalSupply(),
@@ -395,8 +412,10 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     );
 
 
-    // TODO: give unstaked amount to jackpot
     uint256 unstakedSeig = maxSeig.sub(stakedSeig);
+    if (address(_powerton) != address(0)) {
+      // _wton.mint(address(_powerton), unstakedSeig);
+    }
 
     emit SeigGiven(msg.sender, maxSeig, stakedSeig, unstakedSeig);
 
@@ -422,6 +441,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   function depositManager() external view returns (DepositManagerI) { return _depositManager; }
   function ton() external view returns (IERC20) { return _ton; }
   function wton() external view returns (ERC20Mintable) { return _wton; }
+  function powerton() external view returns (PowerTONI) { return _powerton; }
   function tot() external view returns (CustomIncrementCoinage) { return _tot; }
   function coinages(address rootchain) external view returns (CustomIncrementCoinage) { return _coinages[rootchain]; }
 
