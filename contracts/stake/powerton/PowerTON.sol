@@ -59,7 +59,7 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   //////////////////////////////
 
   modifier checkRound() {
-    if (rounds[_currentRound].endTime > block.timestamp) {
+    if (currentRoundFinished()) {
       _endRound();
     }
     _;
@@ -95,14 +95,17 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
     _seigManager = seigManager;
   }
 
-  function start() external onlyOwner {
-    require(_currentRound == 0);
-    require(rounds[_currentRound].startTime == 0 && rounds[_currentRound].endTime == 0);
+  function init() external onlyOwner {
     sortitionSumTrees.createTree(TREE_KEY, TREE_NUM_CHILDREN);
+  }
+
+  function start() external onlyOwner {
+    require(_currentRound == 0, "PowerTON: current round is not zero");
+    require(rounds[_currentRound].startTime == 0 && rounds[_currentRound].endTime == 0, "PowerTON: round already started");
     _startRound(0);
   }
 
-  function powerOf(address account) external returns (uint256) {
+  function powerOf(address account) external view returns (uint256) {
     return sortitionSumTrees.stakeOf(TREE_KEY, _getID(account));
   }
 
@@ -110,21 +113,35 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
    * @dev join current round
    */
   function endRound() external {
+    require(currentRoundFinished(), "PowerTON: round not finished");
     _endRound();
   }
 
+  function roundFinished(uint256 round) public view returns (bool) {
+    Round storage r = rounds[round];
+    return r.endTime != 0 && r.endTime < block.timestamp && r.winner == address(0);
+  }
+
+
+  function currentRoundFinished() public view returns (bool) {
+    return roundFinished(_currentRound);
+  }
+
   function _endRound() internal {
+    // short circuit in case of no deposit
+    if (_totalDeposits == 0) {
+      return;
+    }
+
     uint256 round = _currentRound;
     Round storage r = rounds[round];
-    _currentRound += 1;
-
-    require(r.endTime > block.timestamp
-      && r.winner != address(0),
-      "PowerTON: round not finished");
 
     uint256 n = _seed(block.number - 1) % _totalDeposits;
     address winner = _recoverID(sortitionSumTrees.draw(TREE_KEY, n));
+    require(winner != address(0), "PowerTON: no winner");
     r.winner = winner;
+
+    _currentRound += 1;
 
     uint256 reward = _giveReward(winner);
 
@@ -161,11 +178,14 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   // External storage getters
   //////////////////////////////
 
-  function seigManager() external returns (address) { return _seigManager; }
-  function wton() external returns (address) { return _wton; }
-  function currentRound() external returns (uint256) { return _currentRound; }
-  function roundDuration() external returns (uint256) { return _roundDuration; }
-  function totalDeposits() external returns (uint256) { return _totalDeposits; }
+  function seigManager() external view returns (address) { return _seigManager; }
+  function wton() external view returns (address) { return _wton; }
+  function currentRound() external view returns (uint256) { return _currentRound; }
+  function roundDuration() external view returns (uint256) { return _roundDuration; }
+  function totalDeposits() external view returns (uint256) { return _totalDeposits; }
+  function winnerOf(uint256 round) external view returns (address) {
+    return rounds[round].winner;
+  }
 
   //////////////////////////////
   // Internal functions
@@ -173,7 +193,7 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
 
   // TODO: use other entrophy source
   // https://github.com/cryptocopycats/awesome-cryptokitties/blob/master/contracts/GeneScience.sol#L111-L133
-  function _seed(uint256 _targetBlock) internal returns (uint256 randomN) {
+  function _seed(uint256 _targetBlock) internal view returns (uint256 randomN) {
     randomN = uint256(blockhash(_targetBlock));
 
     if (randomN == 0) {
@@ -187,7 +207,7 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   function _startRound(uint256 round) internal {
     require(
       round == 0 ||
-      (rounds[round - 1].endTime > block.timestamp
+      (rounds[round - 1].endTime < block.timestamp
         && rounds[round - 1].winner != address(0))
     );
 
@@ -214,14 +234,14 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
     bytes32 id = _getID(account);
     uint256 value = sortitionSumTrees.stakeOf(TREE_KEY, id).add(amount);
 
-    sortitionSumTrees.set(TREE_KEY, amount, id);
+    sortitionSumTrees.set(TREE_KEY, value, id);
   }
 
   function _decreaseEffectiveBalance(address account, uint256 amount) internal returns (uint256) {
     bytes32 id = _getID(account);
     uint256 value = _sub0(sortitionSumTrees.stakeOf(TREE_KEY, id), amount);
 
-    sortitionSumTrees.set(TREE_KEY, amount, id);
+    sortitionSumTrees.set(TREE_KEY, value, id);
     return value;
   }
 

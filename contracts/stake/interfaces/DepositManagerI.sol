@@ -13,12 +13,15 @@ interface DepositManagerI {
 
   function accStaked(address rootchain, address account) external view returns (uint256 wtonAmount);
   function accStakedRootChain(address rootchain) external view returns (uint256 wtonAmount);
+  function accStakedAccount(address account) external view returns (uint256 wtonAmount);
 
   function pendingUnstaked(address rootchain, address account) external view returns (uint256 wtonAmount);
   function pendingUnstakedRootChain(address rootchain) external view returns (uint256 wtonAmount);
+  function pendingUnstakedAccount(address account) external view returns (uint256 wtonAmount);
 
   function accUnstaked(address rootchain, address account) external view returns (uint256 wtonAmount);
   function accUnstakedRootChain(address rootchain) external view returns (uint256 wtonAmount);
+  function accUnstakedAccount(address account) external view returns (uint256 wtonAmount);
 
 
   function withdrawalRequestIndex(address rootchain, address account) external view returns (uint256 index);

@@ -61,13 +61,13 @@ const WITHDRAWAL_DELAY = 10;
 const NUM_ROOTCHAINS = 2;
 const NUM_PLAYERS = 2;
 
-const players = accounts.slice(NUM_PLAYERS);
+const players = accounts.slice(0, NUM_PLAYERS);
 
 const tokenAmount = TON_INITIAL_SUPPLY.div(100); // 100 TON
 
 const NRE_LENGTH = 2;
 
-const ROUND_DURATION = time.duration.seconds(10);
+const ROUND_DURATION = time.duration.minutes(1);
 
 class RootChainState {
   constructor (NRE_LENGTH) {
@@ -99,6 +99,8 @@ describe.only('stake/PowerTON', function () {
     const pos1 = makePos(rootchainState.currentFork, rootchainState.lastEpoch + 1);
     const pos2 = makePos(rootchainState.lastBlock + 1, rootchainState.lastBlock + rootchainState.NRE_LENGTH);
 
+    // console.log(`before commit RootChain#${rootchain.address}`, pos1, pos2, rootchainState);
+
     rootchainState.lastEpoch += 2; // skip ORE
     rootchainState.lastBlock += rootchainState.NRE_LENGTH;
 
@@ -112,6 +114,18 @@ describe.only('stake/PowerTON', function () {
       dummyReceiptsRoot,
       { value: COST_NRB },
     );
+  }
+
+  function behaveRootChains () {
+    it('RootChains should commit', async function () {
+      await Promise.all(this.rootchains.map(rootchain => this._commit(rootchain)));
+    });
+  }
+
+  function behavePowerTONStart () {
+    it('should start PowerTON game', async function () {
+      await this.powerton.start();
+    });
   }
 
   // deploy contract and instances
@@ -163,6 +177,8 @@ describe.only('stake/PowerTON', function () {
       ROUND_DURATION,
     );
 
+    await this.powerton.init();
+
     // add minter roles
     await this.wton.addMinter(this.seigManager.address);
     await this.ton.addMinter(this.wton.address);
@@ -182,7 +198,12 @@ describe.only('stake/PowerTON', function () {
     await this.ton.approve(this.wton.address, TON_INITIAL_SUPPLY.toFixed(TON_UNIT));
 
     // swap TON to WTON and transfer to players
-    await Promise.all(players.map(player => this.wton.swapFromTONAndTransfer(player, tokenAmount.toFixed(TON_UNIT))));
+    await Promise.all(
+      players.map(
+        player =>
+          this.wton.swapFromTONAndTransfer(player, tokenAmount.toFixed(TON_UNIT)),
+      ),
+    );
 
     // approve WTON to deposit manager
     await Promise.all(
@@ -212,37 +233,67 @@ describe.only('stake/PowerTON', function () {
   });
 
   describe('before setting PowerTON to SeigManager', function () {
-    it('RootChains should commits', async function () {
-      const account = players[0];
-
-      await this.rootchains.map(rootchain => this._deposit(account, rootchain.address, tokenAmount));
-
-      await Promise.all(this.rootchains.map(rootchain => this._commit(rootchain)));
-    });
-
-    describe('after setting PowerTON to SeigManager', function () {
-      beforeEach(async function () {
-        this.seigManager.setPowerTON(this.powerton.address);
-      });
-
-      it('RootChains should commits', async function () {
-        await Promise.all(this.rootchains.map(rootchain => this._commit(rootchain)));
-      });
-    });
-  });
-
-  describe('before deposit TON', function () {
-    it('should start PowerTON game', async function () {
-
-    });
-
-    describe('after PowerTON game starts', function () {
-
+    describe.skip('before deposit TON', function () {
+      behaveRootChains();
+      behavePowerTONStart();
     });
 
     describe('after deposit TON', function () {
       beforeEach(async function () {
+        await Promise.all(
+          this.rootchains.map(
+            rootchain => this._deposit(players[0], rootchain.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
+          ),
+        );
+      });
 
+      behaveRootChains();
+      behavePowerTONStart();
+    });
+  });
+
+  describe('after setting PowerTON to SeigManager', function () {
+    beforeEach(async function () {
+      await this.seigManager.setPowerTON(this.powerton.address);
+    });
+
+    describe.skip('before deposit TON', function () {
+      behaveRootChains();
+      behavePowerTONStart();
+    });
+
+    describe('after deposit TON', function () {
+      beforeEach(async function () {
+        await Promise.all(
+          this.rootchains.map(
+            rootchain => this._deposit(players[0], rootchain.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
+          ),
+        );
+      });
+
+      behaveRootChains();
+      behavePowerTONStart();
+    });
+
+    describe('after PowerTON game starts', function () {
+      beforeEach(async function () {
+        await this.powerton.start();
+      });
+
+      describe.skip('before deposit TON', function () {
+        behaveRootChains();
+      });
+
+      describe('after deposit TON', function () {
+        beforeEach(async function () {
+          await Promise.all(
+            this.rootchains.map(
+              rootchain => this._deposit(players[0], rootchain.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
+            ),
+          );
+        });
+
+        behaveRootChains();
       });
     });
   });

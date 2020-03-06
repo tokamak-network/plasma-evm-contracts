@@ -33,7 +33,7 @@ interface SeigManagerI {
 
   function onTransfer(address sender, address recipient, uint256 amount) external returns (bool);
   function onCommit() external returns (bool);
-  function onStake(address rootchain, address account, uint256 amount) external returns (bool);
-  function onUnstake(address rootchain, address account, uint256 amount) external returns (bool);
+  function onDeposit(address rootchain, address account, uint256 amount) external returns (bool);
+  function onWithdraw(address rootchain, address account, uint256 amount) external returns (bool);
 
 }

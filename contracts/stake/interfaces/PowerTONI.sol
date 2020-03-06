@@ -2,15 +2,17 @@ pragma solidity ^0.5.12;
 
 
 interface PowerTONI {
-  function seigManager() external returns (address);
-  function wton() external returns (address);
+  function seigManager() external view returns (address);
+  function wton() external view returns (address);
 
-  function currentRound() external returns (uint256);
-  function roundDuration() external returns (uint256);
-  function totalDeposits() external returns (uint256);
+  function currentRound() external view returns (uint256);
+  function roundDuration() external view returns (uint256);
+  function totalDeposits() external view returns (uint256);
 
-  function powerOf(address account) external returns (uint256);
+  function winnerOf(uint256 round) external view returns (address);
+  function powerOf(address account) external view returns (uint256);
 
+  function init() external;
   function start() external;
   function endRound() external;
 
