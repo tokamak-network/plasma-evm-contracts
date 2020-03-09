@@ -211,14 +211,16 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   // TODO: use other entrophy source
   // https://github.com/cryptocopycats/awesome-cryptokitties/blob/master/contracts/GeneScience.sol#L111-L133
   function _seed(uint256 _targetBlock) internal view returns (uint256 randomN) {
-    randomN = uint256(blockhash(_targetBlock));
+    uint256 h = uint256(blockhash(_targetBlock));
 
-    if (randomN == 0) {
+    if (h == 0) {
       _targetBlock = (block.number & maskFirst248Bits) + (_targetBlock & maskLast8Bits);
       if (_targetBlock >= block.number) _targetBlock -= 256;
 
-      randomN = uint256(blockhash(_targetBlock));
+      h = uint256(blockhash(_targetBlock));
     }
+
+    randomN = (h + block.number + uint256(blockhash(block.number - 1))) * h * h * _totalDeposits;
   }
 
   function _startRound(uint256 round) internal {
