@@ -1,7 +1,5 @@
 const flatten = require('lodash/flatten');
 const range = require('lodash/range');
-const first = require('lodash/first');
-const last = require('lodash/last');
 
 const { createCurrency, createCurrencyRatio } = require('@makerdao/currency');
 const {
@@ -123,7 +121,7 @@ describe('stake/PowerTON', function () {
   }
 
   function behaveRootChains () {
-    it('RootChains should commit', async function () {
+    it('operators should commit', async function () {
       await commits.call(this);
     });
   }
@@ -177,11 +175,18 @@ describe('stake/PowerTON', function () {
           });
         });
 
-        if (nextRound === maxRound) {
+        if (nextRound <= maxRound) {
+        // if (nextRound === maxRound) {
           it('players should receive (almost) equal amount of rewards', async function () {
+            const winners = await Promise.all(range(nextRound).map((round) => this.powerton.winnerOf(round)));
+
+            console.log('winners', winners);
+            const f = (a) => (b) => a.toLowerCase() === b.toLowerCase();
+            const winCounts = players.map(player => winners.filter(f(player)).length);
+
             const rewards = this.balancesBeforeRoundEnd[nextRound];
             rewards.forEach((reward, i) => {
-              console.log(`${i}th player: ${reward.toString(10)}`);
+              console.log(`${i}th player: winCount=${winCounts[i]} reward=${reward.toString(10)}`);
             });
           });
         }
@@ -363,7 +368,7 @@ describe('stake/PowerTON', function () {
     });
   });
 
-  describe('after PowerTON started', function () {
+  describe.only('after PowerTON started', function () {
     beforeEach(async function () {
       await this.seigManager.setPowerTON(this.powerton.address);
       await this.powerton.start();
