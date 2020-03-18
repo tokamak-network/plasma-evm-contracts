@@ -1,5 +1,5 @@
 // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/67bca85/contracts/access/Roles.sol
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.12;
 
 /**
  * @title Roles

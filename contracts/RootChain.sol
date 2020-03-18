@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.12;
 pragma experimental ABIEncoderV2;
 
 import "./lib/SafeMath.sol";
@@ -117,6 +117,10 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
 
   function addMapper(address account) public onlyOperator {
     _addMapper(account);
+  }
+
+  function setSeigManager(address account) public onlyOperator {
+    seigManager = account;
   }
 
   /**

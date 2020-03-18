@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.12;
 
 import "./lib/Data.sol";
 
@@ -12,6 +12,7 @@ contract RootChainStorage {
   address public epochHandler;
   address public submitHandler;
   address public etherToken;
+  address public seigManager;
 
   // 1 epoch = N NRBs or k URBs or k ORBs.
   // N consecutive NRBs must be submitted in an epoch. In case of request block,
@@ -97,5 +98,7 @@ contract RootChainStorage {
 
   // Gas limit for request trasaction
   uint public constant REQUEST_GAS = 100000;
+
+  bool public constant isRootChain = true;
 }
 
