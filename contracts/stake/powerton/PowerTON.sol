@@ -34,10 +34,11 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
 
   // rounds
   uint256 internal _currentRound;
+  // TODO: consider block nubmer
   uint256 internal _roundDuration; // unix timestamp
   mapping(uint256 => Round) public rounds;
 
-  uint256 public constant REWARD_NUMERATOR = 7;
+  uint256 public constant REWARD_NUMERATOR = 8;
   uint256 public constant REWARD_DENOMINATOR = 10;
 
   // sortition
@@ -112,7 +113,7 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   }
 
   /**
-   * @dev join current round
+   * @dev end current round
    */
   function endRound() external {
     require(currentRoundFinished(), "PowerTON: round not finished");
@@ -128,7 +129,6 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
       rounds[round].endTime < block.timestamp &&
       rounds[round].winner == address(0);
   }
-
 
   function currentRoundFinished() public view returns (bool) {
     return roundFinished(_currentRound);
@@ -161,7 +161,6 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
     _startRound(_currentRound);
 
     WTON(_wton).swapToTONAndTransfer(winner, reward);
-
   }
 
   //////////////////////////////
@@ -208,6 +207,7 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   // Internal functions
   //////////////////////////////
 
+  // TODO: enable upgradability
   // TODO: use other entrophy source
   // https://github.com/cryptocopycats/awesome-cryptokitties/blob/master/contracts/GeneScience.sol#L111-L133
   function _seed(uint256 _targetBlock) internal view returns (uint256 randomN) {

@@ -96,6 +96,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   //////////////////////////////
 
   uint256 constant internal _DEFAULT_FACTOR = 10 ** 27;
+  uint256 constant public POWER_TON_NUMERATOR = 5;
+  uint256 constant public POWER_TON_DENOMINATOR = 10;
 
   //////////////////////////////
   // Modifiers
@@ -207,7 +209,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     return true;
   }
 
-  event SeigGiven(address rootchain, uint256 totalSeig, uint256 stakedSeig, uint256 unstakedSeig);
+  event SeigGiven(address rootchain, uint256 totalSeig, uint256 stakedSeig, uint256 unstakedSeig, uint256 powertonSeig);
   event Comitted(address rootchain);
 
   // test log...
@@ -304,7 +306,13 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     return true;
   }
 
-  function additionalTotBurnAmount(address rootchain, address account, uint256 amount) external view returns (uint256 totAmount) { return _additionalTotBurnAmount(rootchain, account, amount); }
+  function additionalTotBurnAmount(address rootchain, address account, uint256 amount)
+    external
+    view
+    returns (uint256 totAmount)
+  {
+    return _additionalTotBurnAmount(rootchain, account, amount);
+  }
 
   // return ⍺, where ⍺ = (tot.balanceOf(rootchain) - coinages[rootchain].totalSupply()) * (amount / coinages[rootchain].totalSupply())
   function _additionalTotBurnAmount(address rootchain, address account, uint256 amount)
@@ -374,6 +382,13 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     // maximum seigniorages
     uint256 maxSeig = _calcNumSeigBlocks().mul(_seigPerBlock);
 
+    // total supply of (W)TON
+    uint256 tos = _ton.totalSupply()
+      .sub(_ton.balanceOf(address(_wton)))
+      .mul(10 ** 9)                                       // convert TON total supply into ray
+      .add(_wton.totalSupply())                           // add WTON total supply
+      .add(_tot.totalSupply()).sub(_wton.totalSupply());  // consider additional TOT balance as total supply
+
     // maximum seigniorages * staked rate
     uint256 stakedSeig = rdiv(
       rmul(
@@ -381,12 +396,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
         // total staked amount
         _tot.totalSupply()
       ),
-      // total supply of (W)TON
-      _ton.totalSupply()
-        .sub(_ton.balanceOf(address(_wton)))
-        .mul(10 ** 9)                                     // convert TON total supply into ray
-        .add(_wton.totalSupply())                         // add WTON total supply
-        .add(_tot.totalSupply()).sub(_wton.totalSupply()) // consider additional TOT balance as total supply
+      tos
     );
 
     nextTotalSupply = prevTotalSupply.add(stakedSeig);
@@ -397,27 +407,24 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     // TODO: reduce computation
     // DEV ONLY
     emit CommitLog1(
-      // total staked amount
       _tot.totalSupply(),
-
-      // total supply of (W)TON
-      _ton.totalSupply()
-        .sub(_ton.balanceOf(address(_wton)))
-        .mul(10 ** 9)                                       // convert TON total supply into ray
-        .add(_wton.totalSupply())                           // add WTON total supply
-        .add(_tot.totalSupply()).sub(_wton.totalSupply()),  // consider additional TOT balance as total supply
-
+      tos,
       prevTotalSupply,
       nextTotalSupply
     );
 
-
     uint256 unstakedSeig = maxSeig.sub(stakedSeig);
+    uint256 powertonSeig;
+
     if (address(_powerton) != address(0)) {
-      _wton.mint(address(_powerton), unstakedSeig);
+      // out of gas..?
+      // powertonSeig = unstakedSeig.mul(POWER_TON_NUMERATOR).div(POWER_TON_DENOMINATOR);
+      powertonSeig = unstakedSeig * POWER_TON_NUMERATOR / POWER_TON_DENOMINATOR;
+
+      _wton.mint(address(_powerton), powertonSeig);
     }
 
-    emit SeigGiven(msg.sender, maxSeig, stakedSeig, unstakedSeig);
+    emit SeigGiven(msg.sender, maxSeig, stakedSeig, unstakedSeig, powertonSeig);
 
     return true;
   }
