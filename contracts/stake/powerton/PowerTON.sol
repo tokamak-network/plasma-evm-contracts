@@ -250,10 +250,12 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
 
   function _decreaseEffectiveBalance(address account, uint256 amount) internal returns (uint256) {
     bytes32 id = _getID(account);
-    uint256 value = _sub0(sortitionSumTrees.stakeOf(TREE_KEY, id), amount);
+
+    uint256 stake = sortitionSumTrees.stakeOf(TREE_KEY, id);
+    uint256 value = _sub0(stake, amount);
 
     sortitionSumTrees.set(TREE_KEY, value, id);
-    return value;
+    return stake - value;
   }
 
   /**
