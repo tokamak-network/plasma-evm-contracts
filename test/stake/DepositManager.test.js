@@ -24,6 +24,7 @@ const DepositManager = contract.fromArtifact('DepositManager');
 const SeigManager = contract.fromArtifact('SeigManager');
 const RootChainRegistry = contract.fromArtifact('RootChainRegistry');
 const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
+const PowerTON = contract.fromArtifact('PowerTON');
 
 const chai = require('chai');
 chai
@@ -51,6 +52,8 @@ const dummyReceiptsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc0016
 const initialSupply = _WTON('1000');
 const tokenAmount = initialSupply.div(100);
 const WITHDRAWAL_DELAY = 10;
+
+const ROUND_DURATION = time.duration.minutes(1);
 
 describe('stake/DepositManager', function () {
   beforeEach(async function () {
@@ -88,6 +91,17 @@ describe('stake/DepositManager', function () {
       this.depositManager.address,
       _WTON('100').toFixed(WTON_UNIT),
     );
+
+    this.powerton = await PowerTON.new(
+      this.seigManager.address,
+      this.wton.address,
+      ROUND_DURATION,
+    );
+
+    await this.powerton.init();
+
+    await this.seigManager.setPowerTON(this.powerton.address);
+    await this.powerton.start();
 
     // add minter roles
     await this.wton.addMinter(this.seigManager.address);

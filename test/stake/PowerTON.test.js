@@ -132,7 +132,7 @@ describe('stake/PowerTON', function () {
     });
   }
 
-  function behaveRound (round = 0, maxRound = 10) {
+  function behaveRound (round = 0, maxRound = 2) {
     if (round === maxRound) return;
     const nextRound = round + 1;
 
@@ -368,7 +368,7 @@ describe('stake/PowerTON', function () {
     });
   });
 
-  describe.only('after PowerTON started', function () {
+  describe('after PowerTON started', function () {
     beforeEach(async function () {
       await this.seigManager.setPowerTON(this.powerton.address);
       await this.powerton.start();

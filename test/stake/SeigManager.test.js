@@ -10,6 +10,9 @@ const {
   BN, constants, expectEvent, expectRevert, time, ether,
 } = require('@openzeppelin/test-helpers');
 
+const { padLeft, toBN } = require('web3-utils');
+const { marshalString, unmarshalString } = require('../helpers/marshal');
+
 const WTON = contract.fromArtifact('WTON');
 const TON = contract.fromArtifact('TON');
 
@@ -22,13 +25,13 @@ const DepositManager = contract.fromArtifact('DepositManager');
 const SeigManager = contract.fromArtifact('SeigManager');
 const RootChainRegistry = contract.fromArtifact('RootChainRegistry');
 const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
+const PowerTON = contract.fromArtifact('PowerTON');
 
 const chai = require('chai');
 const { expect } = chai;
 chai.use(require('chai-bn')(BN))
   .should();
 
-const toBN = web3.utils.toBN;
 const LOGTX = process.env.LOGTX || false;
 const VERBOSE = process.env.VERBOSE || false;
 
@@ -68,6 +71,8 @@ const totalStakedAmount = tokwnOwnerInitialBalance; // 400 TON
 const totalUnstakedAmount = TON_INITIAL_SUPPLY.minus(tokwnOwnerInitialBalance); // 9600 TON
 
 const NRE_LENGTH = 2;
+
+const ROUND_DURATION = time.duration.minutes(1);
 
 class RootChainState {
   constructor (NRE_LENGTH) {
@@ -165,6 +170,17 @@ describe('stake/SeigManager', function () {
       this.depositManager.address,
       SEIG_PER_BLOCK.toFixed(WTON_UNIT),
     );
+
+    this.powerton = await PowerTON.new(
+      this.seigManager.address,
+      this.wton.address,
+      ROUND_DURATION,
+    );
+
+    await this.powerton.init();
+
+    await this.seigManager.setPowerTON(this.powerton.address);
+    await this.powerton.start();
 
     // add minter roles
     await this.wton.addMinter(this.seigManager.address);
@@ -292,9 +308,16 @@ describe('stake/SeigManager', function () {
 
               this.totBalancesAtCommit[rootchain.address] = curBalance;
 
-              const { args: { totalStakedAmount: _totalStakedAmount, totalSupplyOfWTON, prevTotalSupply, nextTotalSupply } } = await expectEvent.inTransaction(tx, this.seigManager, 'CommitLog1');
+              const {
+                args: {
+                  totalStakedAmount: _totalStakedAmount,
+                  totalSupplyOfWTON,
+                  prevTotalSupply,
+                  nextTotalSupply,
+                },
+              } = await expectEvent.inTransaction(tx, this.seigManager, 'CommitLog1');
 
-              const { args: { totalSeig, stakedSeig, unstakedSeig } } = await expectEvent.inTransaction(tx, this.seigManager, 'SeigGiven');
+              const { args: { totalSeig, stakedSeig, unstakedSeig, powertonSeig } } = await expectEvent.inTransaction(tx, this.seigManager, 'SeigGiven');
 
               const { args: { previous, current } } = await expectEvent.inTransaction(tx, this.tot, 'FactorSet');
 
@@ -341,6 +364,7 @@ describe('stake/SeigManager', function () {
     totalSeig           : ${_WTON(totalSeig, 'ray').toString().padStart(15)}
     stakedSeig          : ${_WTON(stakedSeig, 'ray').toString().padStart(15)}
     unstakedSeig        : ${_WTON(unstakedSeig, 'ray').toString().padStart(15)}
+    powertonSeig        : ${_WTON(powertonSeig || 0, 'ray').toString().padStart(15)}
 
     ${'-'.repeat(40)}
 
@@ -603,18 +627,18 @@ describe('stake/SeigManager', function () {
           );
         });
 
-        describe('when the token holder tries to withdraw staked WTON at once', function () {
-          let amount;
+        describe('when the token holder tries to withdraw all stakes', function () {
+          let wtonAmount;
 
           beforeEach(async function () {
-            amount = await this.seigManager.stakeOf(this.rootchains[i].address, tokenOwner);
+            wtonAmount = await this.seigManager.stakeOf(this.rootchains[i].address, tokenOwner);
           });
 
           it('should withdraw', async function () {
             const tokenOwnerWtonBalance0 = await this.wton.balanceOf(tokenOwner);
             const depositManagerWtonBalance0 = await this.wton.balanceOf(this.depositManager.address);
 
-            await this.depositManager.requestWithdrawal(this.rootchains[i].address, amount, { from: tokenOwner });
+            await this.depositManager.requestWithdrawal(this.rootchains[i].address, wtonAmount, { from: tokenOwner });
 
             await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
 
@@ -623,12 +647,100 @@ describe('stake/SeigManager', function () {
             const tokenOwnerWtonBalance1 = await this.wton.balanceOf(tokenOwner);
             const depositManagerWtonBalance1 = await this.wton.balanceOf(this.depositManager.address);
 
-            expect(depositManagerWtonBalance1.sub(depositManagerWtonBalance0).neg()).to.be.bignumber.equal(amount);
-            expect(tokenOwnerWtonBalance1.sub(tokenOwnerWtonBalance0)).to.be.bignumber.equal(amount);
+            expect(depositManagerWtonBalance1.sub(depositManagerWtonBalance0).neg()).to.be.bignumber.equal(wtonAmount);
+            expect(tokenOwnerWtonBalance1.sub(tokenOwnerWtonBalance0)).to.be.bignumber.equal(wtonAmount);
+          });
+
+          describe('after the token holder withdraw all stakes in TON', function () {
+            let tonAmount;
+
+            beforeEach(async function () {
+              await this.depositManager.requestWithdrawal(this.rootchains[i].address, wtonAmount, { from: tokenOwner });
+
+              await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
+
+              const tonBalance0 = await this.ton.balanceOf(tokenOwner);
+              await this.depositManager.processRequest(this.rootchains[i].address, true, { from: tokenOwner });
+              const tonBalance1 = await this.ton.balanceOf(tokenOwner);
+
+              tonAmount = tonBalance1.sub(tonBalance0);
+            });
+
+            it('the root chain can commit next epochs', async function () {
+              await Promise.all(range(10).map(_ => this._commit(this.rootchains[i])));
+            });
+
+            it('the token holder can deposit again', async function () {
+              const data = marshalString(
+                [this.depositManager.address, this.rootchains[i].address]
+                  .map(unmarshalString)
+                  .map(str => padLeft(str, 64))
+                  .join(''),
+              );
+
+              await this.ton.approveAndCall(
+                this.wton.address,
+                tonAmount,
+                data,
+                { from: tokenOwner },
+              );
+            });
+
+            describe('after the root chain commits 10 epochs', function () {
+              beforeEach(async function () {
+                await Promise.all(range(10).map(_ => this._commit(this.rootchains[i])));
+              });
+
+              it('the token holder can deposit again', async function () {
+                const data = marshalString(
+                  [this.depositManager.address, this.rootchains[i].address]
+                    .map(unmarshalString)
+                    .map(str => padLeft(str, 64))
+                    .join(''),
+                );
+
+                await this.ton.approveAndCall(
+                  this.wton.address,
+                  tonAmount,
+                  data,
+                  { from: tokenOwner },
+                );
+              });
+            });
+          });
+
+          describe('after the token holder withdraw all stakes in WTON', function () {
+            beforeEach(async function () {
+              await this.depositManager.requestWithdrawal(this.rootchains[i].address, wtonAmount, { from: tokenOwner });
+
+              await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
+
+              await this.depositManager.processRequest(this.rootchains[i].address, false, { from: tokenOwner });
+            });
+
+            it('the root chain can commit next epochs', async function () {
+              await Promise.all(range(10).map(_ => this._commit(this.rootchains[i])));
+            });
+
+            it('the token holder can deposit again', async function () {
+              await this.wton.approve(this.depositManager.address, wtonAmount, { from: tokenOwner });
+              await this._deposit(tokenOwner, this.rootchains[i].address, wtonAmount);
+            });
+
+            describe('after the root chain commits 10 epochs', function () {
+              beforeEach(async function () {
+                await Promise.all(range(10).map(_ => this._commit(this.rootchains[i])));
+              });
+
+              it('the token holder can deposit again', async function () {
+                await this.wton.approve(this.depositManager.address, wtonAmount, { from: tokenOwner });
+                await this._deposit(tokenOwner, this.rootchains[i].address, wtonAmount);
+              });
+            });
           });
         });
 
-        describe('when the token holder tries to withdraw staked WTON 10 times', function () {
+        describe('when the token holder tries to withdraw 10% of staked WTON 10 times', function () {
           const n = 10;
           const nBN = toBN(n);
           let amount;
