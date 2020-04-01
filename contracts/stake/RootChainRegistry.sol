@@ -18,6 +18,11 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
   uint256 internal _numRootChains;
   mapping (uint256 => address) internal _rootchainByIndex;
 
+  modifier onlyOperator(address rootchain) {
+    require(RootChainI(rootchain).operator() == msg.sender, "sender is not operator");
+    _;
+  }
+
   function rootchains(address rootchain) external view returns (bool) {
     return _rootchains[rootchain];
   }
@@ -30,7 +35,11 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
     return _rootchainByIndex[index];
   }
 
-  function register(address rootchain) external returns (bool) {
+  function register(address rootchain)
+    external
+    onlyOperator(rootchain)
+    returns (bool)
+  {
     return _register(rootchain);
   }
 
@@ -49,21 +58,64 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
     return true;
   }
 
-  function deployCoinage(address rootchain, address seigManager) external returns (bool) {
+  function deployCoinage(
+    address rootchain,
+    address seigManager
+  )
+    external
+    onlyOperator(rootchain)
+    returns (bool)
+  {
     return _deployCoinage(rootchain, seigManager);
   }
 
-  function _deployCoinage(address rootchain, address seigManager) internal returns (bool) {
+  function _deployCoinage(
+    address rootchain,
+    address seigManager
+  )
+   internal
+   returns (bool)
+  {
     return SeigManagerI(seigManager).deployCoinage(rootchain);
   }
 
   function registerAndDeployCoinage(
     address rootchain,
     address seigManager
-  ) external returns (bool) {
+  )
+    external
+    onlyOperator(rootchain)
+    returns (bool)
+  {
     require(_register(rootchain));
     require(_deployCoinage(rootchain, seigManager));
     return true;
+  }
+
+  function registerAndDeployCoinageAndSetCommissionRate(
+    address rootchain,
+    address seigManager,
+    uint256 commission
+  )
+    external
+    onlyOperator(rootchain)
+    returns (bool)
+  {
+    require(_register(rootchain));
+    require(_deployCoinage(rootchain, seigManager));
+    require(_setCommissionRate(rootchain, seigManager, commission));
+    return true;
+  }
+
+  function _setCommissionRate(
+    address rootchain,
+    address seigManager,
+    uint256 commission
+  )
+    internal
+    returns (bool)
+  {
+    return SeigManagerI(seigManager).setCommissionRate(rootchain, commission);
   }
 
   function unregister(address rootchain) external onlyOwner returns (bool) {

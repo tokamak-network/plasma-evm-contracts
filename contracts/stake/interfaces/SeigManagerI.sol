@@ -19,13 +19,17 @@ interface SeigManagerI {
   function powerton() external view returns (PowerTONI);
   function tot() external view returns (CustomIncrementCoinage);
   function coinages(address rootchain) external view returns (CustomIncrementCoinage);
+  function commissionRates(address rootchain) external view returns (uint256);
 
   function lastCommitBlock(address rootchain) external view returns (uint256);
   function seigPerBlock() external view returns (uint256);
   function lastSeigBlock() external view returns (uint256);
+  function pausedBlock() external view returns (uint256);
+  function unpausedBlock() external view returns (uint256);
   function DEFAULT_FACTOR() external view returns (uint256);
 
   function deployCoinage(address rootchain) external returns (bool);
+  function setCommissionRate(address rootchain, uint256 commission) external returns (bool);
 
   function uncomittedStakeOf(address rootchain, address account) external view returns (uint256);
   function stakeOf(address rootchain, address account) external view returns (uint256);

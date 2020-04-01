@@ -78,6 +78,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   // coinage token for each root chain.
   mapping (address => CustomIncrementCoinage) internal _coinages;
 
+  // commission rates in RAY
+  mapping (address => uint256) internal _commissionRates;
+
   // last commit block number for each root chain.
   mapping (address => uint256) internal _lastCommitBlock;
 
@@ -99,12 +102,20 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   uint256 constant public POWER_TON_NUMERATOR = 5;
   uint256 constant public POWER_TON_DENOMINATOR = 10;
 
+  uint256 constant public MAX_VALID_COMMISSION = 10 ** 27; // 1 RAY
+  uint256 constant public MIN_VALID_COMMISSION = 10 ** 25; // 0.01 RAY
+
   //////////////////////////////
   // Modifiers
   //////////////////////////////
 
   modifier onlyRegistry() {
     require(msg.sender == address(_registry));
+    _;
+  }
+
+  modifier onlyRegistryOrOperator(address rootchain) {
+    require(msg.sender == address(_registry) || msg.sender == RootChainI(rootchain).operator());
     _;
   }
 
@@ -127,7 +138,10 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   // Events
   //////////////////////////////
 
-  event CoinageCreated(address rootchain, address coinage);
+  event CoinageCreated(address indexed rootchain, address coinage);
+  event SeigGiven(address indexed rootchain, uint256 totalSeig, uint256 stakedSeig, uint256 unstakedSeig, uint256 powertonSeig);
+  event Comitted(address indexed rootchain);
+  event CommissionRateSet(address indexed rootchain, uint256 previousRate, uint256 newRate);
 
   //////////////////////////////
   // Constuctor
@@ -209,11 +223,25 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     return true;
   }
 
-  event SeigGiven(address rootchain, uint256 totalSeig, uint256 stakedSeig, uint256 unstakedSeig, uint256 powertonSeig);
-  event Comitted(address rootchain);
+  function setCommissionRate(
+    address rootchain,
+    uint256 commissionRate
+  )
+    external
+    onlyRegistryOrOperator(rootchain)
+    returns (bool)
+  {
+    // check commission range
+    require(
+      (commissionRate == 0) ||
+      (MIN_VALID_COMMISSION <= commissionRate && commissionRate <= MAX_VALID_COMMISSION),
+      "SeigManager: commission rate must be 0 or between 1 RAY and 0.01 RAY"
+    );
 
-  // test log...
-  event CommitLog1(uint256 totalStakedAmount, uint256 totalSupplyOfWTON, uint256 prevTotalSupply, uint256 nextTotalSupply);
+    uint256 previous = _commissionRates[rootchain];
+    _commissionRates[rootchain] = commissionRate;
+    emit CommissionRateSet(rootchain, previous, commissionRate);
+  }
 
   /**
    * @dev Callback for a new commit
@@ -230,6 +258,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
     _increaseTot();
 
+    _lastCommitBlock[msg.sender] = block.number;
+
     // 2. increase total supply of {coinages[rootchain]}
     CustomIncrementCoinage coinage = _coinages[msg.sender];
 
@@ -237,12 +267,31 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     uint256 nextTotalSupply = _tot.balanceOf(msg.sender);
 
     if (prevTotalSupply < nextTotalSupply) {
-      // gives seigniorages to the root chain as coinage
-      coinage.setFactor(_calcNewFactor(prevTotalSupply, nextTotalSupply, coinage.factor()));
-      _wton.mint(address(this), nextTotalSupply.sub(prevTotalSupply));
-    }
+      uint256 seigs = nextTotalSupply - prevTotalSupply;
+      uint256 operatorSeigs;
 
-    _lastCommitBlock[msg.sender] = block.number;
+      // calculate commission amount
+      uint256 commissionRate = _commissionRates[msg.sender];
+      if (commissionRate != 0) {
+        operatorSeigs = rmul(seigs, commissionRate);
+        nextTotalSupply = nextTotalSupply.sub(operatorSeigs);
+      }
+
+      // gives seigniorages to the root chain as coinage
+      coinage.setFactor(
+          _calcNewFactor(
+            prevTotalSupply,
+            nextTotalSupply,
+            coinage.factor()
+          )
+        );
+
+      if (operatorSeigs != 0) {
+        coinage.mint(RootChainI(msg.sender).operator(), operatorSeigs);
+      }
+
+      _wton.mint(address(this), seigs);
+    }
 
     // emit events
     emit Comitted(msg.sender);
@@ -254,7 +303,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
    * @dev Callback for a token transfer
    */
   function onTransfer(address sender, address recipient, uint256 amount) external returns (bool) {
-    require(msg.sender == address(_ton) || msg.sender == address(_wton), "SeigManager: only TON or WTON can call onTransfer");
+    require(msg.sender == address(_ton) || msg.sender == address(_wton),
+      "SeigManager: only TON or WTON can call onTransfer");
 
     if (!paused()) {
       _increaseTot();
@@ -280,6 +330,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     return true;
   }
 
+  // DEV ONLY
   event UnstakeLog(uint coinageBurnAmount, uint totBurnAmount);
 
   function onWithdraw(address rootchain, address account, uint256 amount)
@@ -359,6 +410,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   function _calcNewFactor(uint256 source, uint256 target, uint256 oldFactor) internal pure returns (uint256) {
     return rdiv(rmul(target, oldFactor), source);
   }
+
+  // DEV ONLY
+  event CommitLog1(uint256 totalStakedAmount, uint256 totalSupplyOfWTON, uint256 prevTotalSupply, uint256 nextTotalSupply);
 
   function _increaseTot() internal returns (bool) {
     // short circuit if already seigniorage is given.
@@ -444,6 +498,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   // Storage getters
   //////////////////////////////
 
+  // solium-disable
   function registry() external view returns (RootChainRegistryI) { return _registry; }
   function depositManager() external view returns (DepositManagerI) { return _depositManager; }
   function ton() external view returns (IERC20) { return _ton; }
@@ -451,10 +506,14 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   function powerton() external view returns (PowerTONI) { return _powerton; }
   function tot() external view returns (CustomIncrementCoinage) { return _tot; }
   function coinages(address rootchain) external view returns (CustomIncrementCoinage) { return _coinages[rootchain]; }
+  function commissionRates(address rootchain) external view returns (uint256) { return _commissionRates[rootchain]; }
 
   function lastCommitBlock(address rootchain) external view returns (uint256) { return _lastCommitBlock[rootchain]; }
   function seigPerBlock() external view returns (uint256) { return _seigPerBlock; }
   function lastSeigBlock() external view returns (uint256) { return _lastSeigBlock; }
-  function DEFAULT_FACTOR() external view returns (uint256) { return _DEFAULT_FACTOR; }
+  function pausedBlock() external view returns (uint256) { return _pausedBlock; }
+  function unpausedBlock() external view returns (uint256) { return _unpausedBlock; }
 
+  function DEFAULT_FACTOR() external view returns (uint256) { return _DEFAULT_FACTOR; }
+  // solium-enable
 }
