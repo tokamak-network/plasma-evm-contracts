@@ -128,6 +128,13 @@ describe('stake/SeigManager', function () {
     );
   }
 
+  async function submitDummyNREs (rootchain, rootchainState, n) {
+    for (const _ of range(n)) {
+      await time.increase(time.duration.seconds(1));
+      await submitDummyNRE(rootchain, rootchainState);
+    }
+  }
+
   // deploy contract and instances
   beforeEach(async function () {
     this.ton = await TON.new();
@@ -217,6 +224,7 @@ describe('stake/SeigManager', function () {
     // contract-call wrapper functions
     this._deposit = (from, to, amount) => this.depositManager.deposit(to, amount, { from });
     this._commit = (rootchain) => submitDummyNRE(rootchain, this.rootchainState[rootchain.address]);
+    this._multiCommit = (rootchain, n) => submitDummyNREs(rootchain, this.rootchainState[rootchain.address], n);
   });
 
   describe('when the token owner is the only depositor of each root chain', function () {
@@ -803,6 +811,63 @@ describe('stake/SeigManager', function () {
             });
           });
         });
+      });
+
+      // describe('when 0-th root chain changes commission rate', function () {
+      describe('when 0-th root chain changes commission rate', function () {
+        const i = 0;
+        const n = 1;
+
+        function behaveWithCommissionRate (commissionRate) {
+          const commissionPercent = commissionRate.toNumber() * 100;
+          describe(`when 0-th root chain has commission rate of ${commissionPercent}%`, function () {
+            it(`the root chain can commit next ${n} epochs`, async function () {
+              await this._multiCommit(this.rootchains[i], n);
+            });
+
+            beforeEach(async function () {
+              await this.seigManager.setCommissionRate(this.rootchains[i].address, commissionRate.toFixed(WTON_UNIT));
+            });
+
+            describe('when the root chain commits', async function () {
+              let beforeCoinageTotalSupply;
+              let afterCoinageTotalSupply;
+
+              let beforeOperatorStake;
+              let afterOperatorStake;
+
+              beforeEach(async function () {
+                beforeCoinageTotalSupply = await this.coinages[i].totalSupply();
+                beforeOperatorStake = await this.seigManager.stakeOf(this.rootchains[i].address, defaultSender);
+
+                console.log('beforeOperatorStake', beforeOperatorStake.toString(10));
+
+                await this._multiCommit(this.rootchains[i], n);
+
+                afterCoinageTotalSupply = await this.coinages[i].totalSupply();
+                afterOperatorStake = await this.seigManager.stakeOf(this.rootchains[i].address, defaultSender);
+              });
+
+              it(`operator should receive ${commissionPercent}% of seigniorages`, async function () {
+                const seigs = afterCoinageTotalSupply.sub(beforeCoinageTotalSupply);
+                const operatorSeigs = afterOperatorStake.sub(beforeOperatorStake);
+
+                console.log('seigs', seigs.toString(10));
+                console.log('operatorSeigs', operatorSeigs.toString(10));
+                console.log('commissionRate', commissionRate.toFixed(WTON_UNIT));
+
+                expect(seigs).to.be.bignumber.gt('0');
+                expect(operatorSeigs).to.be.bignumber.equal(_WTON(seigs, WTON_UNIT).times(commissionRate).toFixed(WTON_UNIT));
+              });
+            });
+          });
+        }
+
+        behaveWithCommissionRate(_WTON('0.5'));
+
+        behaveWithCommissionRate(_WTON('0.0'));
+
+        behaveWithCommissionRate(_WTON('1.0'));
       });
     });
   });
