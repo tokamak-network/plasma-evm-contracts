@@ -18,8 +18,8 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
   uint256 internal _numRootChains;
   mapping (uint256 => address) internal _rootchainByIndex;
 
-  modifier onlyOperator(address rootchain) {
-    require(RootChainI(rootchain).operator() == msg.sender, "sender is not operator");
+  modifier onlyOwnerOrOperator(address rootchain) {
+    require(isOwner() || RootChainI(rootchain).operator() == msg.sender, "sender is neither operator nor operator");
     _;
   }
 
@@ -37,7 +37,7 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
 
   function register(address rootchain)
     external
-    onlyOperator(rootchain)
+    onlyOwnerOrOperator(rootchain)
     returns (bool)
   {
     return _register(rootchain);
@@ -46,10 +46,6 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
   function _register(address rootchain) internal returns (bool) {
     require(!_rootchains[rootchain]);
     require(RootChainI(rootchain).isRootChain());
-
-    if (!isOwner()) {
-      require(msg.sender == RootChainI(rootchain).operator());
-    }
 
     _rootchains[rootchain] = true;
     _rootchainByIndex[_numRootChains] = rootchain;
@@ -63,7 +59,7 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
     address seigManager
   )
     external
-    onlyOperator(rootchain)
+    onlyOwnerOrOperator(rootchain)
     returns (bool)
   {
     return _deployCoinage(rootchain, seigManager);
@@ -84,7 +80,7 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
     address seigManager
   )
     external
-    onlyOperator(rootchain)
+    onlyOwnerOrOperator(rootchain)
     returns (bool)
   {
     require(_register(rootchain));
@@ -98,7 +94,7 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
     uint256 commission
   )
     external
-    onlyOperator(rootchain)
+    onlyOwnerOrOperator(rootchain)
     returns (bool)
   {
     require(_register(rootchain));
