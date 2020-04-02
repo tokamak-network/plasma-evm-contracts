@@ -91,7 +91,7 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
   function registerAndDeployCoinageAndSetCommissionRate(
     address rootchain,
     address seigManager,
-    uint256 commission
+    uint256 commissionRate
   )
     external
     onlyOwnerOrOperator(rootchain)
@@ -99,19 +99,19 @@ contract RootChainRegistry is RootChainRegistryI, Ownable {
   {
     require(_register(rootchain));
     require(_deployCoinage(rootchain, seigManager));
-    require(_setCommissionRate(rootchain, seigManager, commission));
+    require(_setCommissionRate(rootchain, seigManager, commissionRate));
     return true;
   }
 
   function _setCommissionRate(
     address rootchain,
     address seigManager,
-    uint256 commission
+    uint256 commissionRate
   )
     internal
     returns (bool)
   {
-    return SeigManagerI(seigManager).setCommissionRate(rootchain, commission);
+    return SeigManagerI(seigManager).setCommissionRate(rootchain, commissionRate);
   }
 
   function unregister(address rootchain) external onlyOwner returns (bool) {

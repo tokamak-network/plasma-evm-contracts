@@ -241,6 +241,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     uint256 previous = _commissionRates[rootchain];
     _commissionRates[rootchain] = commissionRate;
     emit CommissionRateSet(rootchain, previous, commissionRate);
+
+    return true;
   }
 
   /**
