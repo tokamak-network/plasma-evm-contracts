@@ -23,7 +23,7 @@ const MTON_UNIT = 'wei';
 
 const tokenAmount = _MTON('100', MTON_UNIT);
 
-describe.only('stake/MTONMigrator', function () {
+describe('stake/MTONMigrator', function () {
   beforeEach(async function () {
     this.mton = await MTON.new();
     this.migrator = await MTONMigrator.new(this.mton.address);

@@ -501,13 +501,13 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   //////////////////////////////
 
   // solium-disable
-  function registry() external view returns (RootChainRegistryI) { return _registry; }
-  function depositManager() external view returns (DepositManagerI) { return _depositManager; }
-  function ton() external view returns (IERC20) { return _ton; }
-  function wton() external view returns (ERC20Mintable) { return _wton; }
-  function powerton() external view returns (PowerTONI) { return _powerton; }
-  function tot() external view returns (CustomIncrementCoinage) { return _tot; }
-  function coinages(address rootchain) external view returns (CustomIncrementCoinage) { return _coinages[rootchain]; }
+  function registry() external view returns (address) { return address(_registry); }
+  function depositManager() external view returns (address) { return address(_depositManager); }
+  function ton() external view returns (address) { return address(_ton); }
+  function wton() external view returns (address) { return address(_wton); }
+  function powerton() external view returns (address) { return address(_powerton); }
+  function tot() external view returns (address) { return address(_tot); }
+  function coinages(address rootchain) external view returns (address) { return address(_coinages[rootchain]); }
   function commissionRates(address rootchain) external view returns (uint256) { return _commissionRates[rootchain]; }
 
   function lastCommitBlock(address rootchain) external view returns (uint256) { return _lastCommitBlock[rootchain]; }

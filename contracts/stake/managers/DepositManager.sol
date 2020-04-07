@@ -275,9 +275,10 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   // Storage getters
   ////////////////////
 
-  function wton() external view returns (WTON) { return _wton; }
-  function registry() external view returns (RootChainRegistryI) { return _registry; }
-  function seigManager() external view returns (SeigManagerI) { return _seigManager; }
+  // solium-disable
+  function wton() external view returns (address) { return address(_wton); }
+  function registry() external view returns (address) { return address(_registry); }
+  function seigManager() external view returns (address) { return address(_seigManager); }
 
   function accStaked(address rootchain, address account) external view returns (uint256 wtonAmount) { return _accStaked[rootchain][account]; }
   function accStakedRootChain(address rootchain) external view returns (uint256 wtonAmount) { return _accStakedRootChain[rootchain]; }
@@ -299,4 +300,5 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   }
 
   function WITHDRAWAL_DELAY() external view returns (uint256) { return _WITHDRAWAL_DELAY; }
+  // solium-enable
 }
