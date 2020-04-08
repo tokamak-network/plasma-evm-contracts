@@ -31,6 +31,11 @@ module.exports = {
       network_id: 16, // eslint-disable-line camelcase
       production: true,
     },
+    rinkeby: {
+      provider: () => new PrivateKeyProvider(process.env.RINKEBY_PRIVATE_KEY, process.env.RINKEBY_PROVIDER_URL),
+      network_id: 4, // eslint-disable-line camelcase
+      production: true,
+    },
     mainnet: {
       provider: () => new PrivateKeyProvider(process.env.MAINNET_PRIVATE_KEY, process.env.MAINNET_PROVIDER_URL),
       network_id: 1, // eslint-disable-line camelcase

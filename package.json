@@ -61,7 +61,7 @@
     "solidity-docgen": "github:OpenZeppelin/solidity-docgen#03f42b5e271b1e1c1d0b814b921ecdc086055255",
     "solidity-util": "github:willitscale/solidity-util",
     "solium": "^1.2.4",
-    "truffle": "^5.1.12",
+    "truffle": "^5.1.20",
     "truffle-hdwallet-provider": "^1.0.17",
     "truffle-privatekey-provider": "^1.3.0",
     "web3-utils": "^1.2.1"
