@@ -7,7 +7,10 @@ const baseTokenAddress = process.env.BASE_TOKEN || '0x00000000000000000000000000
 
 const swapEnabled = true;
 
-module.exports = function (deployer) {
+module.exports = function (deployer, network) {
+  // skip production network
+  if (network === 'faraday' || network === 'mainnet') return;
+
   if (development || baseTokenAddress === '0x0000000000000000000000000000000000000000') {
     deployer.deploy(TON)
       .then(token => deployer.deploy(EtherToken, development, token.address, swapEnabled))
