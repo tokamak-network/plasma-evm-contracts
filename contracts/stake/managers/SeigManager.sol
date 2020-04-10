@@ -8,7 +8,7 @@ import { IERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/to
 import { SafeERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 
 import { DSMath } from "../../../node_modules/coinage-token/contracts/lib/DSMath.sol";
-import { CustomIncrementCoinageMock as CustomIncrementCoinage } from "../../../node_modules/coinage-token/flatten.sol";
+import { CustomIncrementCoinageMock } from "../../../node_modules/coinage-token/flatten.sol";
 
 import { AuthController } from "../tokens/AuthController.sol";
 
@@ -73,10 +73,10 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   ERC20Mintable internal _wton; // TODO: use mintable erc20!
 
   // track total deposits of each root chain.
-  CustomIncrementCoinage internal _tot;
+  CustomIncrementCoinageMock internal _tot;
 
   // coinage token for each root chain.
-  mapping (address => CustomIncrementCoinage) internal _coinages;
+  mapping (address => CustomIncrementCoinageMock) internal _coinages;
 
   // commission rates in RAY
   mapping (address => uint256) internal _commissionRates;
@@ -160,7 +160,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     _depositManager = depositManager;
     _seigPerBlock = seigPerBlock;
 
-    _tot = new CustomIncrementCoinage(
+    _tot = new CustomIncrementCoinageMock(
       "",
       "",
       _DEFAULT_FACTOR,
@@ -210,7 +210,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
     // create new coinage token for the root chain contract
     if (address(_coinages[rootchain]) == address(0)) {
-      _coinages[rootchain] = new CustomIncrementCoinage(
+      _coinages[rootchain] = new CustomIncrementCoinageMock(
         "",
         "",
         _DEFAULT_FACTOR,
@@ -263,7 +263,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     _lastCommitBlock[msg.sender] = block.number;
 
     // 2. increase total supply of {coinages[rootchain]}
-    CustomIncrementCoinage coinage = _coinages[msg.sender];
+    CustomIncrementCoinageMock coinage = _coinages[msg.sender];
 
     uint256 prevTotalSupply = coinage.totalSupply();
     uint256 nextTotalSupply = _tot.balanceOf(msg.sender);
@@ -376,7 +376,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     uint256 coinageTotalSupply = _coinages[rootchain].totalSupply();
     uint256 totBalalnce = _tot.balanceOf(rootchain);
 
-    // NOTE: arithamtic (mul and div) make some errors, so we gonna adjust them under 1e-9 WTON.
+    // NOTE: arithamtic operations (mul and div) make some errors, so we gonna adjust them under 1e-9 WTON.
     //       note that coinageTotalSupply and totBalalnce are RAY values.
     if (coinageTotalSupply > totBalalnce && coinageTotalSupply - totBalalnce < WAD) {
       return 0;
@@ -396,7 +396,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   //////////////////////////////
 
   function uncomittedStakeOf(address rootchain, address account) external view returns (uint256) {
-    CustomIncrementCoinage coinage = _coinages[rootchain];
+    CustomIncrementCoinageMock coinage = _coinages[rootchain];
 
     uint256 prevFactor = coinage.factor();
     uint256 prevTotalSupply = coinage.totalSupply();
