@@ -1,6 +1,7 @@
 # Plasma EVM RootChain contract
 
 [![Build Status](https://travis-ci.org/Onther-Tech/plasma-evm-contracts.svg?branch=master)](https://travis-ci.org/Onther-Tech/plasma-evm-contracts)
+[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.gg/8wSpJKz)
 
 
 ## Implementation Status
