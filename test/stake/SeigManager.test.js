@@ -267,16 +267,11 @@ describe('stake/SeigManager', function () {
         expect(await this.wton.balanceOf(this.depositManager.address)).to.be.bignumber.equal(tokenAmount.times(NUM_ROOTCHAINS).toFixed(WTON_UNIT));
       });
 
-      it('coinage balance of the tokwn owner must be increased by deposited WTON amount', async function () {
+      it('coinage balance of the token owner must be increased by deposited WTON amount', async function () {
         for (const coinage of this.coinages) {
           expect(await coinage.balanceOf(tokenOwner1)).to.be.bignumber.equal(tokenAmount.toFixed(WTON_UNIT));
         }
       });
-
-      // TODO: test withdrawal before commit
-      // it('should withdraw before commit', async function () {
-
-      // });
 
       it('tot balance of root chain must be increased by deposited WTON amount', async function () {
         for (const rootchain of this.rootchains) {
@@ -765,10 +760,7 @@ describe('stake/SeigManager', function () {
             const tokenOwnerWtonBalance0 = await this.wton.balanceOf(tokenOwner1);
             const depositManagerWtonBalance0 = await this.wton.balanceOf(this.depositManager.address);
 
-            for (const j of range(n)) {
-              await this.depositManager.requestWithdrawal(this.rootchains[i].address, amount, { from: tokenOwner1 });
-            }
-            // await Promise.all(range(n).map(_ => this.depositManager.requestWithdrawal(this.rootchains[i].address, amount, { from: tokenOwner })));
+            await Promise.all(range(n).map(_ => this.depositManager.requestWithdrawal(this.rootchains[i].address, amount, { from: tokenOwner1 })));
 
             await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
 
@@ -782,13 +774,65 @@ describe('stake/SeigManager', function () {
           });
         });
 
-        describe('after seig manager is paused', function () {
-          beforeEach(async function () {
-            await this.seigManager.pause();
-          });
-
+        function behaveWhenPausedOrNot () {
           it('commit should not be reverted', async function () {
             await this._commit(this.rootchains[i]);
+          });
+
+          it('deposit should not be reverted', async function () {
+            const from = tokenOwner1;
+            const balance = (await this.wton.balanceOf(from)).div(toBN(NUM_ROOTCHAINS));
+            await Promise.all(this.rootchains.map(
+              (rootchain) =>
+                this._deposit(from, rootchain.address, balance),
+            ));
+          });
+
+          it('withdrawal should not be reverted', async function () {
+            await Promise.all(
+              this.rootchains.map(async (rootchain) => {
+                const staked = await this.seigManager.stakeOf(rootchain.address, tokenOwner1);
+                if (staked.cmp(toBN('0')) > 0) {
+                  return this.depositManager.requestWithdrawal(rootchain.address, staked, { from: tokenOwner1 });
+                }
+              }),
+            );
+
+            await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
+
+            await Promise.all(
+              this.rootchains.map(async (rootchain) => {
+                const numPendingRequests = await this.depositManager.numPendingRequests(rootchain.address, tokenOwner1);
+
+                if (numPendingRequests.cmp(toBN('0')) > 0) {
+                  await this.depositManager.processRequests(rootchain.address, numPendingRequests, false, { from: tokenOwner1 });
+                }
+
+                const staked = await this.seigManager.stakeOf(rootchain.address, tokenOwner1);
+                expect(staked).to.be.bignumber.equal('0');
+              }),
+            );
+          });
+        }
+
+        describe('after seig manager is paused', function () {
+          const NUM_WITHDRAWN_ROOTCHAINS = Math.floor(NUM_ROOTCHAINS / 2);
+
+          async function makeWithdrawalRequest (n) {
+            await Promise.all(
+              this.rootchains.slice(0, n).map(async (rootchain) => {
+                const staked = await this.seigManager.stakeOf(rootchain.address, tokenOwner1);
+                const amount = staked.div(toBN(2));
+                if (amount.cmp(toBN('0')) > 0) {
+                  return this.depositManager.requestWithdrawal(rootchain.address, amount, { from: tokenOwner1 });
+                }
+              }),
+            );
+          }
+
+          beforeEach(async function () {
+            await makeWithdrawalRequest.call(this, NUM_WITHDRAWN_ROOTCHAINS);
+            await this.seigManager.pause();
           });
 
           it('seigniorage must not be given', async function () {
@@ -799,13 +843,12 @@ describe('stake/SeigManager', function () {
             expect(totTotalSupply2).to.be.bignumber.equal(totTotalSupply1);
           });
 
+          behaveWhenPausedOrNot();
+
           describe('after seig manager is unpaused', function () {
             beforeEach(async function () {
+              await makeWithdrawalRequest.call(this, NUM_WITHDRAWN_ROOTCHAINS);
               await this.seigManager.unpause();
-            });
-
-            it('commit should not be reverted', async function () {
-              await this._commit(this.rootchains[i]);
             });
 
             // TODO: check seig amount
@@ -816,6 +859,8 @@ describe('stake/SeigManager', function () {
 
               expect(totTotalSupply2).to.be.bignumber.gt(totTotalSupply1);
             });
+
+            behaveWhenPausedOrNot();
           });
         });
       });
