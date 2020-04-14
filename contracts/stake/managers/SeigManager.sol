@@ -292,7 +292,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
         coinage.mint(RootChainI(msg.sender).operator(), operatorSeigs);
       }
 
-      _wton.mint(address(this), seigs);
+      _wton.mint(address(_depositManager), seigs);
     }
 
     // emit events
