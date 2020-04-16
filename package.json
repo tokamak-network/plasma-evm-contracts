@@ -24,7 +24,7 @@
     "test:logtx": "LOGTX=true npm run test",
     "test:verbose": "VERBOSE=true npm run test",
     "test:verbose:logtx": "VERBOSE=true LOGTX=true npm run test",
-    "test:stake": "mocha --exit --bail --recursive test/stake --timeout 120000",
+    "test:stake": "mocha --exit --bail --recursive test/stake --timeout 600000",
     "test:stake:compile": "npm run compile && npm run test:stake"
   },
   "dependencies": {
