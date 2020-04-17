@@ -283,44 +283,17 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     uint256 seigs = nextTotalSupply - prevTotalSupply;
     address operator = RootChainI(msg.sender).operator();
     uint256 operatorSeigs;
-    uint256 delegatorSeigs;
 
     // calculate commission amount
-    uint256 commissionRate = _commissionRates[msg.sender];
     bool isCommissionRateNegative = _isCommissionRateNegative[msg.sender];
-    uint256 operatorRate;
 
-    if (commissionRate != 0) {
-      // See negative commission distribution formular here: TBD
-      if (isCommissionRateNegative) {
-        require(prevTotalSupply > 0, "SeigManager: negative commission rate requires deposits");
-
-        operatorRate = rdiv(coinage.balanceOf(operator), prevTotalSupply);
-
-        require(operatorRate > 0, "SeigManager: negative commission rate requires operator's stake");
-
-        // ɑ: insufficient seig for operator
-        operatorSeigs = rmul(
-          rmul(seigs, operatorRate), // seigs for operator
-          commissionRate
-        );
-
-        // β:
-        delegatorSeigs = operatorRate == RAY
-          ? operatorSeigs
-          : rdiv(operatorSeigs, RAY - operatorRate);
-
-        // 𝜸:
-        operatorSeigs = operatorRate == RAY
-          ? operatorSeigs
-          : operatorSeigs + rmul(delegatorSeigs, operatorRate);
-
-        nextTotalSupply = nextTotalSupply.add(delegatorSeigs);
-      } else {
-        operatorSeigs = rmul(seigs, commissionRate); // additional seig for operator
-        nextTotalSupply = nextTotalSupply.sub(operatorSeigs);
-      }
-    }
+    (nextTotalSupply, operatorSeigs) = _calcSeigsDistribution(
+      coinage,
+      prevTotalSupply,
+      seigs,
+      isCommissionRateNegative,
+      operator
+    );
 
     // gives seigniorages to the root chain as coinage
     coinage.setFactor(
@@ -347,6 +320,60 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     emit Comitted(msg.sender);
 
     return true;
+  }
+
+  function _calcSeigsDistribution(
+    CustomIncrementCoinageMock coinage,
+    uint256 prevTotalSupply,
+    uint256 seigs,
+    bool isCommissionRateNegative,
+    address operator
+  ) internal returns (
+    uint256 nextTotalSupply,
+    uint256 operatorSeigs
+  ) {
+    uint256 commissionRate = _commissionRates[msg.sender];
+
+    nextTotalSupply = prevTotalSupply + seigs;
+
+    // short circuit if there is no commission rate
+    if (commissionRate == 0) {
+      return (nextTotalSupply, operatorSeigs);
+    }
+
+    // if commission rate is possitive
+    if (!isCommissionRateNegative) {
+      operatorSeigs = rmul(seigs, commissionRate); // additional seig for operator
+      nextTotalSupply = nextTotalSupply.sub(operatorSeigs);
+      return (nextTotalSupply, operatorSeigs);
+    }
+
+    // See negative commission distribution formular here: TBD
+    require(prevTotalSupply > 0, "SeigManager: negative commission rate requires deposits");
+
+    uint256 operatorRate = rdiv(coinage.balanceOf(operator), prevTotalSupply);
+
+    require(operatorRate > 0, "SeigManager: negative commission rate requires operator's stake");
+
+    // ɑ: insufficient seig for operator
+    operatorSeigs = rmul(
+      rmul(seigs, operatorRate), // seigs for operator
+      commissionRate
+    );
+
+    // β:
+    uint256 delegatorSeigs = operatorRate == RAY
+      ? operatorSeigs
+      : rdiv(operatorSeigs, RAY - operatorRate);
+
+    // 𝜸:
+    operatorSeigs = operatorRate == RAY
+      ? operatorSeigs
+      : operatorSeigs + rmul(delegatorSeigs, operatorRate);
+
+    nextTotalSupply = nextTotalSupply.add(delegatorSeigs);
+
+    return (nextTotalSupply, operatorSeigs);
   }
 
   /**
