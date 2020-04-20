@@ -81,6 +81,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   // commission rates in RAY
   mapping (address => uint256) internal _commissionRates;
 
+  // whether commission is negative or not (default=possitive)
+  mapping (address => bool) internal _isCommissionRateNegative;
+
   // last commit block number for each root chain.
   mapping (address => uint256) internal _lastCommitBlock;
 
@@ -225,7 +228,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
   function setCommissionRate(
     address rootchain,
-    uint256 commissionRate
+    uint256 commissionRate,
+    bool isCommissionRateNegative
   )
     external
     onlyRegistryOrOperator(rootchain)
@@ -240,6 +244,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
     uint256 previous = _commissionRates[rootchain];
     _commissionRates[rootchain] = commissionRate;
+    _isCommissionRateNegative[rootchain] = isCommissionRateNegative;
+
     emit CommissionRateSet(rootchain, previous, commissionRate);
 
     return true;
@@ -268,37 +274,114 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     uint256 prevTotalSupply = coinage.totalSupply();
     uint256 nextTotalSupply = _tot.balanceOf(msg.sender);
 
-    if (prevTotalSupply < nextTotalSupply) {
-      uint256 seigs = nextTotalSupply - prevTotalSupply;
-      uint256 operatorSeigs;
-
-      // calculate commission amount
-      uint256 commissionRate = _commissionRates[msg.sender];
-      if (commissionRate != 0) {
-        operatorSeigs = rmul(seigs, commissionRate);
-        nextTotalSupply = nextTotalSupply.sub(operatorSeigs);
-      }
-
-      // gives seigniorages to the root chain as coinage
-      coinage.setFactor(
-          _calcNewFactor(
-            prevTotalSupply,
-            nextTotalSupply,
-            coinage.factor()
-          )
-        );
-
-      if (operatorSeigs != 0) {
-        coinage.mint(RootChainI(msg.sender).operator(), operatorSeigs);
-      }
-
-      _wton.mint(address(_depositManager), seigs);
+    // short circuit if there is no seigs for the root chain
+    if (prevTotalSupply >= nextTotalSupply) {
+      emit Comitted(msg.sender);
+      return true;
     }
 
-    // emit events
+    uint256 seigs = nextTotalSupply - prevTotalSupply;
+    address operator = RootChainI(msg.sender).operator();
+    uint256 operatorSeigs;
+
+    // calculate commission amount
+    bool isCommissionRateNegative = _isCommissionRateNegative[msg.sender];
+
+    (nextTotalSupply, operatorSeigs) = _calcSeigsDistribution(
+      coinage,
+      prevTotalSupply,
+      seigs,
+      isCommissionRateNegative,
+      operator
+    );
+
+    // gives seigniorages to the root chain as coinage
+    coinage.setFactor(
+      _calcNewFactor(
+        prevTotalSupply,
+        nextTotalSupply,
+        coinage.factor()
+      )
+    );
+
+    // give commission to operator or delegators
+    if (operatorSeigs != 0) {
+      if (isCommissionRateNegative) {
+        // TODO: adjust arithmetic error
+        // burn by 𝜸
+        coinage.burnFrom(operator, operatorSeigs);
+      } else {
+        coinage.mint(operator, operatorSeigs);
+      }
+    }
+
+    _wton.mint(address(_depositManager), seigs);
+
     emit Comitted(msg.sender);
 
     return true;
+  }
+
+  function _calcSeigsDistribution(
+    CustomIncrementCoinageMock coinage,
+    uint256 prevTotalSupply,
+    uint256 seigs,
+    bool isCommissionRateNegative,
+    address operator
+  ) internal returns (
+    uint256 nextTotalSupply,
+    uint256 operatorSeigs
+  ) {
+    uint256 commissionRate = _commissionRates[msg.sender];
+
+    nextTotalSupply = prevTotalSupply + seigs;
+
+    // short circuit if there is no commission rate
+    if (commissionRate == 0) {
+      return (nextTotalSupply, operatorSeigs);
+    }
+
+    // if commission rate is possitive
+    if (!isCommissionRateNegative) {
+      operatorSeigs = rmul(seigs, commissionRate); // additional seig for operator
+      nextTotalSupply = nextTotalSupply.sub(operatorSeigs);
+      return (nextTotalSupply, operatorSeigs);
+    }
+
+    // short circuit if there is no previous total deposit (meanning, there is no deposit)
+    if (prevTotalSupply == 0) {
+      return (nextTotalSupply, operatorSeigs);
+    }
+
+    // See negative commission distribution formular here: TBD
+    uint256 operatorBalance = coinage.balanceOf(operator);
+
+    // short circuit if there is no operator deposit
+    if (operatorBalance == 0) {
+      return (nextTotalSupply, operatorSeigs);
+    }
+
+    uint256 operatorRate = rdiv(operatorBalance, prevTotalSupply);
+
+    // ɑ: insufficient seig for operator
+    operatorSeigs = rmul(
+      rmul(seigs, operatorRate), // seigs for operator
+      commissionRate
+    );
+
+    // β:
+    uint256 delegatorSeigs = operatorRate == RAY
+      ? operatorSeigs
+      : rdiv(operatorSeigs, RAY - operatorRate);
+
+    // 𝜸:
+    operatorSeigs = operatorRate == RAY
+      ? operatorSeigs
+      : operatorSeigs + rmul(delegatorSeigs, operatorRate);
+
+    nextTotalSupply = nextTotalSupply.add(delegatorSeigs);
+
+    return (nextTotalSupply, operatorSeigs);
   }
 
   /**

@@ -19,7 +19,7 @@ interface SeigManagerI {
   function DEFAULT_FACTOR() external view returns (uint256);
 
   function deployCoinage(address rootchain) external returns (bool);
-  function setCommissionRate(address rootchain, uint256 commission) external returns (bool);
+  function setCommissionRate(address rootchain, uint256 commission, bool isCommissionRateNegative) external returns (bool);
 
   function uncomittedStakeOf(address rootchain, address account) external view returns (uint256);
   function stakeOf(address rootchain, address account) external view returns (uint256);
