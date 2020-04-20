@@ -348,12 +348,20 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
       return (nextTotalSupply, operatorSeigs);
     }
 
+    // short circuit if there is no previous total deposit (meanning, there is no deposit)
+    if (prevTotalSupply == 0) {
+      return (nextTotalSupply, operatorSeigs);
+    }
+
     // See negative commission distribution formular here: TBD
-    require(prevTotalSupply > 0, "SeigManager: negative commission rate requires deposits");
+    uint256 operatorBalance = coinage.balanceOf(operator);
 
-    uint256 operatorRate = rdiv(coinage.balanceOf(operator), prevTotalSupply);
+    // short circuit if there is no operator deposit
+    if (operatorBalance == 0) {
+      return (nextTotalSupply, operatorSeigs);
+    }
 
-    require(operatorRate > 0, "SeigManager: negative commission rate requires operator's stake");
+    uint256 operatorRate = rdiv(operatorBalance, prevTotalSupply);
 
     // ɑ: insufficient seig for operator
     operatorSeigs = rmul(
