@@ -178,6 +178,63 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   }
 
   ////////////////////
+  // Re-deposit function
+  ////////////////////
+
+  /**
+   * @dev re-deposit pending requests in the pending queue
+   */
+
+  function redeposit(address rootchain) external returns (bool) {
+    uint256 i = _withdrawalRequestIndex[rootchain][msg.sender];
+    require(_redeposit(rootchain, i, 1));
+  }
+
+  function redepositMulti(address rootchain, uint256 n) external returns (bool) {
+    uint256 i = _withdrawalRequestIndex[rootchain][msg.sender];
+    require(_redeposit(rootchain, i, n));
+  }
+
+  function _redeposit(address rootchain, uint256 i, uint256 n) internal onlyRootChain(rootchain) returns (bool) {
+    uint256 accAmount;
+
+
+    require(_withdrawalRequests[rootchain][msg.sender].length > 0, "DepositManager: no request");
+    require(_withdrawalRequests[rootchain][msg.sender].length - i >= n, "DepositManager: n exceeds num of pending requests");
+
+    uint256 e = i + n;
+    for (; i < e; i++) {
+      WithdrawalReqeust storage r = _withdrawalRequests[rootchain][msg.sender][i];
+      uint256 amount = r.amount;
+
+      require(!r.processed, "DepositManager: pending request already processed");
+      require(amount > 0, "DepositManager: no valid pending request");
+
+      accAmount = accAmount.add(amount);
+      r.processed = true;
+    }
+
+
+    // deposit-related storages
+    _accStaked[rootchain][msg.sender] = _accStaked[rootchain][msg.sender].add(accAmount);
+    _accStakedRootChain[rootchain] = _accStakedRootChain[rootchain].add(accAmount);
+    _accStakedAccount[msg.sender] = _accStakedAccount[msg.sender].add(accAmount);
+
+    // withdrawal-related storages
+    _pendingUnstaked[rootchain][msg.sender] = _pendingUnstaked[rootchain][msg.sender].add(accAmount);
+    _pendingUnstakedRootChain[rootchain] = _pendingUnstakedRootChain[rootchain].add(accAmount);
+    _pendingUnstakedAccount[msg.sender] = _pendingUnstakedAccount[msg.sender].add(accAmount);
+
+    _withdrawalRequestIndex[rootchain][msg.sender] += n;
+
+    emit Deposited(rootchain, msg.sender, accAmount);
+
+    require(_seigManager.onDeposit(rootchain, msg.sender, accAmount));
+
+    return true;
+  }
+
+  ////////////////////
   // Withdrawal functions
   ////////////////////
 
@@ -186,7 +243,7 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   }
 
   function _requestWithdrawal(address rootchain, uint256 amount) internal onlyRootChain(rootchain) returns (bool) {
-    // TODO: check `amount` WTON can be withdrawable
+    require(amount > 0, "DepositManager: amount must not be zero");
 
     _withdrawalRequests[rootchain][msg.sender].push(WithdrawalReqeust({
       withdrawableBlockNumber: uint128(block.number + _WITHDRAWAL_DELAY),

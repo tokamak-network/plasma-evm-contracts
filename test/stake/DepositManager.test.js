@@ -232,6 +232,10 @@ describe('stake/DepositManager', function () {
             'DepositManager: wait for withdrawal delay',
           );
         });
+
+        it('should be able to re-deposit pending request', async function () {
+          await this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner });
+        });
       });
 
       describe('after WITHDRAWAL_DELAY blocks are mined', function () {
@@ -259,15 +263,20 @@ describe('stake/DepositManager', function () {
             value: tokenAmount.toFixed(TON_UNIT),
           });
         });
+
+        it('should be able to re-deposit pending request', async function () {
+          await this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner });
+        });
       });
 
       describe('when the token owner make 2 requests', function () {
         const amount = tokenAmount.div(2);
+        const n = 2;
 
         beforeEach(async function () {
-          for (const _ of range(2)) {
-            await this.depositManager.requestWithdrawal(this.rootchain.address, amount.toFixed(WTON_UNIT), { from: tokenOwner });
-          }
+          await Promise.all(range(n).map(_ =>
+            this.depositManager.requestWithdrawal(this.rootchain.address, amount.toFixed(WTON_UNIT), { from: tokenOwner }),
+          ));
         });
 
         describe('before WITHDRAWAL_DELAY blocks are mined', function () {
@@ -276,6 +285,18 @@ describe('stake/DepositManager', function () {
               this.depositManager.processRequest(this.rootchain.address, false, { from: tokenOwner }),
               'DepositManager: wait for withdrawal delay',
             );
+          });
+
+          it('should be able to re-deposit all pending request', async function () {
+            await Promise.all(range(n).map(
+              _ => this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner }),
+            ));
+            // await this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner });
+            // await this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner });
+          });
+
+          it('should be able to re-deposit all pending request in a single transaction', async function () {
+            await this.depositManager.redepositMulti(this.rootchain.address, 2, { from: tokenOwner });
           });
         });
 
@@ -294,6 +315,16 @@ describe('stake/DepositManager', function () {
                 value: amount.toFixed(WTON_UNIT),
               });
             }
+          });
+
+          it('should be able to re-deposit all pending request', async function () {
+            await Promise.all(range(n).map(
+              _ => this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner }),
+            ));
+          });
+
+          it('should be able to re-deposit all pending request in a single transaction', async function () {
+            await this.depositManager.redepositMulti(this.rootchain.address, 2, { from: tokenOwner });
           });
         });
       });
