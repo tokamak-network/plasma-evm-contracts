@@ -198,7 +198,6 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   function _redeposit(address rootchain, uint256 i, uint256 n) internal onlyRootChain(rootchain) returns (bool) {
     uint256 accAmount;
 
-
     require(_withdrawalRequests[rootchain][msg.sender].length > 0, "DepositManager: no request");
     require(_withdrawalRequests[rootchain][msg.sender].length - i >= n, "DepositManager: n exceeds num of pending requests");
 
@@ -221,9 +220,9 @@ contract DepositManager is Ownable, ERC165, OnApprove {
     _accStakedAccount[msg.sender] = _accStakedAccount[msg.sender].add(accAmount);
 
     // withdrawal-related storages
-    _pendingUnstaked[rootchain][msg.sender] = _pendingUnstaked[rootchain][msg.sender].add(accAmount);
-    _pendingUnstakedRootChain[rootchain] = _pendingUnstakedRootChain[rootchain].add(accAmount);
-    _pendingUnstakedAccount[msg.sender] = _pendingUnstakedAccount[msg.sender].add(accAmount);
+    _pendingUnstaked[rootchain][msg.sender] = _pendingUnstaked[rootchain][msg.sender].sub(accAmount);
+    _pendingUnstakedRootChain[rootchain] = _pendingUnstakedRootChain[rootchain].sub(accAmount);
+    _pendingUnstakedAccount[msg.sender] = _pendingUnstakedAccount[msg.sender].sub(accAmount);
 
     _withdrawalRequestIndex[rootchain][msg.sender] += n;
 
