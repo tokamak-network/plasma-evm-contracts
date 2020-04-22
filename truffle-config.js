@@ -16,11 +16,17 @@ module.exports = {
     },
     rootchain: {
       host: 'localhost',
-      port: 8546,
+      port: 8545,
       gas: 7500000,
       gasPrice: 1e9,
       network_id: '*', // eslint-disable-line camelcase
-      websocket: true,
+    },
+    childchain: {
+      host: 'localhost',
+      port: 8547,
+      gas: 7500000,
+      gasPrice: 1e9,
+      network_id: '*', // eslint-disable-line camelcase
     },
     plasma: {
       host: 'localhost',
