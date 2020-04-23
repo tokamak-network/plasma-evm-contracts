@@ -13,6 +13,7 @@ bash run.rootchain.sh
 ### ChildChain
 ```bash
 git clone https://github.com/Onther-Tech/plasma-evm.git
+cd plasma-evm
 git fetch
 git checkout v0.0.0-rc6.0
 bash run.childchain.sh # use ↓ script
@@ -84,7 +85,7 @@ exports.NRELength = 2;
 exports.currentBlockNumber = 11;
 ```
 
-> The `operator` and `tokenHolder` do not need to be modified. `NRELength`, `currentBlockNumber`, `rootchain`, `tokenAtRootChain` and `tokenAtChildChain`, these variables must be renewed by rotating the script below. Details can be found below.
+> The `operator` and `tokenHolder` do not need to be modified. `rootchain`, `tokenAtRootChain`, `tokenAtChildChain`, `NRELength`, and `currentBlockNumber`, these variables must be renewed by rotating the script below. Details can be found below.
 
 
 ### demo
