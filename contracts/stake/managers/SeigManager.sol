@@ -599,6 +599,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   function tot() external view returns (address) { return address(_tot); }
   function coinages(address rootchain) external view returns (address) { return address(_coinages[rootchain]); }
   function commissionRates(address rootchain) external view returns (uint256) { return _commissionRates[rootchain]; }
+  function isCommissionRateNegative(address rootchain) external view returns (bool) { return _isCommissionRateNegative[rootchain]; }
 
   function lastCommitBlock(address rootchain) external view returns (uint256) { return _lastCommitBlock[rootchain]; }
   function seigPerBlock() external view returns (uint256) { return _seigPerBlock; }
