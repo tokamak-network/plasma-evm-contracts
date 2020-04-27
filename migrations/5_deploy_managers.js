@@ -17,7 +17,7 @@ const SEIG_PER_BLOCK = process.env.SEIG_PER_BLOCK || '100.0';
 
 module.exports = async function (deployer, network) {
   // skip production network
-  if (network === 'faraday' || network === 'mainnet') return;
+  if (network.includes('faraday') || network.includes('mainnet') || network.includes('rinkeby')) return;
 
   const rootchain = await RootChain.deployed();
   const ton = await TON.deployed();
