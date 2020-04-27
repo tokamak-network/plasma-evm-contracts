@@ -26,8 +26,15 @@ contract ERC20OnApprove is ERC20, OnApproveConstant {
       )
     );
 
+    // check if low-level call reverted or not
     require(ok, string(res));
-    // require(ok, "ERC20OnApprove: failed to call onApprove");
+
+    assembly {
+      ok := mload(add(res, 0x20))
+    }
+
+    // check if OnApprove.onApprove returns true or false
+    require(ok, "ERC20OnApprove: failed to call onApprove");
   }
 
 }
