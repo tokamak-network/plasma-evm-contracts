@@ -139,6 +139,8 @@ contract DepositManager is Ownable, ERC165, OnApprove {
 
     address rootchain = _decodeDepositManagerOnApproveData(data);
     require(_deposit(rootchain, owner, amount));
+
+    return true;
   }
 
   function _decodeDepositManagerOnApproveData(
