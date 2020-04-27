@@ -21,8 +21,12 @@ contract SeigToken is ERC20, Ownable, ERC20OnApprove, AuthController {
   // Override ERC20 functions
   //////////////////////
 
-  function _transfer(address sender, address recipient, uint256 amount) internal {
+  function transferFrom(address sender, address recipient, uint256 amount) public returns (bool) {
     require(msg.sender == sender || msg.sender == recipient, "SeigToken: only sender or recipient can transfer");
+    return super.transferFrom(sender, recipient, amount);
+  }
+
+  function _transfer(address sender, address recipient, uint256 amount) internal {
     super._transfer(sender, recipient, amount);
     if (address(seigManager) != address(0)) {
       // seigManager.onTransfer(sender, recipient, amount);
