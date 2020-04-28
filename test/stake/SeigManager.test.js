@@ -98,6 +98,125 @@ function toWTONString (bn, d = 10) {
   return negSign + _WTON(toBN(bn), WTON_UNIT).toString(d);
 }
 
+/**
+ *
+ * @param {Contract} seigManager
+ * @param {String} rootchainAddr
+ * @param {String} userAddr
+ * @returns {Object.operatorSeigs}
+ * @returns {Object.userSeigs}
+ */
+async function expectedSeigs (seigManager, rootchainAddr, userAddr) {
+  // contracts
+  const rootchain = await RootChain.at(rootchainAddr);
+  const ton = await TON.at(await seigManager.ton());
+  const wton = await TON.at(await seigManager.wton());
+  const tot = await CustomIncrementCoinage.at(await seigManager.tot());
+  const coinageAddr = await seigManager.coinages(rootchainAddr);
+  const coinage = await CustomIncrementCoinage.at(coinageAddr);
+
+  // storages
+  const operator = await rootchain.operator();
+  const seigPerBlock = _WTON(await seigManager.seigPerBlock(), WTON_UNIT);
+  const prevTotTotalSupply = _WTON(await tot.totalSupply(), WTON_UNIT);
+  const prevTotBalance = _WTON(await tot.balanceOf(rootchainAddr), WTON_UNIT);
+  const prevCoinageTotalSupply = _WTON(await coinage.totalSupply(), WTON_UNIT);
+  const prevCoinageOperatorBalance = _WTON(await coinage.balanceOf(operator), WTON_UNIT);
+  const prevCoinageUsersBalance = prevCoinageTotalSupply.minus(prevCoinageOperatorBalance);
+  const prevCoinageUserBalance = _WTON(await coinage.balanceOf(userAddr), WTON_UNIT);
+  const commissioniRate = _WTON(await seigManager.commissionRates(rootchainAddr), WTON_UNIT);
+  const isCommissionRateNegative = await seigManager.isCommissionRateNegative(rootchainAddr);
+
+  // helpers
+  async function calcNumSeigBlocks () {
+    if (await seigManager.paused()) return 0;
+
+    const blockNumber = await web3.eth.getBlockNumber();
+    const lastSeigBlock = Number(await seigManager.lastSeigBlock());
+    const unpausedBlock = Number(await seigManager.unpausedBlock());
+    const pausedBlock = Number(await seigManager.pausedBlock());
+
+    const span = blockNumber - lastSeigBlock + 1; // + 1 for new block
+
+    if (unpausedBlock < lastSeigBlock) {
+      return span;
+    }
+
+    return span - (unpausedBlock - pausedBlock);
+  }
+
+  async function increaseTot () {
+    const maxSeig = seigPerBlock.times(await calcNumSeigBlocks());
+    const tos = _WTON(await ton.totalSupply(), TON_UNIT)
+      .plus(_WTON(await tot.totalSupply(), WTON_UNIT))
+      .minus(_WTON(await ton.balanceOf(wton.address), TON_UNIT));
+
+    const stakedSeigs = maxSeig.times(prevTotTotalSupply).div(tos);
+    return stakedSeigs;
+  }
+
+  const stakedSeigs = await increaseTot();
+  const rootchainSeigs = stakedSeigs.times(prevTotBalance).div(prevTotTotalSupply);
+
+  const operatorSeigs = rootchainSeigs.times(prevCoinageOperatorBalance).div(prevCoinageTotalSupply);
+  const usersSeigs = rootchainSeigs.times(prevCoinageUsersBalance).div(prevCoinageTotalSupply);
+
+  function _calcSeigsDistribution () {
+    let operatorSeigsWithCommissionRate = operatorSeigs;
+    let usersSeigsWithCommissionRate = usersSeigs;
+
+    if (commissioniRate.toFixed(WTON_UNIT) === '0') {
+      return {
+        operatorSeigsWithCommissionRate,
+        usersSeigsWithCommissionRate,
+      };
+    }
+
+    if (!isCommissionRateNegative) {
+      const commissionFromUsers = usersSeigs.times(commissioniRate);
+
+      operatorSeigsWithCommissionRate = operatorSeigsWithCommissionRate.plus(commissionFromUsers);
+      usersSeigsWithCommissionRate = usersSeigsWithCommissionRate.minus(commissionFromUsers);
+      return {
+        operatorSeigsWithCommissionRate,
+        usersSeigsWithCommissionRate,
+      };
+    }
+
+    if (prevCoinageTotalSupply.toFixed(WTON_UNIT) === '0' ||
+      prevCoinageOperatorBalance.toFixed(WTON_UNIT) === '0') {
+      return {
+        operatorSeigsWithCommissionRate,
+        usersSeigsWithCommissionRate,
+      };
+    }
+
+    const commissionFromOperator = operatorSeigs.times(commissioniRate);
+
+    operatorSeigsWithCommissionRate = operatorSeigsWithCommissionRate.minus(commissionFromOperator);
+    usersSeigsWithCommissionRate = usersSeigsWithCommissionRate.plus(commissionFromOperator);
+
+    return {
+      operatorSeigsWithCommissionRate,
+      usersSeigsWithCommissionRate,
+    };
+  }
+
+  const {
+    operatorSeigsWithCommissionRate,
+    usersSeigsWithCommissionRate,
+  } = _calcSeigsDistribution();
+
+  const userSeigsWithCommissionRate = usersSeigsWithCommissionRate.times(prevCoinageUserBalance).div(prevCoinageUsersBalance);
+
+  return {
+    operatorSeigs: operatorSeigsWithCommissionRate,
+    userSeigs: userSeigsWithCommissionRate,
+    rootchainSeigs: rootchainSeigs,
+    usersSeigs: usersSeigs,
+  };
+}
+
 describe('stake/SeigManager', function () {
   function makePos (v1, v2) { return toBN(v1).shln(128).add(toBN(v2)); }
 
@@ -966,7 +1085,29 @@ describe('stake/SeigManager', function () {
                 await this.seigManager.setCommissionRate(this.rootchains[i].address, commissionRate.toFixed(WTON_UNIT), isCommissionRateNegative);
               });
 
-              describe('when the root chain commits', async function () {
+              describe('when the root chain commits once', function () {
+                it('exact amount of seig must be given to token owner and operator', async function () {
+                  const rootchainAddr = this.rootchains[i].address;
+
+                  const {
+                    operatorSeigs: expectedOperatorSeigs,
+                    userSeigs: expectedTokenOwnerSeigs,
+                  } = await expectedSeigs(this.seigManager, rootchainAddr, tokenOwner1);
+
+                  const beforeOperatorStake = await this.seigManager.stakeOf(rootchainAddr, operator);
+                  const beforeTokenOwnerStake = await this.seigManager.stakeOf(rootchainAddr, tokenOwner1);
+
+                  await this._commit(this.rootchains[i]);
+
+                  const afterOperatorStake = await this.seigManager.stakeOf(rootchainAddr, operator);
+                  const afterTokenOwnerStake = await this.seigManager.stakeOf(rootchainAddr, tokenOwner1);
+
+                  checkBalance(afterTokenOwnerStake.sub(beforeTokenOwnerStake), expectedTokenOwnerSeigs, WTON_UNIT);
+                  checkBalance(afterOperatorStake.sub(beforeOperatorStake), expectedOperatorSeigs, WTON_UNIT);
+                });
+              });
+
+              describe('when the root chain commits multiple times', async function () {
                 let beforeCoinageTotalSupply;
                 let afterCoinageTotalSupply;
 
