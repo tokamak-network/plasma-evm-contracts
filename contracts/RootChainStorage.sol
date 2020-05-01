@@ -67,12 +67,12 @@ contract RootChainStorage {
   address constant public NULL_ADDRESS = 0x0000000000000000000000000000000000000000;
 
   // Cost parameters for development and test
-  uint public constant COST_ERO = 0.00001 ether;         // cost for invalid exit
-  uint public constant COST_ERU = 0.00002 ether;         // cost for fork & rebase
-  uint public constant COST_URB_PREPARE = 0.00001 ether; // cost for URB prepare
-  uint public constant COST_URB = 0.00009 ether;         // cost for fork & rebase
-  uint public constant COST_ORB = 0.00001 ether;         // cost for invalid computation
-  uint public constant COST_NRB = 0.00001 ether;         // cost for invalid computation
+  uint public constant COST_ERO = 0.0000000000000001 ether;         // cost for invalid exit
+  uint public constant COST_ERU = 0.0000000000000002 ether;         // cost for fork & rebase
+  uint public constant COST_URB_PREPARE = 0.0000000000000001 ether; // cost for URB prepare
+  uint public constant COST_URB = 0.0000000000000009 ether;         // cost for fork & rebase
+  uint public constant COST_ORB = 0.0000000000000001 ether;         // cost for invalid computation
+  uint public constant COST_NRB = 0.0000000000000001 ether;         // cost for invalid computation
   uint public constant PREPARE_TIMEOUT = 60; // 60 sec for dev
 
   // Challenge periods for computation and withholding
