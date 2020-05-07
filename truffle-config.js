@@ -5,6 +5,10 @@ const PrivateKeyProvider = require('truffle-privatekey-provider');
 const FARADAY_URL = 'https://api.faraday.tokamak.network';
 const FARADAY_PRIVATEKEY = process.env.FARADAY_PRIVATEKEY;
 
+const RINKEBY_URL = 'http://13.231.233.189:8545';
+const RINKEBY_OPERATOR_PRIVATEKEY = 'process.env.RINKEBY_OPERATOR_PRIVATEKEY';
+const RINKEBY_TOKEN_HOLDER_PRIVATEKEY = 'process.env.RINKEBY_TOKEN_HOLDER_PRIVATEKEY';
+
 module.exports = {
   networks: {
     development: {
@@ -42,6 +46,15 @@ module.exports = {
       gas: 7500000,
       gasPrice: 10e9,
       network_id: '*', // eslint-disable-line camelcase
+    },
+    rinkeby: {
+      provider () {
+        return new PrivateKeyProvider(RINKEBY_OPERATOR_PRIVATEKEY, RINKEBY_URL);
+        // return new PrivateKeyProvider(RINKEBY_TOKEN_HOLDER_PRIVATEKEY, RINKEBY_URL);
+      },
+      gas: 7500000,
+      gasPrice: 18e9, // 18 gwei
+      network_id: 4, // eslint-disable-line camelcase
     },
   //   ropsten: {
   //     provider: ropstenProvider,

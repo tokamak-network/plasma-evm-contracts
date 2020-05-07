@@ -17,7 +17,7 @@ module.exports = async function (callback) {
       console.log(`lastFinalizedBlock: ${await rootchain.getLastFinalizedBlock(forkNumber)}\n`);
     }
   } catch (err) {
-    console.log('success');
+    console.log('success', err.message);
   } finally {
     callback();
   }
