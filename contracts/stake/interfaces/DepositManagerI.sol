@@ -1,15 +1,11 @@
 pragma solidity ^0.5.12;
 
-import { RootChainRegistryI } from "./RootChainRegistryI.sol";
-import { SeigManagerI } from "./SeigManagerI.sol";
-import { WTON } from "../tokens/WTON.sol";
-
 
 interface DepositManagerI {
   function owner() external view returns (address);
-  function wton() external view returns (WTON);
-  function registry() external view returns (RootChainRegistryI);
-  function seigManager() external view returns (SeigManagerI);
+  function wton() external view returns (address);
+  function registry() external view returns (address);
+  function seigManager() external view returns (address);
 
   function accStaked(address rootchain, address account) external view returns (uint256 wtonAmount);
   function accStakedRootChain(address rootchain) external view returns (uint256 wtonAmount);
@@ -29,7 +25,7 @@ interface DepositManagerI {
 
   function WITHDRAWAL_DELAY() external view returns (uint256);
 
-  function setSeigManager(SeigManagerI seigManager) external;
+  function setSeigManager(address seigManager) external;
   function deposit(address rootchain, uint256 amount) external returns (bool);
   function requestWithdrawal(address rootchain, uint256 amount) external returns (bool);
   function processRequest(address rootchain) external returns (bool);

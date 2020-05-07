@@ -1,6 +1,6 @@
 const { range, last, first } = require('lodash');
 const {
- BN, ether, time,
+  BN, ether, time,
   expectEvent, expectRevert,
 } = require('openzeppelin-test-helpers');
 const chai = require('chai');
@@ -13,7 +13,7 @@ const { marshalString, unmarshalString } = require('./helpers/marshal');
 const { expect } = chai;
 
 const RootChain = artifacts.require('RootChain.sol');
-const ERC20Mintable = artifacts.require('ERC20Mintable.sol');
+const TON = artifacts.require('TON.sol');
 const EtherToken = artifacts.require('EtherToken.sol');
 const RequestableSimpleToken = artifacts.require('RequestableSimpleToken.sol');
 
@@ -104,7 +104,7 @@ contract('RootChain', async ([
     }
 
     rootchain = await RootChain.deployed();
-    mintableToken = await ERC20Mintable.deployed();
+    mintableToken = await TON.deployed();
     etherToken = await EtherToken.deployed();
     token = await RequestableSimpleToken.new();
 
@@ -112,7 +112,7 @@ contract('RootChain', async ([
     await Promise.all(others.map(other => token.mint(other, tokenAmount.mul(new BN('100)))')))));
     await Promise.all(others.map(other => mintableToken.mint(other, tokenAmount.mul(new BN('100)))')))));
 
-    // swap ERC20Mintable to EtherToken
+    // swap TON to EtherToken
     await Promise.all(others.map(async (other) => {
       await mintableToken.approve(etherToken.address, tokenAmount.mul(new BN('100)))')), { from: other });
       await etherToken.deposit(tokenAmount.mul(new BN('100)))')), { from: other });

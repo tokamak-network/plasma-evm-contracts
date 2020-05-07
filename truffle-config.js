@@ -2,19 +2,12 @@ require('dotenv').config();
 
 const PrivateKeyProvider = require('truffle-privatekey-provider');
 
-const FARADAY_URL = 'https://api.faraday.tokamak.network';
-const FARADAY_PRIVATEKEY = process.env.FARADAY_PRIVATEKEY;
-
-const RINKEBY_URL = 'http://13.231.233.189:8545';
-const RINKEBY_OPERATOR_PRIVATEKEY = 'process.env.RINKEBY_OPERATOR_PRIVATEKEY';
-const RINKEBY_TOKEN_HOLDER_PRIVATEKEY = 'process.env.RINKEBY_TOKEN_HOLDER_PRIVATEKEY';
-
 module.exports = {
   networks: {
     development: {
       host: 'localhost',
       port: 8545,
-      gas: 7500000,
+      gas: 10000000,
       gasPrice: 1e9,
       network_id: '*', // eslint-disable-line camelcase
     },
@@ -40,21 +33,23 @@ module.exports = {
       network_id: '*', // eslint-disable-line camelcase
     },
     faraday: {
-      provider () {
-        return new PrivateKeyProvider(FARADAY_PRIVATEKEY, FARADAY_URL);
-      },
-      gas: 7500000,
-      gasPrice: 10e9,
-      network_id: '*', // eslint-disable-line camelcase
+      provider: () => new PrivateKeyProvider(process.env.FARADAY_PRIVATE_KEY, process.env.FARADAY_PROVIDER_URL),
+      network_id: 16, // eslint-disable-line camelcase
+      production: true,
+    },
+    mainnet: {
+      provider: () => new PrivateKeyProvider(process.env.MAINNET_PRIVATE_KEY, process.env.MAINNET_PROVIDER_URL),
+      network_id: 1, // eslint-disable-line camelcase
+      gasPrice: 8e9,
+      production: true,
     },
     rinkeby: {
-      provider () {
-        return new PrivateKeyProvider(RINKEBY_OPERATOR_PRIVATEKEY, RINKEBY_URL);
-        // return new PrivateKeyProvider(RINKEBY_TOKEN_HOLDER_PRIVATEKEY, RINKEBY_URL);
-      },
+      provider: () => new PrivateKeyProvider(process.env.RINKEBY_OPERATOR_PRIVATEKEY, process.env.RINKEBY_URL),
+      // provider: () => new PrivateKeyProvider(process.env.RINKEBY_TOKEN_HOLDER_PRIVATEKEY, process.env.RINKEBY_URL),
       gas: 7500000,
-      gasPrice: 18e9, // 18 gwei
+      gasPrice: 1e9, // 1 gwei
       network_id: 4, // eslint-disable-line camelcase
+      production: true,
     },
   //   ropsten: {
   //     provider: ropstenProvider,

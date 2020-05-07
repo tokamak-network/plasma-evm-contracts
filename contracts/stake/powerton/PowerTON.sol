@@ -43,6 +43,7 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
 
   // sortition
   SortitionSumTreeFactory.SortitionSumTrees internal sortitionSumTrees;
+  bool public initialized;
 
   bytes32 constant internal TREE_KEY = keccak256("power-balances");
   bytes32 constant internal TREE_KEY_PREFIX = keccak256("power-balances");
@@ -54,6 +55,7 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   // randomness
   uint256 internal constant maskLast8Bits = uint256(0xff);
   uint256 internal constant maskFirst248Bits = uint256(~0xff);
+
 
   //////////////////////////////
   // Modifiers
@@ -99,7 +101,9 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   }
 
   function init() external onlyOwner {
+    require(!initialized);
     sortitionSumTrees.createTree(TREE_KEY, TREE_NUM_CHILDREN);
+    initialized = true;
   }
 
   function start() external onlyOwner {

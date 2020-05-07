@@ -10,7 +10,10 @@ const statesRoot = '0xdb431b544b2f5468e3f771d7843d9c5df3b4edcf8bc1c599f18f0b4ea8
 const transactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
 const receiptsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
 
-module.exports = function (deployer) {
+module.exports = function (deployer, network) {
+  // skip production network
+  if (network.includes('faraday') || network.includes('mainnet') || network.includes('rinkeby')) return;
+
   let epochHandler;
 
   deployer.deploy(EpochHandler)
