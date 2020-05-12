@@ -1,6 +1,6 @@
 pragma solidity ^0.5.12;
 
-import { Ownable } from "../../node_modules/openzeppelin-solidity/contracts/ownership/OWnable.sol";
+import { Ownable } from "../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
 import { RootChainI } from "../RootChainI.sol";
 

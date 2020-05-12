@@ -1,6 +1,6 @@
 pragma solidity ^0.5.12;
 
-import { Ownable } from "../../../node_modules/openzeppelin-solidity/contracts/ownership/OWnable.sol";
+import { Ownable } from "../../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import { SafeMath } from "../../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
 import { IERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
