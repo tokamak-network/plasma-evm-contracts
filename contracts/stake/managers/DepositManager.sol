@@ -215,13 +215,6 @@ contract DepositManager is Ownable, ERC165, OnApprove {
       r.processed = true;
     }
 
-
-    // deposit-related storages
-    _accStaked[rootchain][msg.sender] = _accStaked[rootchain][msg.sender].add(accAmount);
-    _accStakedRootChain[rootchain] = _accStakedRootChain[rootchain].add(accAmount);
-    _accStakedAccount[msg.sender] = _accStakedAccount[msg.sender].add(accAmount);
-
-    // withdrawal-related storages
     _pendingUnstaked[rootchain][msg.sender] = _pendingUnstaked[rootchain][msg.sender].sub(accAmount);
     _pendingUnstakedRootChain[rootchain] = _pendingUnstakedRootChain[rootchain].sub(accAmount);
     _pendingUnstakedAccount[msg.sender] = _pendingUnstakedAccount[msg.sender].sub(accAmount);
