@@ -37,25 +37,25 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   ////////////////////
 
   // accumulated staked amount
-  // rootchian => msg.sender => wton amount
+  // rootchain => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _accStaked;
-  // rootchian => wton amount
+  // rootchain => wton amount
   mapping (address => uint256) internal _accStakedRootChain;
   // msg.sender => wton amount
   mapping (address => uint256) internal _accStakedAccount;
 
   // pending unstaked amount
-  // rootchian => msg.sender => wton amount
+  // rootchain => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _pendingUnstaked;
-  // rootchian => wton amount
+  // rootchain => wton amount
   mapping (address => uint256) internal _pendingUnstakedRootChain;
   // msg.sender => wton amount
   mapping (address => uint256) internal _pendingUnstakedAccount;
 
   // accumulated unstaked amount
-  // rootchian => msg.sender => wton amount
+  // rootchain => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _accUnstaked;
-  // rootchian => wton amount
+  // rootchain => wton amount
   mapping (address => uint256) internal _accUnstakedRootChain;
   // msg.sender => wton amount
   mapping (address => uint256) internal _accUnstakedAccount;
