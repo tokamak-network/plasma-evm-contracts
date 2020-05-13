@@ -44,9 +44,9 @@ import { PowerTONI } from "../interfaces/PowerTONI.sol";
  * For each unstake or undelegate (or get rewards) with amount of {v} to a RootChain,
  *  1. burn {v} {coinages[rootchain]} tokens from the account
  *  2. burn {v + ⍺} {tot} tokens from the root chain contract,
- *   where ⍺ = SEIGS * staked ratio of the root chian * withdrawal ratio of the account
+ *   where ⍺ = SEIGS * staked ratio of the root chain * withdrawal ratio of the account
  *     - SEIGS                              = tot total supply - tot total supply at last commit from the root chain
- *     - staked ratio of the root chian     = tot balance of the root chain / tot total supply
+ *     - staked ratio of the root chain     = tot balance of the root chain / tot total supply
  *     - withdrawal ratio of the account  = amount to withdraw / total supply of coinage
  *
  */

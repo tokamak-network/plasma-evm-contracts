@@ -37,25 +37,25 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   ////////////////////
 
   // accumulated staked amount
-  // rootchian => msg.sender => wton amount
+  // rootchain => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _accStaked;
-  // rootchian => wton amount
+  // rootchain => wton amount
   mapping (address => uint256) internal _accStakedRootChain;
   // msg.sender => wton amount
   mapping (address => uint256) internal _accStakedAccount;
 
   // pending unstaked amount
-  // rootchian => msg.sender => wton amount
+  // rootchain => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _pendingUnstaked;
-  // rootchian => wton amount
+  // rootchain => wton amount
   mapping (address => uint256) internal _pendingUnstakedRootChain;
   // msg.sender => wton amount
   mapping (address => uint256) internal _pendingUnstakedAccount;
 
   // accumulated unstaked amount
-  // rootchian => msg.sender => wton amount
+  // rootchain => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _accUnstaked;
-  // rootchian => wton amount
+  // rootchain => wton amount
   mapping (address => uint256) internal _accUnstakedRootChain;
   // msg.sender => wton amount
   mapping (address => uint256) internal _accUnstakedAccount;
@@ -215,13 +215,6 @@ contract DepositManager is Ownable, ERC165, OnApprove {
       r.processed = true;
     }
 
-
-    // deposit-related storages
-    _accStaked[rootchain][msg.sender] = _accStaked[rootchain][msg.sender].add(accAmount);
-    _accStakedRootChain[rootchain] = _accStakedRootChain[rootchain].add(accAmount);
-    _accStakedAccount[msg.sender] = _accStakedAccount[msg.sender].add(accAmount);
-
-    // withdrawal-related storages
     _pendingUnstaked[rootchain][msg.sender] = _pendingUnstaked[rootchain][msg.sender].sub(accAmount);
     _pendingUnstakedRootChain[rootchain] = _pendingUnstakedRootChain[rootchain].sub(accAmount);
     _pendingUnstakedAccount[msg.sender] = _pendingUnstakedAccount[msg.sender].sub(accAmount);
