@@ -20,7 +20,6 @@ import { SeigManagerI } from "../interfaces/SeigManagerI.sol";
 
 import { SeigToken } from "./SeigToken.sol";
 import { OnApprove } from "./OnApprove.sol";
-import { OnApproveConstant } from "./OnApproveConstant.sol";
 
 
 contract WTON is DSMath, ReentrancyGuard, Ownable, ERC20Mintable, ERC20Burnable, ERC20Detailed, SeigToken, OnApprove {

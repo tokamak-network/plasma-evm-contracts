@@ -12,6 +12,11 @@ import { AuthController } from "./AuthController.sol";
 
 contract SeigToken is ERC20, Ownable, ERC20OnApprove, AuthController {
   SeigManagerI public seigManager;
+  bool public callbackEnabled;
+
+  function enableCallback(bool _callbackEnabled) external onlyOwner {
+    callbackEnabled = _callbackEnabled;
+  }
 
   function setSeigManager(SeigManagerI _seigManager) external onlyOwner {
     seigManager = _seigManager;
@@ -21,25 +26,29 @@ contract SeigToken is ERC20, Ownable, ERC20OnApprove, AuthController {
   // Override ERC20 functions
   //////////////////////
 
-  function _transfer(address sender, address recipient, uint256 amount) internal {
+  function transferFrom(address sender, address recipient, uint256 amount) public returns (bool) {
     require(msg.sender == sender || msg.sender == recipient, "SeigToken: only sender or recipient can transfer");
+    return super.transferFrom(sender, recipient, amount);
+  }
+
+  function _transfer(address sender, address recipient, uint256 amount) internal {
     super._transfer(sender, recipient, amount);
-    if (address(seigManager) != address(0)) {
-      // seigManager.onTransfer(sender, recipient, amount);
+    if (callbackEnabled && address(seigManager) != address(0)) {
+      require(seigManager.onTransfer(sender, recipient, amount));
     }
   }
 
   function _mint(address account, uint256 amount) internal {
     super._mint(account, amount);
-    if (address(seigManager) != address(0)) {
-      // seigManager.onTransfer(address(0), account, amount);
+    if (callbackEnabled && address(seigManager) != address(0)) {
+      require(seigManager.onTransfer(address(0), account, amount));
     }
   }
 
   function _burn(address account, uint256 amount) internal {
     super._burn(account, amount);
-    if (address(seigManager) != address(0)) {
-      // seigManager.onTransfer(account, address(0), amount);
+    if (callbackEnabled && address(seigManager) != address(0)) {
+      require(seigManager.onTransfer(account, address(0), amount));
     }
   }
 }
