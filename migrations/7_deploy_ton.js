@@ -26,11 +26,21 @@ const advisorAmount   = ether('1500000');  // eslint-disable-line no-multi-space
 const marketingAmount = ether('2500000');
 
 const businessAmount  = ether('5000000');  // eslint-disable-line no-multi-spaces
-const reserveAmount   = ether('300000');   // eslint-disable-line no-multi-spaces
+const reserveAmount   = ether('3000000');   // eslint-disable-line no-multi-spaces
 const daoAmount       = ether('17500000'); // eslint-disable-line no-multi-spaces
+
+const totalSupply = swapperAmount
+  .add(pubAmount)
+  .add(teamAmount)
+  .add(advisorAmount)
+  .add(marketingAmount)
+  .add(businessAmount)
+  .add(reserveAmount)
+  .add(daoAmount);
 
 module.exports = function (deployer, network) {
   if (!network.includes('mainnet') && !network.includes('rinkeby')) return;
+  if (!totalSupply.eq(ether('50000000'))) return;
 
   deployer.deploy(TON)
     .then(async token => {
