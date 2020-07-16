@@ -53,7 +53,7 @@
     "ethjs-abi": "^0.2.1",
     "ethlint": "^1.2.5",
     "ganache-cli": "^6.7.0",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.19",
     "mocha": "^7.0.0",
     "openzeppelin-solidity": "^2.5.0",
     "openzeppelin-test-helpers": "^0.4.2",
