@@ -1,8 +1,8 @@
 const { range, last, first } = require('lodash');
-const expectEvent = require('openzeppelin-solidity/test/helpers/expectEvent');
-const { increaseTime, increaseTimeTo } = require('openzeppelin-solidity/test/helpers/increaseTime');
-const { latestTime } = require('openzeppelin-solidity/test/helpers/latestTime');
-const { EVMRevert } = require('openzeppelin-solidity/test/helpers/EVMRevert');
+const { expectEvent, time, expectRevert } = require('openzeppelin-test-helpers');
+// const { increaseTime, increaseTimeTo } = require('openzeppelin-solidity/test/helpers/increaseTime');
+// const { latestTime } = require('openzeppelin-solidity/test/helpers/latestTime');
+// const { EVMRevert } = require('openzeppelin-solidity/test/helpers/EVMRevert');
 
 const { padLeft } = require('./helpers/pad');
 const { appendHex } = require('./helpers/appendHex');
@@ -80,7 +80,7 @@ contract('RootChain', async ([
 
     const firstBlock = lastFinalizedBlock + 1;
     const firstEpoch = new Data.PlasmaBlock(
-      await rootchain.getBlock(currentFork, firstBlock)
+      await rootchain.getBlock(currentFork, firstBlock),
     ).epochNumber.toNumber();
 
     currentFork += 1;
@@ -174,24 +174,24 @@ contract('RootChain', async ([
     preFork.forkedBlock.should.be.bignumber.equal(curFork.firstBlock);
 
     const lastFinalizedBlock = new Data.PlasmaBlock(
-      await rootchain.getBlock(previousFork, curFork.firstBlock.sub(1))
+      await rootchain.getBlock(previousFork, curFork.firstBlock.sub(1)),
     );
 
     lastFinalizedBlock.finalized.should.be.equal(true);
 
     const nextBlock = new Data.PlasmaBlock(
-      await rootchain.getBlock(previousFork, curFork.firstBlock)
+      await rootchain.getBlock(previousFork, curFork.firstBlock),
     );
 
     (nextBlock.timestamp.toNumber() === 0 || !nextBlock.finalized)
       .should.be.equal(true);
 
     const firstURB = new Data.PlasmaBlock(
-      await rootchain.getBlock(currentFork, curFork.firstBlock)
+      await rootchain.getBlock(currentFork, curFork.firstBlock),
     );
 
     const URE = new Data.Epoch(
-      await rootchain.getEpoch(currentFork, firstURB.epochNumber)
+      await rootchain.getEpoch(currentFork, firstURB.epochNumber),
     );
 
     URE.isEmpty.should.be.equal(false);
@@ -541,11 +541,11 @@ contract('RootChain', async ([
       finalizedAt: ${finalizedAt}
       block.timestamp: ${block.timestamp}
       block: ${JSON.stringify(block)}
-      await latestTime(): ${await latestTime()}
+      await latestTime(): ${await time.latest()}
     `);
 
-    if (await latestTime() < finalizedAt) {
-      await increaseTimeTo(finalizedAt);
+    if (await time.latest() < finalizedAt) {
+      await time.increaseTo(finalizedAt);
     }
     await rootchain.finalizeBlock();
 
@@ -617,7 +617,7 @@ contract('RootChain', async ([
 
     for (const i of range(
       epoch.startBlockNumber.toNumber(),
-      epoch.endBlockNumber.toNumber() + 1
+      epoch.endBlockNumber.toNumber() + 1,
     )) {
       log(`
         Block#${i} ${JSON.stringify(new Data.PlasmaBlock(await rootchain.getBlock(forkNumber, i)))}`);
@@ -907,7 +907,7 @@ contract('RootChain', async ([
         });
 
         it('cannot finalize requests before block is finalized', async () => {
-          await rootchain.finalizeRequest().should.be.rejectedWith(EVMRevert);
+          await rootchain.finalizeRequest().should.be.rejectedWith(expectRevert);
         });
 
         if (numInvalidExit > 0) {
@@ -917,8 +917,8 @@ contract('RootChain', async ([
               forks[currentFork].lastBlock,
               0,
               failedReceipt,
-              dummyProof
-            ).should.be.rejectedWith(EVMRevert);
+              dummyProof,
+            ).should.be.rejectedWith(expectRevert);
           });
         }
 
@@ -948,7 +948,7 @@ contract('RootChain', async ([
 
               log(`
               txIndices: ${txIndices}
-              await latestTime(): ${await latestTime()}
+              await latestTime(): ${await time.latest()}
               finalizedAt: ${finalizedAt}
               block: ${JSON.stringify(block)}
               rb: ${JSON.stringify(rb)}
@@ -962,7 +962,7 @@ contract('RootChain', async ([
                 blockNumber,
                 txindex,
                 failedReceipt,
-                dummyProof
+                dummyProof,
               )));
 
               txIndices = range(0, getLastExitIndex(blockNumber + 1));
@@ -973,7 +973,7 @@ contract('RootChain', async ([
         it('should finalize requests', async () => {
           // TODO: can we remove below line?
           await finalizeBlocks();
-          await increaseTime(CP_EXIT + 1);
+          await time.increase(CP_EXIT + 1);
 
           await finalizeRequests();
         });
@@ -1353,11 +1353,11 @@ contract('RootChain', async ([
       it('should finalize blocks', finalizeBlocks);
 
       it('should not finalize ERUs before exit challenge period ends', async () => {
-        await rootchain.finalizeRequest().should.be.rejectedWith(EVMRevert);
+        await rootchain.finalizeRequest().should.be.rejectedWith(expectRevert);
       });
 
       it('should finalize ERUs after exit challenge period ends', async () => {
-        await increaseTime(CP_EXIT + 1);
+        await time.increase(CP_EXIT + 1);
         await finalizeRequests(numNewERUs, true);
       });
 
