@@ -54,7 +54,7 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
     _delegatePrepareORE();
 
     if (address(seigManager) != address(0)) {
-      require(SeigManagerI(seigManager).onCommit());
+      require(SeigManagerI(seigManager).updateSeigniorage());
     }
 
     return true;
@@ -120,7 +120,7 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
       }
 
       if (address(seigManager) != address(0)) {
-        require(SeigManagerI(seigManager).onCommit());
+        require(SeigManagerI(seigManager).updateSeigniorage());
       }
 
       return true;
@@ -178,7 +178,7 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
     }
 
     if (address(seigManager) != address(0)) {
-      require(SeigManagerI(seigManager).onCommit());
+      require(SeigManagerI(seigManager).updateSeigniorage());
     }
 
     return true;
@@ -259,7 +259,7 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
     }
 
     if (address(seigManager) != address(0)) {
-      require(SeigManagerI(seigManager).onCommit());
+      require(SeigManagerI(seigManager).updateSeigniorage());
     }
 
     return true;

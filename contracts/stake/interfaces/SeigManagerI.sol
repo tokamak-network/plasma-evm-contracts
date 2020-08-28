@@ -26,7 +26,7 @@ interface SeigManagerI {
   function additionalTotBurnAmount(address rootchain, address account, uint256 amount) external view returns (uint256 totAmount);
 
   function onTransfer(address sender, address recipient, uint256 amount) external returns (bool);
-  function onCommit() external returns (bool);
+  function updateSeigniorage() external returns (bool);
   function onDeposit(address rootchain, address account, uint256 amount) external returns (bool);
   function onWithdraw(address rootchain, address account, uint256 amount) external returns (bool);
 

@@ -72,7 +72,9 @@ contract DepositManager is Ownable, ERC165, OnApprove {
 
   // withdrawal delay in block number
   // @TODO: change delay unit to CYCLE?
-  uint256 internal _WITHDRAWAL_DELAY;
+  //uint256 internal _WITHDRAWAL_DELAY;
+  uint256 public globalWithdrawalDelay;
+  mapping (address => uint256) public withdrawalDelay;
 
   struct WithdrawalReqeust {
     uint128 withdrawableBlockNumber;
@@ -109,11 +111,11 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   constructor (
     WTON wton,
     RootChainRegistryI registry,
-    uint256 WITHDRAWAL_DELAY
+    uint256 globalWithdrawalDelay_
   ) public {
     _wton = wton;
     _registry = registry;
-    _WITHDRAWAL_DELAY = WITHDRAWAL_DELAY;
+    globalWithdrawalDelay = globalWithdrawalDelay_;
   }
 
   ////////////////////
@@ -236,6 +238,26 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   }
 
   ////////////////////
+  // Slash functions
+  ////////////////////
+
+  function slash(address rootchain, address recipient, uint256 amount) external onlySeigManager returns (bool) {
+    //return _wton.transferFrom(owner, recipient, amount);
+  }
+
+  ////////////////////
+  // Setter
+  ////////////////////
+
+  function setGlobalWithdrawalDelay(uint256 globalWithdrawalDelay_) external onlyOwner {
+    globalWithdrawalDelay = globalWithdrawalDelay_;
+  }
+
+  function setWithdrawalDelay(address l2chain, uint256 withdrawalDelay_) external onlyOwner {
+    withdrawalDelay[l2chain] = withdrawalDelay_;
+  }
+
+  ////////////////////
   // Withdrawal functions
   ////////////////////
 
@@ -246,8 +268,9 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   function _requestWithdrawal(address rootchain, uint256 amount) internal onlyRootChain(rootchain) returns (bool) {
     require(amount > 0, "DepositManager: amount must not be zero");
 
+    uint256 delay = globalWithdrawalDelay > withdrawalDelay[rootchain] ? globalWithdrawalDelay : withdrawalDelay[rootchain];
     _withdrawalRequests[rootchain][msg.sender].push(WithdrawalReqeust({
-      withdrawableBlockNumber: uint128(block.number + _WITHDRAWAL_DELAY),
+      withdrawableBlockNumber: uint128(block.number + delay),
       amount: uint128(amount),
       processed: false
     }));
@@ -357,6 +380,5 @@ contract DepositManager is Ownable, ERC165, OnApprove {
     processed = _withdrawalRequests[rootchain][account][index].processed;
   }
 
-  function WITHDRAWAL_DELAY() external view returns (uint256) { return _WITHDRAWAL_DELAY; }
   // solium-enable
 }

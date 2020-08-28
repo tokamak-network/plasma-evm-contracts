@@ -61,6 +61,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   RootChainRegistryI internal _registry;
   DepositManagerI internal _depositManager;
   PowerTONI internal _powerton;
+  address public _dao;
 
   //////////////////////////////
   // Token-related
@@ -77,12 +78,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
   // coinage token for each root chain.
   mapping (address => CustomIncrementCoinageMock) internal _coinages;
-
-  // commission rates in RAY
-  mapping (address => uint256) internal _commissionRates;
-
-  // whether commission is negative or not (default=possitive)
-  mapping (address => bool) internal _isCommissionRateNegative;
+  mapping (address => address[]) public stakers;
 
   // last commit block number for each root chain.
   mapping (address => uint256) internal _lastCommitBlock;
@@ -96,6 +92,33 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   // block number when paused or unpaused
   uint256 internal _pausedBlock;
   uint256 internal _unpausedBlock;
+
+  // seigniorage factor of powerton
+  uint256 public _factorPton;
+
+  // seigniorage factor of DAO
+  uint256 public _factorDao;
+
+  // global minimum withdrawal period
+  uint256 public globalMinimumWithdrawalPeriod;
+
+  // minimum withdrawal period
+  mapping (address => uint256) public _minimumWithdrawalPeriod;
+
+  // commission rates in RAY
+  mapping (address => uint256) internal _commissionRates;
+
+  // whether commission is negative or not (default=possitive)
+  mapping (address => bool) internal _isCommissionRateNegative;
+
+  // setting commissionrate delay
+  uint256 public adjustCommissionDelay;
+  mapping (address => uint256) delayedCommissionBlock;
+  mapping (address => uint256) delayedCommissionRate;
+  mapping (address => bool) delayedCommissionRateNegative;
+
+  // minimum deposit amount
+  uint256 public minimumAmount;
 
   //////////////////////////////
   // Constants
@@ -201,6 +224,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     _powerton = powerton;
   }
 
+  function setDao(address daoAddress) external onlyOwner {
+    _dao = daoAddress;
+  }
 
   /**
    * @dev deploy coinage token for the root chain.
@@ -243,8 +269,12 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     );
 
     uint256 previous = _commissionRates[rootchain];
-    _commissionRates[rootchain] = commissionRate;
-    _isCommissionRateNegative[rootchain] = isCommissionRateNegative;
+    //_commissionRates[rootchain] = commissionRate;
+    //_isCommissionRateNegative[rootchain] = isCommissionRateNegative;
+
+    delayedCommissionBlock[rootchain] = block.number + adjustCommissionDelay;
+    delayedCommissionRate[rootchain] = commissionRate;
+    delayedCommissionRateNegative[rootchain] = isCommissionRateNegative;
 
     emit CommissionRateSet(rootchain, previous, commissionRate);
 
@@ -254,7 +284,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   /**
    * @dev Callback for a new commit
    */
-  function onCommit()
+  function updateSeigniorage()
     external
     checkCoinage(msg.sender)
     returns (bool)
@@ -288,6 +318,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     bool isCommissionRateNegative = _isCommissionRateNegative[msg.sender];
 
     (nextTotalSupply, operatorSeigs) = _calcSeigsDistribution(
+      msg.sender,
       coinage,
       prevTotalSupply,
       seigs,
@@ -323,6 +354,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   }
 
   function _calcSeigsDistribution(
+    address rootchain,
     CustomIncrementCoinageMock coinage,
     uint256 prevTotalSupply,
     uint256 seigs,
@@ -332,6 +364,12 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     uint256 nextTotalSupply,
     uint256 operatorSeigs
   ) {
+    if (block.number >= delayedCommissionBlock[rootchain] && delayedCommissionBlock[rootchain] != 0) {
+      _commissionRates[rootchain] = delayedCommissionRate[rootchain];
+      _isCommissionRateNegative[rootchain] = delayedCommissionRateNegative[rootchain];
+      delayedCommissionBlock[rootchain] = 0;
+    }
+
     uint256 commissionRate = _commissionRates[msg.sender];
 
     nextTotalSupply = prevTotalSupply + seigs;
@@ -384,6 +422,15 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     return (nextTotalSupply, operatorSeigs);
   }
 
+  function _calcSlashFactor(
+    CustomIncrementCoinageMock coinage,
+    uint256 slashAmount
+  ) internal returns (uint256) {
+    uint256 prevTotalSupply = coinage.totalSupply();
+    uint256 newFactor = rdiv(prevTotalSupply.sub(slashAmount), prevTotalSupply.div(coinage.factor()));
+    return newFactor;
+  }
+
   /**
    * @dev Callback for a token transfer
    */
@@ -407,8 +454,13 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     checkCoinage(rootchain)
     returns (bool)
   {
+    if (_isOperator(rootchain, account)) {
+      uint256 newAmount = _coinages[rootchain].balanceOf(account).add(amount);
+      require(newAmount >= minimumAmount, "minimum amount is required");
+    }
     _tot.mint(rootchain, amount);
     _coinages[rootchain].mint(account, amount);
+    stakers[rootchain].push(account);
     if (address(_powerton) != address(0)) {
       _powerton.onDeposit(rootchain, account, amount);
     }
@@ -442,6 +494,28 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     return true;
   }
 
+  function setPowerTONFactor(uint256 factor) external onlyOwner {
+    _factorPton = factor;
+  }
+
+  function setDaoFactor(uint256 factor) external onlyOwner {
+    _factorDao = factor;
+  }
+
+  function setGlobalMinimumWithdrawalPeriod(uint256 minimumWithdrawalPeriod) external onlyOwner {
+    globalMinimumWithdrawalPeriod = minimumWithdrawalPeriod;
+  }
+
+  function slash(address rootchain, address recipient, uint256 amount) external onlyRootChain(msg.sender) returns (bool) {
+    CustomIncrementCoinageMock coinage = _coinages[msg.sender];
+    uint256 newFactor = _calcSlashFactor(coinage, amount);
+    coinage.setFactor(newFactor);
+
+    // TODO: add challenger's coinage
+
+    //return _depositManager.slash(rootchain, recipient, amount);
+  }
+
   function additionalTotBurnAmount(address rootchain, address account, uint256 amount)
     external
     view
@@ -472,6 +546,14 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
       ),
       coinageTotalSupply
     );
+  }
+
+  function setAdjustDelay(uint256 adjustDelay_) external onlyOwner {
+    adjustCommissionDelay = adjustDelay_;
+  }
+
+  function setMinimumAmount(uint256 minimumAmount_) external onlyOwner {
+    minimumAmount = minimumAmount_;
   }
 
   //////////////////////////////
@@ -561,14 +643,23 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
     uint256 unstakedSeig = maxSeig.sub(stakedSeig);
     uint256 powertonSeig;
+    uint256 daoSeig;
 
     if (address(_powerton) != address(0)) {
       // out of gas..?
       // powertonSeig = unstakedSeig.mul(POWER_TON_NUMERATOR).div(POWER_TON_DENOMINATOR);
-      powertonSeig = unstakedSeig * POWER_TON_NUMERATOR / POWER_TON_DENOMINATOR;
+      // powertonSeig = unstakedSeig * POWER_TON_NUMERATOR / POWER_TON_DENOMINATOR;
+      powertonSeig = unstakedSeig.mul(_factorPton).div(_DEFAULT_FACTOR);
 
       _wton.mint(address(_powerton), powertonSeig);
     }
+
+    if (_dao != address(0)) {
+      daoSeig = unstakedSeig.mul(_factorDao).div(_DEFAULT_FACTOR);
+      _wton.mint(address(_dao), daoSeig);
+    }
+
+    require(powertonSeig.add(daoSeig) <= unstakedSeig, "powerton seig + dao seig exceeded unstaked amount");
 
     emit SeigGiven(msg.sender, maxSeig, stakedSeig, unstakedSeig, powertonSeig);
 
@@ -584,6 +675,10 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     }
 
     return span - (_unpausedBlock - _pausedBlock);
+  }
+
+  function _isOperator(address rootchain, address operator) internal view returns (bool) {
+    return operator == RootChainI(rootchain).operator();
   }
 
   //////////////////////////////

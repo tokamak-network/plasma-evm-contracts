@@ -136,6 +136,9 @@ contract WTON is DSMath, ReentrancyGuard, Ownable, ERC20Mintable, ERC20Burnable,
     return _swapFromTON(msg.sender, to, tonAmount);
   }
 
+  function renounceTonMinter() external onlyOwner {
+    ton.renounceMinter();
+  }
 
   //////////////////////
   // Internal functions

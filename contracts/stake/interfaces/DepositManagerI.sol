@@ -34,4 +34,6 @@ interface DepositManagerI {
 
   function numRequests(address rootchain, address account) external view returns (uint256);
   function numPendingRequests(address rootchain, address account) external view returns (uint256);
+
+  function slash(address rootchain, address recipient, uint256 amount) external returns (bool);
 }
