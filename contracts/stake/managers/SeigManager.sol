@@ -11,6 +11,7 @@ import { DSMath } from "../../../node_modules/coinage-token/contracts/lib/DSMath
 import { CustomIncrementCoinageMock } from "../../../node_modules/coinage-token/flatten.sol";
 
 import { AuthController } from "../tokens/AuthController.sol";
+import { SeigCoinageToken } from "../tokens/SeigCoinageToken.sol";
 
 import { RootChainI } from "../../RootChainI.sol";
 
@@ -78,6 +79,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
   // coinage token for each root chain.
   mapping (address => CustomIncrementCoinageMock) internal _coinages;
+  mapping (address => SeigCoinageToken) internal _coinagesRelative;
   mapping (address => address[]) public stakers;
 
   // last commit block number for each root chain.
@@ -120,15 +122,21 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   // minimum deposit amount
   uint256 public minimumAmount;
 
+  uint256 public powerTONSeigRate;
+  uint256 public daoSeigRate;
+
+  uint256 public accRelativeSeig;
+
   //////////////////////////////
   // Constants
   //////////////////////////////
 
-  uint256 constant internal _DEFAULT_FACTOR = 10 ** 27;
+  uint256 constant public RAY = 10 ** 27; // 1 RAY
+  uint256 constant internal _DEFAULT_FACTOR = RAY;
   uint256 constant public POWER_TON_NUMERATOR = 5;
   uint256 constant public POWER_TON_DENOMINATOR = 10;
 
-  uint256 constant public MAX_VALID_COMMISSION = 10 ** 27; // 1 RAY
+  uint256 constant public MAX_VALID_COMMISSION = RAY; // 1 RAY
   uint256 constant public MIN_VALID_COMMISSION = 10 ** 25; // 0.01 RAY
 
   //////////////////////////////
@@ -245,6 +253,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
         _DEFAULT_FACTOR,
         false
       );
+      _coinagesRelative[rootchain] = new SeigCoinageToken();
       _lastCommitBlock[rootchain] = block.number;
       emit CoinageCreated(rootchain, address(_coinages[rootchain]));
     }
@@ -345,6 +354,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
         coinage.mint(operator, operatorSeigs);
       }
     }
+
+    _coinagesRelative[msg.sender].addSeigniorage(accRelativeSeig);
+    accRelativeSeig = 0;
 
     _wton.mint(address(_depositManager), seigs);
 
@@ -506,6 +518,16 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     globalMinimumWithdrawalPeriod = minimumWithdrawalPeriod;
   }
 
+  function setPowerTONSeigRate(uint256 powerTONSeigRate_) external onlyOwner {
+    require(powerTONSeigRate_ > 0 && powerTONSeigRate_ < RAY, "exceeded seigniorage rate");
+    powerTONSeigRate = powerTONSeigRate_;
+  }
+
+  function setDaoSeigRate(uint256 daoSeigRate_) external onlyOwner {
+    require(daoSeigRate_ > 0 && daoSeigRate_ < RAY, "exceeded seigniorage rate");
+    daoSeigRate = daoSeigRate_;
+  }
+
   function slash(address rootchain, address recipient, uint256 amount) external onlyRootChain(msg.sender) returns (bool) {
     CustomIncrementCoinageMock coinage = _coinages[msg.sender];
     uint256 newFactor = _calcSlashFactor(coinage, amount);
@@ -626,6 +648,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
       ),
       tos
     );
+    //uint256 stakedSeig = rmul(maxSeig, RAY.sub(powerTONSeigRate).sub(daoSeigRate));
 
     nextTotalSupply = prevTotalSupply.add(stakedSeig);
     _lastSeigBlock = block.number;
@@ -644,29 +667,35 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     uint256 unstakedSeig = maxSeig.sub(stakedSeig);
     uint256 powertonSeig;
     uint256 daoSeig;
+    uint256 relativeSeig;
 
     if (address(_powerton) != address(0)) {
       // out of gas..?
       // powertonSeig = unstakedSeig.mul(POWER_TON_NUMERATOR).div(POWER_TON_DENOMINATOR);
       // powertonSeig = unstakedSeig * POWER_TON_NUMERATOR / POWER_TON_DENOMINATOR;
-      powertonSeig = unstakedSeig.mul(_factorPton).div(_DEFAULT_FACTOR);
+      //powertonSeig = unstakedSeig.mul(_factorPton).div(_DEFAULT_FACTOR);
+      powertonSeig = unstakedSeig.mul(powerTONSeigRate).div(RAY);
 
       _wton.mint(address(_powerton), powertonSeig);
     }
 
     if (_dao != address(0)) {
-      daoSeig = unstakedSeig.mul(_factorDao).div(_DEFAULT_FACTOR);
+      //daoSeig = unstakedSeig.mul(_factorDao).div(_DEFAULT_FACTOR);
+      daoSeig = unstakedSeig.mul(daoSeigRate).div(RAY);
       _wton.mint(address(_dao), daoSeig);
     }
 
-    require(powertonSeig.add(daoSeig) <= unstakedSeig, "powerton seig + dao seig exceeded unstaked amount");
+    relativeSeig = unstakedSeig.sub(powertonSeig).sub(daoSeig);
+    accRelativeSeig = accRelativeSeig.add(relativeSeig);
+
+    require(powertonSeig.add(daoSeig).add(relativeSeig) <= unstakedSeig, "powerton seig + dao seig exceeded unstaked amount");
 
     emit SeigGiven(msg.sender, maxSeig, stakedSeig, unstakedSeig, powertonSeig);
 
     return true;
   }
 
-  function _calcNumSeigBlocks() internal returns (uint256) {
+  function _calcNumSeigBlocks() internal view returns (uint256) {
     require(!paused());
 
     uint256 span = block.number - _lastSeigBlock;
@@ -704,4 +733,5 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
   function DEFAULT_FACTOR() external view returns (uint256) { return _DEFAULT_FACTOR; }
   // solium-enable
+
 }
