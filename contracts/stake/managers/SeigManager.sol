@@ -9,9 +9,9 @@ import { SafeERC20 } from "../../../node_modules/openzeppelin-solidity/contracts
 
 import { DSMath } from "../../../node_modules/coinage-token/contracts/lib/DSMath.sol";
 import { CustomIncrementCoinageMock } from "../../../node_modules/coinage-token/flatten.sol";
+import { CoinageFactoryI } from "../interfaces/CoinageFactoryI.sol";
 
 import { AuthController } from "../tokens/AuthController.sol";
-import { SeigCoinageToken } from "../tokens/SeigCoinageToken.sol";
 
 import { RootChainI } from "../../RootChainI.sol";
 
@@ -74,13 +74,14 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   // WTON token contract
   ERC20Mintable internal _wton; // TODO: use mintable erc20!
 
+  // contract factory
+  CoinageFactoryI public factory;
+
   // track total deposits of each root chain.
   CustomIncrementCoinageMock internal _tot;
 
   // coinage token for each root chain.
   mapping (address => CustomIncrementCoinageMock) internal _coinages;
-  mapping (address => SeigCoinageToken) internal _coinagesRelative;
-  mapping (address => address[]) public stakers;
 
   // last commit block number for each root chain.
   mapping (address => uint256) internal _lastCommitBlock;
@@ -95,17 +96,11 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   uint256 internal _pausedBlock;
   uint256 internal _unpausedBlock;
 
-  // seigniorage factor of powerton
-  uint256 public _factorPton;
-
-  // seigniorage factor of DAO
-  uint256 public _factorDao;
-
   // global minimum withdrawal period
-  uint256 public globalMinimumWithdrawalPeriod;
+  //uint256 public globalMinimumWithdrawalPeriod;
 
   // minimum withdrawal period
-  mapping (address => uint256) public _minimumWithdrawalPeriod;
+  //mapping (address => uint256) public minimumWithdrawalPeriod;
 
   // commission rates in RAY
   mapping (address => uint256) internal _commissionRates;
@@ -124,6 +119,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
   uint256 public powerTONSeigRate;
   uint256 public daoSeigRate;
+  uint256 public relativeSeigRate;
 
   uint256 public accRelativeSeig;
 
@@ -133,8 +129,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
 
   uint256 constant public RAY = 10 ** 27; // 1 RAY
   uint256 constant internal _DEFAULT_FACTOR = RAY;
-  uint256 constant public POWER_TON_NUMERATOR = 5;
-  uint256 constant public POWER_TON_DENOMINATOR = 10;
 
   uint256 constant public MAX_VALID_COMMISSION = RAY; // 1 RAY
   uint256 constant public MIN_VALID_COMMISSION = 10 ** 25; // 0.01 RAY
@@ -200,6 +194,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
       _DEFAULT_FACTOR,
       false
     );
+    //_tot = CustomIncrementCoinageMock(factory.deploy());
 
     _lastSeigBlock = block.number;
   }
@@ -240,20 +235,15 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
    * @dev deploy coinage token for the root chain.
    */
   function deployCoinage(address rootchain) external onlyRegistry returns (bool) {
-    // short circuit if already coinage is deployed
-    if (address(_coinages[rootchain]) != address(0)) {
-      return false;
-    }
-
     // create new coinage token for the root chain contract
     if (address(_coinages[rootchain]) == address(0)) {
-      _coinages[rootchain] = new CustomIncrementCoinageMock(
+      /*_coinages[rootchain] = new CustomIncrementCoinageMock(
         "",
         "",
         _DEFAULT_FACTOR,
         false
-      );
-      _coinagesRelative[rootchain] = new SeigCoinageToken();
+      );*/
+      _coinages[rootchain] = CustomIncrementCoinageMock(factory.deploy());
       _lastCommitBlock[rootchain] = block.number;
       emit CoinageCreated(rootchain, address(_coinages[rootchain]));
     }
@@ -278,12 +268,14 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     );
 
     uint256 previous = _commissionRates[rootchain];
-    //_commissionRates[rootchain] = commissionRate;
-    //_isCommissionRateNegative[rootchain] = isCommissionRateNegative;
-
-    delayedCommissionBlock[rootchain] = block.number + adjustCommissionDelay;
-    delayedCommissionRate[rootchain] = commissionRate;
-    delayedCommissionRateNegative[rootchain] = isCommissionRateNegative;
+    if (adjustCommissionDelay == 0) {
+      _commissionRates[rootchain] = commissionRate;
+      _isCommissionRateNegative[rootchain] = isCommissionRateNegative;
+    } else {
+      delayedCommissionBlock[rootchain] = block.number + adjustCommissionDelay;
+      delayedCommissionRate[rootchain] = commissionRate;
+      delayedCommissionRateNegative[rootchain] = isCommissionRateNegative;
+    }
 
     emit CommissionRateSet(rootchain, previous, commissionRate);
 
@@ -354,9 +346,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
         coinage.mint(operator, operatorSeigs);
       }
     }
-
-    _coinagesRelative[msg.sender].addSeigniorage(accRelativeSeig);
-    accRelativeSeig = 0;
 
     _wton.mint(address(_depositManager), seigs);
 
@@ -472,7 +461,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     }
     _tot.mint(rootchain, amount);
     _coinages[rootchain].mint(account, amount);
-    stakers[rootchain].push(account);
     if (address(_powerton) != address(0)) {
       _powerton.onDeposit(rootchain, account, amount);
     }
@@ -506,17 +494,13 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     return true;
   }
 
-  function setPowerTONFactor(uint256 factor) external onlyOwner {
-    _factorPton = factor;
-  }
-
-  function setDaoFactor(uint256 factor) external onlyOwner {
-    _factorDao = factor;
-  }
-
-  function setGlobalMinimumWithdrawalPeriod(uint256 minimumWithdrawalPeriod) external onlyOwner {
+  /*function setGlobalMinimumWithdrawalPeriod(uint256 minimumWithdrawalPeriod) external onlyOwner {
     globalMinimumWithdrawalPeriod = minimumWithdrawalPeriod;
-  }
+  }*/
+
+  /*function setMinimumWithdrawalPeriod(uint256 minimumWithdrawalPeriod_) external onlyOwner {
+    minimumWithdrawalPeriod = minimumWithdrawalPeriod_;
+  }*/
 
   function setPowerTONSeigRate(uint256 powerTONSeigRate_) external onlyOwner {
     require(powerTONSeigRate_ > 0 && powerTONSeigRate_ < RAY, "exceeded seigniorage rate");
@@ -526,6 +510,15 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   function setDaoSeigRate(uint256 daoSeigRate_) external onlyOwner {
     require(daoSeigRate_ > 0 && daoSeigRate_ < RAY, "exceeded seigniorage rate");
     daoSeigRate = daoSeigRate_;
+  }
+
+  function setPseigRate(uint256 PseigRate_) external onlyOwner {
+    require(PseigRate_ > 0 && PseigRate_ < RAY, "exceeded seigniorage rate");
+    relativeSeigRate = PseigRate_;
+  }
+
+  function setCoinageFactory(address factory_) external onlyOwner {
+    factory = CoinageFactoryI(factory_);
   }
 
   function slash(address rootchain, address recipient, uint256 amount) external onlyRootChain(msg.sender) returns (bool) {
@@ -650,7 +643,10 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     );
     //uint256 stakedSeig = rmul(maxSeig, RAY.sub(powerTONSeigRate).sub(daoSeigRate));
 
-    nextTotalSupply = prevTotalSupply.add(stakedSeig);
+    // pseig
+    uint256 totalPseig = rmul(maxSeig.sub(stakedSeig), relativeSeigRate);
+
+    nextTotalSupply = prevTotalSupply.add(stakedSeig).add(totalPseig);
     _lastSeigBlock = block.number;
 
     _tot.setFactor(_calcNewFactor(prevTotalSupply, nextTotalSupply, _tot.factor()));
@@ -670,10 +666,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     uint256 relativeSeig;
 
     if (address(_powerton) != address(0)) {
-      // out of gas..?
-      // powertonSeig = unstakedSeig.mul(POWER_TON_NUMERATOR).div(POWER_TON_DENOMINATOR);
-      // powertonSeig = unstakedSeig * POWER_TON_NUMERATOR / POWER_TON_DENOMINATOR;
-      //powertonSeig = unstakedSeig.mul(_factorPton).div(_DEFAULT_FACTOR);
       powertonSeig = unstakedSeig.mul(powerTONSeigRate).div(RAY);
 
       _wton.mint(address(_powerton), powertonSeig);
@@ -685,8 +677,10 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
       _wton.mint(address(_dao), daoSeig);
     }
 
-    relativeSeig = unstakedSeig.sub(powertonSeig).sub(daoSeig);
-    accRelativeSeig = accRelativeSeig.add(relativeSeig);
+    if (relativeSeigRate != 0) {
+      relativeSeig = unstakedSeig.mul(relativeSeigRate).div(RAY);
+      accRelativeSeig = accRelativeSeig.add(relativeSeig);
+    }
 
     require(powertonSeig.add(daoSeig).add(relativeSeig) <= unstakedSeig, "powerton seig + dao seig exceeded unstaked amount");
 
