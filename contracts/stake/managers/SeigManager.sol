@@ -111,9 +111,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
 
   // setting commissionrate delay
   uint256 public adjustCommissionDelay;
-  mapping (address => uint256) delayedCommissionBlock;
-  mapping (address => uint256) delayedCommissionRate;
-  mapping (address => bool) delayedCommissionRateNegative;
+  mapping (address => uint256) public delayedCommissionBlock;
+  mapping (address => uint256) public delayedCommissionRate;
+  mapping (address => bool) public delayedCommissionRateNegative;
 
   // minimum deposit amount
   uint256 public minimumAmount;
