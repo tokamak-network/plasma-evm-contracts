@@ -53,6 +53,11 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
     _;
   }
 
+  modifier onlyOperatorOrSeigManager () {
+    require(msg.sender == operator || msg.sender == seigManager);
+    _;
+  }
+
   /*
    * Constructor
    */
@@ -106,7 +111,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
    * External Functions
    */
 
-  function changeOperator(address _operator) external onlyOperator {
+  function changeOperator(address _operator) external onlyOperatorOrSeigManager {
     operator = _operator;
     emit OperatorChanged(_operator);
   }
@@ -119,7 +124,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
     _addMapper(account);
   }
 
-  function setSeigManager(address account) public onlyOperator {
+  function setSeigManager(address account) public onlyOperatorOrSeigManager {
     seigManager = account;
   }
 

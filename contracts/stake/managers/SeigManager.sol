@@ -12,6 +12,7 @@ import { CustomIncrementCoinageMock } from "../../../node_modules/coinage-token/
 import { CoinageFactoryI } from "../interfaces/CoinageFactoryI.sol";
 
 import { AuthController } from "../tokens/AuthController.sol";
+import { ChallengerRole } from "../../roles/ChallengerRole.sol";
 
 import { RootChainI } from "../../RootChainI.sol";
 
@@ -51,7 +52,7 @@ import { PowerTONI } from "../interfaces/PowerTONI.sol";
  *     - withdrawal ratio of the account  = amount to withdraw / total supply of coinage
  *
  */
-contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController {
+contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController, ChallengerRole {
   using SafeMath for uint256;
   using SafeERC20 for ERC20Mintable;
 
@@ -243,9 +244,11 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
         _DEFAULT_FACTOR,
         false
       );*/
-      _coinages[rootchain] = CustomIncrementCoinageMock(factory.deploy());
+      address c = factory.deploy();
       _lastCommitBlock[rootchain] = block.number;
-      emit CoinageCreated(rootchain, address(_coinages[rootchain]));
+      addChallenger(c);
+      _coinages[rootchain] = CustomIncrementCoinageMock(c);
+      emit CoinageCreated(rootchain, c);
     }
 
     return true;
@@ -478,6 +481,11 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
   {
     require(_coinages[rootchain].balanceOf(account) >= amount, "SeigManager: insufficiant balance to unstake");
 
+    if (_isOperator(rootchain, account)) {
+      uint256 newAmount = _coinages[rootchain].balanceOf(account).sub(amount);
+      require(newAmount >= minimumAmount, "minimum amount is required");
+    }
+
     // burn {v + ⍺} {tot} tokens to the root chain contract,
     uint256 totAmount = _additionalTotBurnAmount(rootchain, account, amount);
     _tot.burnFrom(rootchain, amount.add(totAmount));
@@ -521,14 +529,14 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController 
     factory = CoinageFactoryI(factory_);
   }
 
-  function slash(address rootchain, address recipient, uint256 amount) external onlyRootChain(msg.sender) returns (bool) {
-    CustomIncrementCoinageMock coinage = _coinages[msg.sender];
-    uint256 newFactor = _calcSlashFactor(coinage, amount);
-    coinage.setFactor(newFactor);
+  function addChallenger(address account) public onlyRegistry {
+    _addChallenger(account);
+  }
 
-    // TODO: add challenger's coinage
+  function slash(address rootchain, address challenger) external onlyChallenger returns (bool) {
+    RootChainI(rootchain).changeOperator(challenger);
 
-    //return _depositManager.slash(rootchain, recipient, amount);
+    return true;
   }
 
   function additionalTotBurnAmount(address rootchain, address account, uint256 amount)
