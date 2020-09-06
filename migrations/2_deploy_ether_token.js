@@ -9,7 +9,7 @@ const swapEnabled = true;
 
 module.exports = function (deployer, network) {
   // skip production network
-  if (network.includes('faraday') || network.includes('mainnet') || network.includes('rinkeby')) return;
+  if (network.includes('faraday') || network.includes('mainnet') || network.includes('rinkeby') || network.includes('development')) return;
 
   if (development || baseTokenAddress === '0x0000000000000000000000000000000000000000') {
     deployer.deploy(TON)

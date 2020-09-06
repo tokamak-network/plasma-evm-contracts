@@ -27,7 +27,7 @@ const MTON_RINKEBY = process.env.MTON_RINKEBY;
 
 module.exports = async function (deployer, network) {
   // only deploy at mainnet or rinkeby testnet
-  if (!network.includes('mainnet') && !network.includes('rinkeby')) return;
+  if (network.includes('mainnet') || network.includes('rinkeby') || network.includes('development')) return;
 
   const mtonAddr = network.includes('mainnet')
     ? MTON_MAINNET : network.includes('rinkeby')
