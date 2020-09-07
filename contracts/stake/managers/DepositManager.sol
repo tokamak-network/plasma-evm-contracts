@@ -253,7 +253,8 @@ contract DepositManager is Ownable, ERC165, OnApprove {
     globalWithdrawalDelay = globalWithdrawalDelay_;
   }
 
-  function setWithdrawalDelay(address l2chain, uint256 withdrawalDelay_) external onlyOwner {
+  function setWithdrawalDelay(address l2chain, uint256 withdrawalDelay_) external {
+    require(_isOperator(l2chain, msg.sender));
     withdrawalDelay[l2chain] = withdrawalDelay_;
   }
 
