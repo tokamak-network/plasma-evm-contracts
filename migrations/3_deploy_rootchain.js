@@ -3,6 +3,7 @@ const SubmitHandler = artifacts.require('SubmitHandler.sol');
 const RootChain = artifacts.require('RootChain.sol');
 const EtherToken = artifacts.require('EtherToken.sol');
 const RootChainRegistry = artifacts.require('RootChainRegistry');
+const axios = require('axios');
 
 const development = process.env.NODE_ENV !== 'production';
 
@@ -18,11 +19,11 @@ module.exports = async function (deployer, network) {
     let epochHandler;
     const managers = {
       TON: '0x3734E35231abE68818996dC07Be6a8889202DEe9',
-      WTON: '0x5a4142a5E6CBc24802656A69E75635D5350501A5',
-      RootChainRegistry: '0x3b0DAa352C0508C3cE156a75dF7Cc62636B5f822',
-      DepositManager: '0xbF0fbB74C72a9F1F267FA6cFA229a8E962a4C50A',
-      SeigManager: '0x8738B7D4FFFE950f77934CC9711478C036b475CA',
-      PowerTON: '0xC87EEf91227a6e51A1C4D32C3734C628d3b893bc',
+      WTON: '0x6c6079EF61F4128639607EA10FE3D8FDDB41F781',
+      RootChainRegistry: '0xF7dbB432b68295329790EF81fedE861645969112',
+      DepositManager: '0x537111FA5F7188aFA996ed73b273D17EEfc3F866',
+      SeigManager: '0x0ed93958871Cd9512d5de65CFeb6f4837c0d5B17',
+      PowerTON: '0xc144aC1bC0F85A01B1e3Ce93789EB3f516f245eB',
     };
 
     await deployer.deploy(EpochHandler)
@@ -61,5 +62,21 @@ module.exports = async function (deployer, network) {
       genesis: {},
     };
     console.log(operator);
+
+    await axios.post('http://dashboard-api.tokamak.network/operators?network=rinkeby', {
+      genesis: {
+        config: {
+          chainId: process.env.chainid,
+        },
+        extraData: rootchain.address,
+      },
+      name: process.env.operator_name,
+      website: process.env.website,
+      description: process.env.description,
+    }).then(function (response) {
+      console.log(response);
+    }).catch(function (err) {
+      console.log(err);
+    });
   }
 };
