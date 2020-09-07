@@ -28,7 +28,7 @@ const TON_RINKEBY = process.env.TON_RINKEBY;
 
 module.exports = async function (deployer, network) {
   // skip production network
-  // if (network.includes('faraday') || network.includes('mainnet') || network.includes('rinkeby') || network.includes('development')) return;
+  if (network.includes('faraday') || network.includes('mainnet') || network.includes('rinkeby') || network.includes('development')) return;
 
   // rinkeby TON: 0x3734E35231abE68818996dC07Be6a8889202DEe9, mainnet TON: 0x2be5e8c109e2197d077d13a82daead6a9b3433c5
   const tonAddr = network.includes('mainnet')
@@ -52,7 +52,7 @@ module.exports = async function (deployer, network) {
 
   // const rootchain = await RootChain.deployed();
   // const ton = await deployer.deploy(TON);
-  console.log(ton);
+  // console.log(ton);
   const wton = await deployer.deploy(WTON, ton.address);
   const registry = await deployer.deploy(RootChainRegistry);
   const depositManager = await deployer.deploy(

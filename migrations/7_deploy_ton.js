@@ -39,7 +39,7 @@ const totalSupply = swapperAmount
   .add(daoAmount);
 
 module.exports = function (deployer, network) {
-  if (!network.includes('mainnet') && !network.includes('rinkeby')) return;
+  if (network.includes('mainnet') || network.includes('rinkeby') || network.includes('development')) return;
   if (!totalSupply.eq(ether('50000000'))) return;
 
   deployer.deploy(TON)

@@ -29,7 +29,8 @@
   },
   "dependencies": {
     "chai-bytes": "^0.1.1",
-    "rlp": "^2.1.0"
+    "rlp": "^2.1.0",
+    "axios": "^0.19.1"
   },
   "devDependencies": {
     "@makerdao/currency": "^0.9.6",
