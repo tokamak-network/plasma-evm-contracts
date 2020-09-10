@@ -1,4 +1,5 @@
 const { createCurrency } = require('@makerdao/currency');
+const fs = require('fs');
 
 const _WTON = createCurrency('WTON');
 
@@ -74,6 +75,7 @@ module.exports = async function (deployer, network) {
       wton.address,
       roundDuration,
     );
+    fs.writeFile('deployed.json', '{}', (err) => { if (err) throw err; });
 
     const addrs = {
       TON: ton.address,
@@ -83,34 +85,10 @@ module.exports = async function (deployer, network) {
       SeigManager: seigManager.address,
       PowerTON: powerton.address,
     };
+    fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
+      if (err) throw err;
+    });
 
     console.log(JSON.stringify(addrs, null, 2));
-
-    const factory = await deployer.deploy(CoinageFactory);
-    await seigManager.setCoinageFactory(factory.address);
-    await factory.setSeigManager(seigManager.address);
-
-    console.log('Initialize PowerTON...');
-    await powerton.init();
-
-    console.log('Set PowerTON to SeigManager...');
-    await seigManager.setPowerTON(powerton.address);
-
-    // add WTON minter role to seig manager
-    console.log('Add WTON Minter Role to SeigManager...');
-    await wton.addMinter(seigManager.address);
-
-    console.log('Add TON Minter Role to WTON...');
-    await ton.addMinter(wton.address);
-
-    // set seig manager to contracts
-    console.log('Set SeigManager to WTON and DepositManager...');
-    await Promise.all([
-      depositManager,
-      wton,
-    ].map(contract => contract.setSeigManager(seigManager.address)));
-
-    console.log('Start PowerTON...');
-    await powerton.start();
   }
 };
