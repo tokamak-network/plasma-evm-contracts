@@ -21,11 +21,15 @@ const SubmitHandler = contract.fromArtifact('SubmitHandler');
 const RootChain = contract.fromArtifact('RootChain');
 const EtherToken = contract.fromArtifact('EtherToken');
 
+const CoinageFactory = contract.fromArtifact('CoinageFactory');
+
 const DepositManager = contract.fromArtifact('DepositManager');
 const SeigManager = contract.fromArtifact('SeigManager');
 const RootChainRegistry = contract.fromArtifact('RootChainRegistry');
-const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
+//const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
+const AutoRefactorCoinage = contract.fromArtifact('AutoRefactorCoinage');
 const PowerTON = contract.fromArtifact('PowerTON');
+const DAOVault = contract.fromArtifact('DAOVault');
 
 const chai = require('chai');
 const { expect } = chai;
@@ -47,7 +51,8 @@ const _TON = createCurrency('TON');
 const _WTON = createCurrency('WTON');
 const _WTON_TON = createCurrencyRatio(_WTON, _TON);
 
-const e = web3.utils.toBN('1000000000'); // 1e9
+//const e = web3.utils.toBN('1000000000'); // 1e9
+const e = web3.utils.toBN('1000000000000000000'); // 1e18
 
 const TON_UNIT = 'wei';
 const WTON_UNIT = 'ray';
@@ -60,16 +65,20 @@ const dummyStatesRoot = '0xdb431b544b2f5468e3f771d7843d9c5df3b4edcf8bc1c599f18f0
 const dummyTransactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
 const dummyReceiptsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
 
-const TON_INITIAL_SUPPLY = _TON('100000');
-const SEIG_PER_BLOCK = TON_INITIAL_SUPPLY.times(WTON_TON_RATIO).div(1000); // 100 (W)TON / block
+const TON_INITIAL_SUPPLY = _TON('50000000');
+//const SEIG_PER_BLOCK = TON_INITIAL_SUPPLY.times(WTON_TON_RATIO).div(1000); // 100 (W)TON / block
+const SEIG_PER_BLOCK = _WTON('3.91615931'); // 100 (W)TON / block
 const WITHDRAWAL_DELAY = 10;
 const NUM_ROOTCHAINS = 4;
+const POWERTON_SEIG_RATE = _WTON('0.1');
+const DAO_SEIG_RATE = _WTON('0.5');
+const PSEIG_RATE = _WTON('0.4');
 
-const tokenAmount = TON_INITIAL_SUPPLY.div(1000); // 100 TON
-const tokenOwnerInitialBalance = tokenAmount.times(NUM_ROOTCHAINS); // 400 TON
+const tokenAmount = TON_INITIAL_SUPPLY.div(10000); // 1000 TON
+const tokenOwnerInitialBalance = tokenAmount.times(NUM_ROOTCHAINS); // 200000 TON
 
-const totalStakedAmount = tokenOwnerInitialBalance; // 400 TON
-const totalUnstakedAmount = TON_INITIAL_SUPPLY.minus(tokenOwnerInitialBalance); // 99600 TON
+const totalStakedAmount = tokenOwnerInitialBalance; // 200000 TON
+const totalUnstakedAmount = TON_INITIAL_SUPPLY.minus(tokenOwnerInitialBalance); // 49800000 TON
 
 const NRE_LENGTH = 2;
 
@@ -111,9 +120,9 @@ async function expectedSeigs (seigManager, rootchainAddr, userAddr) {
   const rootchain = await RootChain.at(rootchainAddr);
   const ton = await TON.at(await seigManager.ton());
   const wton = await TON.at(await seigManager.wton());
-  const tot = await CustomIncrementCoinage.at(await seigManager.tot());
+  const tot = await AutoRefactorCoinage.at(await seigManager.tot());
   const coinageAddr = await seigManager.coinages(rootchainAddr);
-  const coinage = await CustomIncrementCoinage.at(coinageAddr);
+  const coinage = await AutoRefactorCoinage.at(coinageAddr);
 
   // storages
   const operator = await rootchain.operator();
@@ -152,11 +161,13 @@ async function expectedSeigs (seigManager, rootchainAddr, userAddr) {
       .minus(_WTON(await ton.balanceOf(wton.address), TON_UNIT));
 
     const stakedSeigs = maxSeig.times(prevTotTotalSupply).div(tos);
-    return stakedSeigs;
+    //const stakedSeigs = maxSeig.times(_WTON('1').sub(POWERTON_SEIG_RATE).sub(DAO_SEIG_RATE));
+    const pseigs = maxSeig.minus(stakedSeigs).times(PSEIG_RATE)
+    return {stakedSeigs, pseigs};
   }
 
-  const stakedSeigs = await increaseTot();
-  const rootchainSeigs = stakedSeigs.times(prevTotBalance).div(prevTotTotalSupply);
+  const {stakedSeigs, pseigs} = await increaseTot();
+  const rootchainSeigs = stakedSeigs.plus(pseigs).times(prevTotBalance).div(prevTotTotalSupply);
 
   const operatorSeigs = rootchainSeigs.times(prevCoinageOperatorBalance).div(prevCoinageTotalSupply);
   const usersSeigs = rootchainSeigs.times(prevCoinageUsersBalance).div(prevCoinageTotalSupply);
@@ -269,6 +280,12 @@ describe('stake/SeigManager', function () {
     }
   }
 
+  async function advanceBlocks(count) {
+    for (const _ of range(count)) {
+      await time.advanceBlock();
+    }
+  }
+
   // deploy contract and instances
   beforeEach(async function () {
     this.ton = await TON.new();
@@ -304,13 +321,19 @@ describe('stake/SeigManager', function () {
       WITHDRAWAL_DELAY,
     );
 
+    this.factory = await CoinageFactory.new();
+    this.daoVault = await DAOVault.new(this.ton.address, 0);
+
     this.seigManager = await SeigManager.new(
       this.ton.address,
       this.wton.address,
       this.registry.address,
       this.depositManager.address,
       SEIG_PER_BLOCK.toFixed(WTON_UNIT),
+      this.factory.address
     );
+
+    this.factory.setSeigManager(this.seigManager.address);
 
     this.powerton = await PowerTON.new(
       this.seigManager.address,
@@ -322,6 +345,7 @@ describe('stake/SeigManager', function () {
 
     await this.seigManager.setPowerTON(this.powerton.address);
     await this.powerton.start();
+    await this.seigManager.setDao(this.daoVault.address);
 
     // add minter roles
     await this.wton.addMinter(this.seigManager.address);
@@ -342,7 +366,7 @@ describe('stake/SeigManager', function () {
     await this.ton.approve(this.wton.address, TON_INITIAL_SUPPLY.toFixed(TON_UNIT));
 
     // load tot token and coinage tokens
-    this.tot = await CustomIncrementCoinage.at(await this.seigManager.tot());
+    this.tot = await AutoRefactorCoinage.at(await this.seigManager.tot());
     const coinageAddrs = await Promise.all(
       this.rootchains.map(rootchain => this.seigManager.coinages(rootchain.address)),
     );
@@ -351,7 +375,7 @@ describe('stake/SeigManager', function () {
     this.coinagesByRootChain = {};
     for (const addr of coinageAddrs) {
       const i = coinageAddrs.findIndex(a => a === addr);
-      this.coinages[i] = await CustomIncrementCoinage.at(addr);
+      this.coinages[i] = await AutoRefactorCoinage.at(addr);
       this.coinagesByRootChain[this.rootchains[i].address] = this.coinages[i];
     }
 
@@ -359,6 +383,27 @@ describe('stake/SeigManager', function () {
     this._deposit = (from, to, amount) => this.depositManager.deposit(to, amount, { from });
     this._commit = (rootchain) => submitDummyNRE(rootchain, this.rootchainState[rootchain.address]);
     this._multiCommit = (rootchain, n) => submitDummyNREs(rootchain, this.rootchainState[rootchain.address], n);
+
+    this.seigManager.setPowerTONSeigRate(POWERTON_SEIG_RATE.toFixed(WTON_UNIT));
+    this.seigManager.setDaoSeigRate(DAO_SEIG_RATE.toFixed(WTON_UNIT));
+    this.seigManager.setPseigRate(PSEIG_RATE.toFixed(WTON_UNIT));
+
+    /*console.log(`
+    tokenOwner1 balance : ${await this.ton.balanceOf(tokenOwner1)}
+    operator balance : ${await this.ton.balanceOf(operator)}
+    `);*/
+  });
+
+  it('minimum deposit amount', async function () {
+    const minimumAmount = TON_INITIAL_SUPPLY;
+    await this.seigManager.setMinimumAmount(minimumAmount.toFixed(WTON_UNIT));
+    await this.wton.swapFromTONAndTransfer(operator, tokenAmount.toFixed(TON_UNIT));
+
+    await this.wton.approve(this.depositManager.address, tokenAmount.toFixed(WTON_UNIT), { from: operator });
+    await expectRevert(
+      this._deposit(operator, this.rootchains[0].address, tokenAmount.toFixed(WTON_UNIT))
+      , "minimum amount is required"
+    );
   });
 
   describe('when the token owner are the only depositor of each root chain', function () {
@@ -465,11 +510,11 @@ describe('stake/SeigManager', function () {
                 },
               } = await expectEvent.inTransaction(tx, this.seigManager, 'CommitLog1');
 
-              const { args: { totalSeig, stakedSeig, unstakedSeig, powertonSeig } } = await expectEvent.inTransaction(tx, this.seigManager, 'SeigGiven');
+              const { args: { totalSeig, stakedSeig, unstakedSeig, powertonSeig, pseig } } = await expectEvent.inTransaction(tx, this.seigManager, 'SeigGiven');
 
               const { args: { previous, current } } = await expectEvent.inTransaction(tx, this.tot, 'FactorSet');
 
-              const seig = _WTON(stakedSeig, WTON_UNIT);
+              const seig = _WTON(stakedSeig, WTON_UNIT).plus(_WTON(pseig, WTON_UNIT));
 
               checkBalance(curTotTotalSupply.sub(prevTotTotalSupply), seig, WTON_UNIT);
 
@@ -708,8 +753,36 @@ describe('stake/SeigManager', function () {
           }
         });
 
+        /*function behaveWithSeigRate (powertonRate, daoRate, pseigRate) {
+          describe('', function () {
+          });
+        }
+
+        const powertonRates = [
+          _WTON('0'),
+          _WTON('0.1'),
+          _WTON('0.3'),
+        ];
+
+        const daoRates = [
+          _WTON('0'),
+          _WTON('0.3'),
+          _WTON('0.5'),
+        ];
+
+        const pseigRates = [
+          _WTON('0'),
+          _WTON('0.3'),
+          _WTON('0.1'),
+        ];
+
+        for (const j = 0; j < powertonRates.length; j++) {
+          (powertonRates[j], daoRates[j], pseigRates[j])
+        }*/
+
         it('should mint correct seigniorages for each commit', async function () {
           for (const j of range(this.seigBlocks.length - 1)) { // for j-th commit
+            const currentBlock = await web3.eth.getBlockNumber();
             const nBlocks = this.seigBlocks[j + 1].sub(this.seigBlocks[j]);
             const accSeigBeforeCommit = this.accSeigs[j].minus(this.seigs[j]);
 
@@ -719,28 +792,17 @@ describe('stake/SeigManager', function () {
             const totTotalSupplyBeforeCommit = TON_INITIAL_SUPPLY.times(WTON_TON_RATIO)
               .plus(accSeigBeforeCommit);
 
-            const expectedSeig = SEIG_PER_BLOCK
-              .times(nBlocks)
+            const maxSeig = SEIG_PER_BLOCK.times(nBlocks);
+            const stakedSeig = maxSeig
               .times(totalStaked)
               .div(totTotalSupplyBeforeCommit);
-
-            // console.log(`
-            // ${j}-th commit
-            // this.accSeigs[j]              ${this.accSeigs[j].toString(10).padStart(40)}
-            // this.seigs[j]                 ${this.seigs[j].toString(10).padStart(40)}
-
-            // nBlocks                       ${nBlocks.toString(10).padStart(40)}
-            // accSeigBeforeCommit           ${accSeigBeforeCommit.toString().padStart(40)}
-            // totalStaked:                  ${totalStaked.toString().padStart(40)}
-            // totTotalSupplyBeforeCommit:   ${totTotalSupplyBeforeCommit.toString().padStart(40)}
-            // expectedSeig:                 ${expectedSeig.toString().padStart(40)}
-            // this.seigs[j]:                ${this.seigs[j].toString().padStart(40)}
-            // ${'-'.repeat(50)}
-            // `);
+            const pseig = maxSeig.minus(stakedSeig).times(PSEIG_RATE);
+            const expectedSeig = stakedSeig.plus(pseig);
+              //.times(nBlocks);
 
             checkBalance(
               toBN(this.seigs[j].toFixed(WTON_UNIT)),
-              expectedSeig,
+              _WTON(expectedSeig.toFixed(WTON_UNIT), WTON_UNIT),
               WTON_UNIT,
             );
           }
@@ -783,8 +845,10 @@ describe('stake/SeigManager', function () {
           });
 
           it('should withdraw', async function () {
+            const factor0 = await this.coinages[0].factor();
             const tokenOwnerWtonBalance0 = await this.wton.balanceOf(tokenOwner1);
             const depositManagerWtonBalance0 = await this.wton.balanceOf(this.depositManager.address);
+            const deposit0 = await this.coinages[0].balanceOf(tokenOwner1);
 
             await this.depositManager.requestWithdrawal(this.rootchains[i].address, wtonAmount, { from: tokenOwner1 });
 
@@ -792,8 +856,52 @@ describe('stake/SeigManager', function () {
 
             await this.depositManager.processRequest(this.rootchains[i].address, false, { from: tokenOwner1 });
 
+            const factor1 = await this.coinages[0].factor();
             const tokenOwnerWtonBalance1 = await this.wton.balanceOf(tokenOwner1);
             const depositManagerWtonBalance1 = await this.wton.balanceOf(this.depositManager.address);
+            const deposit1 = await this.coinages[0].balanceOf(tokenOwner1);
+
+            console.log(`
+            ###########################################################
+            tokenOwnerWtonBalance0 : ${tokenOwnerWtonBalance0}
+            tokenOwnerWtonBalance1 : ${tokenOwnerWtonBalance1}
+            depositManagerWtonBalance0 : ${depositManagerWtonBalance0}
+            depositManagerWtonBalance1 : ${depositManagerWtonBalance1}
+            factor0 : ${factor0}
+            factor1 : ${factor1}
+            ###########################################################
+            `);
+
+
+            let test11 = toBN('100000000000000000000');
+            await this.wton.swapFromTONAndTransfer(tokenOwner2, test11);
+            await this.wton.approve(this.depositManager.address, test11, { from: tokenOwner2 });
+            await this._deposit(tokenOwner2, this.rootchains[0].address, test11);
+
+            //await this.wton.swapFromTONAndTransfer(tokenOwner1, toBN('100'));
+            await this.wton.approve(this.depositManager.address, test11, { from: tokenOwner1 });
+            await this._deposit(tokenOwner1, this.rootchains[0].address, test11);
+
+            const factor2 = await this.coinages[0].factor();
+            const tokenOwnerWtonBalance2 = await this.wton.balanceOf(tokenOwner1);
+            const depositManagerWtonBalance2 = await this.wton.balanceOf(this.depositManager.address);
+            const deposit2 = await this.coinages[0].balanceOf(tokenOwner1);
+            const deposit3 = await this.coinages[0].balanceOf(tokenOwner2);
+            const coinageTotalSupply0 = await this.coinages[0].totalSupply();
+
+            console.log(`
+            ###########################################################
+            tokenOwnerWtonBalance2 : ${tokenOwnerWtonBalance2}
+            depositManagerWtonBalance2 : ${depositManagerWtonBalance2}
+            factor2 : ${factor2}
+
+            deposit0 : ${deposit0}
+            deposit1 : ${deposit1}
+            deposit2 : ${deposit2}
+            deposit3 : ${deposit3}
+            coinageTotalSupply0 : ${coinageTotalSupply0}
+            ###########################################################
+            `);
 
             expect(depositManagerWtonBalance1.sub(depositManagerWtonBalance0).neg()).to.be.bignumber.equal(wtonAmount);
             expect(tokenOwnerWtonBalance1.sub(tokenOwnerWtonBalance0)).to.be.bignumber.equal(wtonAmount);
@@ -1048,8 +1156,6 @@ describe('stake/SeigManager', function () {
 
               expect(totTotalSupply2).to.be.bignumber.gt(totTotalSupply1);
             });
-
-            behaveWhenPausedOrNot();
           });
         });
       });
@@ -1064,16 +1170,25 @@ describe('stake/SeigManager', function () {
           const commissionRateSignStr = isCommissionRateNegative ? 'negative' : 'positive';
 
           describe(`when the operator deposits ${operatorRateNr} times as much as the token owner did`, function () {
+            let depositBlock = 0;
+            let operatorAmount = 0;
             beforeEach(async function () {
               if (operatorRateNr === 0) return;
 
-              const operatorAmount = tokenAmount.times(operatorRateNr);
+              operatorAmount = tokenAmount.times(operatorRateNr);
+
+              console.log(`
+              tokenOwner1 balance : ${await this.ton.balanceOf(tokenOwner1)}
+              operator balance : ${await this.ton.balanceOf(operator)}
+              operatorAmount : ${operatorAmount}
+
+              operatorRate : ${operatorRate}
+              commissionRate : ${commissionRate}
+              isCommissionRateNegative : ${isCommissionRateNegative}
+              `);
+
               await this.wton.swapFromTONAndTransfer(operator, operatorAmount.times(NUM_ROOTCHAINS).toFixed(TON_UNIT));
               await this.wton.approve(this.depositManager.address, operatorAmount.times(NUM_ROOTCHAINS).toFixed(WTON_UNIT), { from: operator });
-
-              await Promise.all(this.rootchains.map(
-                rootchain => this._deposit(operator, rootchain.address, operatorAmount.toFixed(WTON_UNIT)),
-              ));
             });
 
             describe(`when 0-th root chain has ${commissionRateSignStr} commission rate of ${commissionPercent}%`, function () {
@@ -1083,6 +1198,11 @@ describe('stake/SeigManager', function () {
 
               beforeEach(async function () {
                 await this.seigManager.setCommissionRate(this.rootchains[i].address, commissionRate.toFixed(WTON_UNIT), isCommissionRateNegative);
+
+                await Promise.all(this.rootchains.map(
+                  rootchain => this._deposit(operator, rootchain.address, operatorAmount.toFixed(WTON_UNIT)),
+                ));
+                depositBlock = await web3.eth.getBlockNumber();
               });
 
               describe('when the root chain commits once', function () {
@@ -1101,6 +1221,14 @@ describe('stake/SeigManager', function () {
 
                   const afterOperatorStake = await this.seigManager.stakeOf(rootchainAddr, operator);
                   const afterTokenOwnerStake = await this.seigManager.stakeOf(rootchainAddr, tokenOwner1);
+
+                  /*console.log(`
+                  beforeOperatorStake                 : ${beforeOperatorStake}
+                  beforeTokenOwnerStake         : ${beforeTokenOwnerStake}
+
+                  afterOperatorStake  : ${afterOperatorStake}
+                  afterTokenOwnerStake                      : ${afterTokenOwnerStake}
+                    `);*/
 
                   checkBalance(afterTokenOwnerStake.sub(beforeTokenOwnerStake), expectedTokenOwnerSeigs, WTON_UNIT);
                   checkBalance(afterOperatorStake.sub(beforeOperatorStake), expectedOperatorSeigs, WTON_UNIT);
@@ -1122,7 +1250,7 @@ describe('stake/SeigManager', function () {
                   beforeOperatorStake = await this.seigManager.stakeOf(this.rootchains[i].address, operator);
                   beforeCommitBlock = await this.seigManager.lastCommitBlock(this.rootchains[i].address);
 
-                  console.log('beforeOperatorStake', toWTONString(beforeOperatorStake));
+                  //console.log('beforeOperatorStake', toWTONString(beforeOperatorStake));
 
                   await this._multiCommit(this.rootchains[i], n);
 
@@ -1130,7 +1258,7 @@ describe('stake/SeigManager', function () {
                   afterOperatorStake = await this.seigManager.stakeOf(this.rootchains[i].address, operator);
                   afterCommitBlock = await this.seigManager.lastCommitBlock(this.rootchains[i].address);
 
-                  console.log('afterOperatorStake', toWTONString(afterOperatorStake));
+                  //console.log('afterOperatorStake', toWTONString(afterOperatorStake));
                 });
 
                 if (!isCommissionRateNegative) {
@@ -1144,19 +1272,6 @@ describe('stake/SeigManager', function () {
                     const expectedCommission = _WTON(seigs, WTON_UNIT).minus(expectedOperatorSeigsWithoutCommission).times(commissionRate);
 
                     const expectedOperatorSeigs = expectedOperatorSeigsWithoutCommission.plus(expectedCommission);
-
-                    console.log(`
-        seigs                 : ${toWTONString(seigs, 10)}
-        operatorSeigs         : ${toWTONString(operatorSeigs, 10)}
-
-        expectedOperatorSeigsWithoutCommission  : ${expectedOperatorSeigsWithoutCommission.toString(10)}
-        expectedCommission                      : ${expectedCommission.toString(10)}
-        expectedOperatorSeigs                   : ${expectedOperatorSeigs.toString(10)}
-
-        MAX_COMMISSION_RATE   : ${MAX_COMMISSION_RATE.toString(10)}
-        commissionRate        : ${commissionRate.toString(10)}
-        MAX_COMMISSION_RATE.plus(commissionRate)       : ${MAX_COMMISSION_RATE.plus(commissionRate).toString(10)}
-                    `);
 
                     expect(seigs).to.be.bignumber.gt('0');
                     checkBalance(operatorSeigs, expectedOperatorSeigs, WTON_UNIT);
@@ -1175,19 +1290,6 @@ describe('stake/SeigManager', function () {
                       ? expectedOperatorSeigsWithoutCommission.minus(expectedCommission)
                       : _WTON('0');
 
-                    console.log(`
-        seigs                 : ${toWTONString(seigs, 10)}
-        operatorSeigs         : ${toWTONString(operatorSeigs, 10)}
-
-        expectedOperatorSeigsWithoutCommission  : ${expectedOperatorSeigsWithoutCommission.toString(10)}
-        expectedCommission                      : ${expectedCommission.toString(10)}
-        expectedOperatorSeigs                   : ${expectedOperatorSeigs.toString(10)}
-
-        MAX_COMMISSION_RATE   : ${MAX_COMMISSION_RATE.toString(10)}
-        commissionRate        : ${commissionRate.toString(10)}
-        MAX_COMMISSION_RATE.minus(commissionRate)       : ${MAX_COMMISSION_RATE.minus(commissionRate).toString(10)}
-                    `);
-
                     expect(seigs).to.be.bignumber.gt('0');
                     checkBalance(operatorSeigs, expectedOperatorSeigs, WTON_UNIT);
                   });
@@ -1198,9 +1300,9 @@ describe('stake/SeigManager', function () {
         }
 
         const operatorRates = [
-          _WTON('0'),
+          //_WTON('0'),
           _WTON('0.01'),
-          _WTON('0.1'),
+          /*_WTON('0.1'),
           _WTON('0.3'),
           _WTON('0.5'),
           _WTON('0.8'),
@@ -1208,21 +1310,21 @@ describe('stake/SeigManager', function () {
           _WTON('1.5'),
           _WTON('2'),
           _WTON('10'),
-          _WTON('100'),
+          _WTON('100'),*/
         ];
 
         const commissionRates = [
-          _WTON('0.0'),
+          //_WTON('0.0'),
           _WTON('0.1'),
-          _WTON('0.3'),
+          /*_WTON('0.3'),
           _WTON('0.5'),
           _WTON('0.9'),
           _WTON('0.99'),
-          _WTON('1.0'),
+          _WTON('1.0'),*/
         ];
 
         const isCommissionRateNegatives = [
-          false,
+          //false,
           true,
         ];
 

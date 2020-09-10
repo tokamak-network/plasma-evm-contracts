@@ -7,8 +7,11 @@ import { ERC20Mintable } from "../../../node_modules/openzeppelin-solidity/contr
 import { IERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 
-import { DSMath } from "../../../node_modules/coinage-token/contracts/lib/DSMath.sol";
-import { CustomIncrementCoinageMock } from "../../../node_modules/coinage-token/flatten.sol";
+import { DSMath } from "../../lib/DSMath.sol";
+//import { CustomIncrementCoinageMock } from "../../../node_modules/coinage-token/flatten.sol";
+//import { AutoRefactorCoinage } from "../../../node_modules/coinage-token/flatten.sol";
+//import { AutoRefactorCoinage } from "../tokens/AutoRefactorCoinage.sol";
+import { AutoRefactorCoinageI } from "../interfaces/AutoRefactorCoinageI.sol";
 import { CoinageFactoryI } from "../interfaces/CoinageFactoryI.sol";
 
 import { AuthController } from "../tokens/AuthController.sol";
@@ -79,10 +82,10 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   CoinageFactoryI public factory;
 
   // track total deposits of each root chain.
-  CustomIncrementCoinageMock internal _tot;
+  AutoRefactorCoinageI internal _tot;
 
   // coinage token for each root chain.
-  mapping (address => CustomIncrementCoinageMock) internal _coinages;
+  mapping (address => AutoRefactorCoinageI) internal _coinages;
 
   // last commit block number for each root chain.
   mapping (address => uint256) internal _lastCommitBlock;
@@ -96,12 +99,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   // block number when paused or unpaused
   uint256 internal _pausedBlock;
   uint256 internal _unpausedBlock;
-
-  // global minimum withdrawal period
-  //uint256 public globalMinimumWithdrawalPeriod;
-
-  // minimum withdrawal period
-  //mapping (address => uint256) public minimumWithdrawalPeriod;
 
   // commission rates in RAY
   mapping (address => uint256) internal _commissionRates;
@@ -168,7 +165,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   //////////////////////////////
 
   event CoinageCreated(address indexed rootchain, address coinage);
-  event SeigGiven(address indexed rootchain, uint256 totalSeig, uint256 stakedSeig, uint256 unstakedSeig, uint256 powertonSeig);
+  event SeigGiven(address indexed rootchain, uint256 totalSeig, uint256 stakedSeig, uint256 unstakedSeig, uint256 powertonSeig, uint256 pseig);
   event Comitted(address indexed rootchain);
   event CommissionRateSet(address indexed rootchain, uint256 previousRate, uint256 newRate);
 
@@ -181,7 +178,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     ERC20Mintable wton,
     RootChainRegistryI registry,
     DepositManagerI depositManager,
-    uint256 seigPerBlock
+    uint256 seigPerBlock,
+    address factory_
   ) public {
     _ton = ton;
     _wton = wton;
@@ -189,13 +187,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     _depositManager = depositManager;
     _seigPerBlock = seigPerBlock;
 
-    _tot = new CustomIncrementCoinageMock(
-      "",
-      "",
-      _DEFAULT_FACTOR,
-      false
-    );
-    //_tot = CustomIncrementCoinageMock(factory.deploy());
+    factory = CoinageFactoryI(factory_);
+    address c = factory.deploy();
+    _tot = AutoRefactorCoinageI(c);
 
     _lastSeigBlock = block.number;
   }
@@ -246,8 +240,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
       );*/
       address c = factory.deploy();
       _lastCommitBlock[rootchain] = block.number;
-      addChallenger(c);
-      _coinages[rootchain] = CustomIncrementCoinageMock(c);
+      addChallenger(rootchain);
+      _coinages[rootchain] = AutoRefactorCoinageI(c);
       emit CoinageCreated(rootchain, c);
     }
 
@@ -285,6 +279,11 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     return true;
   }
 
+  function getOperatorAmount(address rootchain) public view returns (bool) {
+    address operator = RootChainI(msg.sender).operator();
+    require(_coinages[rootchain].balanceOf(operator) >= minimumAmount);
+  }
+
   /**
    * @dev Callback for a new commit
    */
@@ -303,7 +302,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     _lastCommitBlock[msg.sender] = block.number;
 
     // 2. increase total supply of {coinages[rootchain]}
-    CustomIncrementCoinageMock coinage = _coinages[msg.sender];
+    AutoRefactorCoinageI coinage = _coinages[msg.sender];
 
     uint256 prevTotalSupply = coinage.totalSupply();
     uint256 nextTotalSupply = _tot.balanceOf(msg.sender);
@@ -359,7 +358,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
 
   function _calcSeigsDistribution(
     address rootchain,
-    CustomIncrementCoinageMock coinage,
+    AutoRefactorCoinageI coinage,
     uint256 prevTotalSupply,
     uint256 seigs,
     bool isCommissionRateNegative,
@@ -427,7 +426,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   }
 
   function _calcSlashFactor(
-    CustomIncrementCoinageMock coinage,
+    AutoRefactorCoinageI coinage,
     uint256 slashAmount
   ) internal returns (uint256) {
     uint256 prevTotalSupply = coinage.totalSupply();
@@ -482,15 +481,18 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     require(_coinages[rootchain].balanceOf(account) >= amount, "SeigManager: insufficiant balance to unstake");
 
     if (_isOperator(rootchain, account)) {
+      require(_coinages[rootchain].balanceOf(account) >= amount, "test 1234");
       uint256 newAmount = _coinages[rootchain].balanceOf(account).sub(amount);
       require(newAmount >= minimumAmount, "minimum amount is required");
     }
 
     // burn {v + ⍺} {tot} tokens to the root chain contract,
     uint256 totAmount = _additionalTotBurnAmount(rootchain, account, amount);
+    require(_tot.balanceOf(rootchain) >= amount.add(totAmount), "test 111");
     _tot.burnFrom(rootchain, amount.add(totAmount));
 
     // burn {v} {coinages[rootchain]} tokens to the account
+    require(_coinages[rootchain].balanceOf(account) >= amount, "test 222");
     _coinages[rootchain].burnFrom(account, amount);
 
     if (address(_powerton) != address(0)) {
@@ -533,7 +535,20 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     _addChallenger(account);
   }
 
-  function slash(address rootchain, address challenger) external onlyChallenger returns (bool) {
+  function transferCoinageOwnership(address newSeigManager, address[] calldata coinages) external onlyOwner {
+    for (uint256 i = 0; i < coinages.length; i++) {
+      AutoRefactorCoinageI c = AutoRefactorCoinageI(coinages[i]);
+      c.addMinter(newSeigManager);
+      c.renounceMinter();
+      c.transferOwnership(newSeigManager);
+    }
+  }
+
+  function renounceWTONMinter() external onlyOwner {
+    _wton.renounceMinter();
+  }
+
+  function slash(address rootchain, address challenger) external onlyChallenger checkCoinage(rootchain) returns (bool) {
     RootChainI(rootchain).changeOperator(challenger);
 
     return true;
@@ -584,7 +599,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   //////////////////////////////
 
   function uncomittedStakeOf(address rootchain, address account) external view returns (uint256) {
-    CustomIncrementCoinageMock coinage = _coinages[rootchain];
+    AutoRefactorCoinageI coinage = _coinages[rootchain];
 
     uint256 prevFactor = coinage.factor();
     uint256 prevTotalSupply = coinage.totalSupply();
@@ -637,8 +652,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     uint256 tos = _ton.totalSupply()
       .sub(_ton.balanceOf(address(_wton)))
       .mul(10 ** 9)                                       // convert TON total supply into ray
-      .add(_wton.totalSupply())                           // add WTON total supply
-      .add(_tot.totalSupply()).sub(_wton.totalSupply());  // consider additional TOT balance as total supply
+      .add(_tot.totalSupply());  // consider additional TOT balance as total supply
 
     // maximum seigniorages * staked rate
     uint256 stakedSeig = rdiv(
@@ -692,7 +706,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
 
     require(powertonSeig.add(daoSeig).add(relativeSeig) <= unstakedSeig, "powerton seig + dao seig exceeded unstaked amount");
 
-    emit SeigGiven(msg.sender, maxSeig, stakedSeig, unstakedSeig, powertonSeig);
+    emit SeigGiven(msg.sender, maxSeig, stakedSeig, unstakedSeig, powertonSeig, relativeSeig);
 
     return true;
   }

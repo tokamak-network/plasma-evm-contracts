@@ -1,6 +1,8 @@
 pragma solidity ^0.5.12;
 
-import { CustomIncrementCoinageMock } from "../../../node_modules/coinage-token/flatten.sol";
+//import { CustomIncrementCoinageMock } from "../../../node_modules/coinage-token/flatten.sol";
+//import { AutoRefactorCoinage } from "../../../node_modules/coinage-token/flatten.sol";
+import { AutoRefactorCoinage } from "../tokens/AutoRefactorCoinage.sol";
 import { CoinageFactoryI } from "../interfaces/CoinageFactoryI.sol";
 
 contract CoinageFactory is CoinageFactoryI {
@@ -10,17 +12,16 @@ contract CoinageFactory is CoinageFactoryI {
   address public seigManager;
 
   function deploy() external returns (address) {
-    require(seigManager != address(0), "SeigManager address is zero");
-    CustomIncrementCoinageMock c = new CustomIncrementCoinageMock(
+    //require(seigManager != address(0), "SeigManager address is zero");
+    AutoRefactorCoinage c = new AutoRefactorCoinage(
       "",
       "",
-      _DEFAULT_FACTOR,
-      false
+      _DEFAULT_FACTOR
     );
 
-    c.addMinter(seigManager);
+    c.addMinter(msg.sender);
     c.renounceMinter();
-    c.transferOwnership(seigManager);
+    c.transferOwnership(msg.sender);
 
     return address(c);
   }

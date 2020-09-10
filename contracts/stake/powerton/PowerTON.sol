@@ -38,9 +38,6 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   uint256 internal _roundDuration; // unix timestamp
   mapping(uint256 => Round) public rounds;
 
-  uint256 public constant REWARD_NUMERATOR = 8;
-  uint256 public constant REWARD_DENOMINATOR = 10;
-
   // sortition
   SortitionSumTreeFactory.SortitionSumTrees internal sortitionSumTrees;
   bool public initialized;
@@ -153,9 +150,7 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
     r.winner = winner;
 
 
-    uint256 reward = IERC20(_wton).balanceOf(address(this))
-      .mul(REWARD_NUMERATOR)
-      .div(REWARD_DENOMINATOR);
+    uint256 reward = IERC20(_wton).balanceOf(address(this));
 
     r.reward = reward;
 

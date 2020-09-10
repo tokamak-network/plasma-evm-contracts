@@ -11,6 +11,7 @@ const DepositManager = artifacts.require('DepositManager');
 const SeigManager = artifacts.require('SeigManager');
 const CoinageFactory = artifacts.require('CoinageFactory');
 const PowerTON = artifacts.require('PowerTON');
+const DAOVault = artifacts.require('DAOVault');
 
 // 1024 blocks
 // 93046 blocks (= 2 weeks)
@@ -60,6 +61,8 @@ module.exports = async function (deployer, network) {
       registry.address,
       withdrawalDelay,
     );
+    const factory = await deployer.deploy(CoinageFactory);
+    const daoVault = await deployer.deploy(DAOVault, ton.address, 0); // TODO: set timestamp parameter
     const seigManager = await deployer.deploy(
       SeigManager,
       ton.address,
@@ -67,6 +70,7 @@ module.exports = async function (deployer, network) {
       registry.address,
       depositManager.address,
       _WTON(SEIG_PER_BLOCK).toFixed('ray'),
+      factory.address,
     );
 
     const powerton = await deployer.deploy(

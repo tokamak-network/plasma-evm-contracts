@@ -20,10 +20,13 @@ const SubmitHandler = contract.fromArtifact('SubmitHandler');
 const RootChain = contract.fromArtifact('RootChain');
 const EtherToken = contract.fromArtifact('EtherToken');
 
+const CoinageFactory = contract.fromArtifact('CoinageFactory');
+
 const DepositManager = contract.fromArtifact('DepositManager');
 const SeigManager = contract.fromArtifact('SeigManager');
 const RootChainRegistry = contract.fromArtifact('RootChainRegistry');
-const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
+//const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
+const AutoRefactorCoinage = contract.fromArtifact('AutoRefactorCoinage');
 const PowerTON = contract.fromArtifact('PowerTON');
 
 const chai = require('chai');
@@ -84,13 +87,18 @@ describe('stake/DepositManager', function () {
       WITHDRAWAL_DELAY,
     );
 
+    this.factory = await CoinageFactory.new();
+
     this.seigManager = await SeigManager.new(
       this.ton.address,
       this.wton.address,
       this.registry.address,
       this.depositManager.address,
       _WTON('100').toFixed(WTON_UNIT),
+      this.factory.address
     );
+
+    this.factory.setSeigManager(this.seigManager.address);
 
     this.powerton = await PowerTON.new(
       this.seigManager.address,
@@ -121,8 +129,8 @@ describe('stake/DepositManager', function () {
     await this.wton.mint(tokenOwner, initialSupply.toFixed(WTON_UNIT));
 
     // load coinage and tot
-    this.coinage = await CustomIncrementCoinage.at(await this.seigManager.coinages(this.rootchain.address));
-    this.tot = await CustomIncrementCoinage.at(await this.seigManager.tot());
+    this.coinage = await AutoRefactorCoinage.at(await this.seigManager.coinages(this.rootchain.address));
+    this.tot = await AutoRefactorCoinage.at(await this.seigManager.tot());
   });
 
   describe('when the token owner tries to deposit', function () {
@@ -219,6 +227,40 @@ describe('stake/DepositManager', function () {
           expect(await this.depositManager.numPendingRequests(this.rootchain.address, tokenOwner))
             .to.be.bignumber.equal(toBN(index + 1));
         }
+      });
+
+      describe('withdrawal delay', function () {
+        function behaveWithDelay(globalValue, chainValue) {
+          it(`global delay ${globalValue}, chain delay ${chainValue}`, async function () {
+            await this.depositManager.setGlobalWithdrawalDelay(globalValue);
+            await this.depositManager.setWithdrawalDelay(this.rootchain.address, chainValue);
+
+            const actualDelay = globalValue > chainValue ? globalValue : chainValue;
+
+            await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+            const requestedBlock = await web3.eth.getBlock('latest');
+
+            for (var i = 0; i < actualDelay - 1; i++) {
+              await expectRevert(
+                this.depositManager.processRequest(this.rootchain.address, false, { from: tokenOwner }),
+                'DepositManager: wait for withdrawal delay',
+              );
+            }
+
+            const { tx } = await this.depositManager.processRequest(this.rootchain.address, true, { from: tokenOwner });
+
+            await expectEvent.inTransaction(tx, this.ton, 'Transfer', {
+              from: this.wton.address,
+              to: tokenOwner,
+              value: tokenAmount.toFixed(TON_UNIT),
+            });
+          });
+        }
+
+        const globalValue = [5, 7];
+        const chainValue = [6, 8];
+
+        globalValue.forEach(gv => chainValue.forEach(cv => behaveWithDelay(gv, cv)));
       });
 
       describe('before WITHDRAWAL_DELAY blocks are mined', function () {
