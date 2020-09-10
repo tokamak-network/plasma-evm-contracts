@@ -66,7 +66,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   Layer2RegistryI internal _registry;
   DepositManagerI internal _depositManager;
   PowerTONI internal _powerton;
-  address public _dao;
+  address public dao;
 
   //////////////////////////////
   // Token-related
@@ -223,7 +223,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   }
 
   function setDao(address daoAddress) external onlyOwner {
-    _dao = daoAddress;
+    dao = daoAddress;
   }
 
   /**
@@ -232,12 +232,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   function deployCoinage(address layer2) external onlyRegistry returns (bool) {
     // create new coinage token for the layer2 contract
     if (address(_coinages[layer2]) == address(0)) {
-      /*_coinages[layer2] = new CustomIncrementCoinageMock(
-        "",
-        "",
-        _DEFAULT_FACTOR,
-        false
-      );*/
       address c = factory.deploy();
       _lastCommitBlock[layer2] = block.number;
       addChallenger(layer2);
@@ -279,9 +273,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     return true;
   }
 
-  function getOperatorAmount(address layer2) public view returns (bool) {
+  function getOperatorAmount(address layer2) public view returns (uint256) {
     address operator = Layer2I(msg.sender).operator();
-    require(_coinages[layer2].balanceOf(operator) >= minimumAmount);
+    return _coinages[layer2].balanceOf(operator);
   }
 
   /**
@@ -296,6 +290,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     if (paused()) {
       return true;
     }
+
+    uint256 operatorAmount = getOperatorAmount(msg.sender);
+    require(operatorAmount >= minimumAmount);
 
     _increaseTot();
 
@@ -481,18 +478,15 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     require(_coinages[layer2].balanceOf(account) >= amount, "SeigManager: insufficiant balance to unstake");
 
     if (_isOperator(layer2, account)) {
-      require(_coinages[layer2].balanceOf(account) >= amount, "test 1234");
       uint256 newAmount = _coinages[layer2].balanceOf(account).sub(amount);
       require(newAmount >= minimumAmount, "minimum amount is required");
     }
 
     // burn {v + ⍺} {tot} tokens to the layer2 contract,
     uint256 totAmount = _additionalTotBurnAmount(layer2, account, amount);
-    require(_tot.balanceOf(layer2) >= amount.add(totAmount), "test 111");
     _tot.burnFrom(layer2, amount.add(totAmount));
 
     // burn {v} {coinages[layer2]} tokens to the account
-    require(_coinages[layer2].balanceOf(account) >= amount, "test 222");
     _coinages[layer2].burnFrom(account, amount);
 
     if (address(_powerton) != address(0)) {
@@ -503,14 +497,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
 
     return true;
   }
-
-  /*function setGlobalMinimumWithdrawalPeriod(uint256 minimumWithdrawalPeriod) external onlyOwner {
-    globalMinimumWithdrawalPeriod = minimumWithdrawalPeriod;
-  }*/
-
-  /*function setMinimumWithdrawalPeriod(uint256 minimumWithdrawalPeriod_) external onlyOwner {
-    minimumWithdrawalPeriod = minimumWithdrawalPeriod_;
-  }*/
 
   function setPowerTONSeigRate(uint256 powerTONSeigRate_) external onlyOwner {
     require(powerTONSeigRate_ > 0 && powerTONSeigRate_ < RAY, "exceeded seigniorage rate");
@@ -689,14 +675,12 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
 
     if (address(_powerton) != address(0)) {
       powertonSeig = unstakedSeig.mul(powerTONSeigRate).div(RAY);
-
       _wton.mint(address(_powerton), powertonSeig);
     }
 
-    if (_dao != address(0)) {
-      //daoSeig = unstakedSeig.mul(_factorDao).div(_DEFAULT_FACTOR);
+    if (dao != address(0)) {
       daoSeig = unstakedSeig.mul(daoSeigRate).div(RAY);
-      _wton.mint(address(_dao), daoSeig);
+      _wton.mint(address(dao), daoSeig);
     }
 
     if (relativeSeigRate != 0) {
@@ -704,7 +688,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
       accRelativeSeig = accRelativeSeig.add(relativeSeig);
     }
 
-    require(powertonSeig.add(daoSeig).add(relativeSeig) <= unstakedSeig, "powerton seig + dao seig exceeded unstaked amount");
+    //require(powertonSeig.add(daoSeig).add(relativeSeig) <= unstakedSeig, "powerton seig + dao seig exceeded unstaked amount");
 
     emit SeigGiven(msg.sender, maxSeig, stakedSeig, unstakedSeig, powertonSeig, relativeSeig);
 

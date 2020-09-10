@@ -62,7 +62,7 @@ module.exports = async function (deployer, network) {
       withdrawalDelay,
     );
     const factory = await deployer.deploy(CoinageFactory);
-    const daoVault = await deployer.deploy(DAOVault, ton.address, 0); // TODO: set timestamp parameter
+    const daoVault = await deployer.deploy(DAOVault, wton.address, 0); // TODO: set timestamp parameter
     const seigManager = await deployer.deploy(
       SeigManager,
       ton.address,

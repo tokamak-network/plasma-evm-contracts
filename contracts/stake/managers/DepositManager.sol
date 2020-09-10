@@ -72,7 +72,6 @@ contract DepositManager is Ownable, ERC165, OnApprove {
 
   // withdrawal delay in block number
   // @TODO: change delay unit to CYCLE?
-  //uint256 internal _WITHDRAWAL_DELAY;
   uint256 public globalWithdrawalDelay;
   mapping (address => uint256) public withdrawalDelay;
 
@@ -123,7 +122,6 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   ////////////////////
 
   function setSeigManager(SeigManagerI seigManager) external onlyOwner {
-    require(address(_seigManager) == address(0), "DepositManager: SeigManager is already set");
     _seigManager = seigManager;
   }
 
