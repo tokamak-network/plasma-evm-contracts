@@ -18,14 +18,14 @@ const TON = contract.fromArtifact('TON');
 
 const EpochHandler = contract.fromArtifact('EpochHandler');
 const SubmitHandler = contract.fromArtifact('SubmitHandler');
-const RootChain = contract.fromArtifact('RootChain');
+const Layer2 = contract.fromArtifact('Layer2');
 const EtherToken = contract.fromArtifact('EtherToken');
 
 const CoinageFactory = contract.fromArtifact('CoinageFactory');
 
 const DepositManager = contract.fromArtifact('DepositManager');
 const SeigManager = contract.fromArtifact('SeigManager');
-const RootChainRegistry = contract.fromArtifact('RootChainRegistry');
+const Layer2Registry = contract.fromArtifact('Layer2Registry');
 //const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
 const AutoRefactorCoinage = contract.fromArtifact('AutoRefactorCoinage');
 const PowerTON = contract.fromArtifact('PowerTON');
@@ -86,7 +86,7 @@ const ROUND_DURATION = time.duration.minutes(1);
 
 const MAX_COMMISSION_RATE = _WTON('1.0');
 
-class RootChainState {
+class Layer2State {
   constructor (NRE_LENGTH) {
     this.currentFork = 0;
     this.lastEpoch = 0;
@@ -110,31 +110,31 @@ function toWTONString (bn, d = 10) {
 /**
  *
  * @param {Contract} seigManager
- * @param {String} rootchainAddr
+ * @param {String} layer2Addr
  * @param {String} userAddr
  * @returns {Object.operatorSeigs}
  * @returns {Object.userSeigs}
  */
-async function expectedSeigs (seigManager, rootchainAddr, userAddr) {
+async function expectedSeigs (seigManager, layer2Addr, userAddr) {
   // contracts
-  const rootchain = await RootChain.at(rootchainAddr);
+  const layer2 = await Layer2.at(layer2Addr);
   const ton = await TON.at(await seigManager.ton());
   const wton = await TON.at(await seigManager.wton());
   const tot = await AutoRefactorCoinage.at(await seigManager.tot());
-  const coinageAddr = await seigManager.coinages(rootchainAddr);
+  const coinageAddr = await seigManager.coinages(layer2Addr);
   const coinage = await AutoRefactorCoinage.at(coinageAddr);
 
   // storages
-  const operator = await rootchain.operator();
+  const operator = await layer2.operator();
   const seigPerBlock = _WTON(await seigManager.seigPerBlock(), WTON_UNIT);
   const prevTotTotalSupply = _WTON(await tot.totalSupply(), WTON_UNIT);
-  const prevTotBalance = _WTON(await tot.balanceOf(rootchainAddr), WTON_UNIT);
+  const prevTotBalance = _WTON(await tot.balanceOf(layer2Addr), WTON_UNIT);
   const prevCoinageTotalSupply = _WTON(await coinage.totalSupply(), WTON_UNIT);
   const prevCoinageOperatorBalance = _WTON(await coinage.balanceOf(operator), WTON_UNIT);
   const prevCoinageUsersBalance = prevCoinageTotalSupply.minus(prevCoinageOperatorBalance);
   const prevCoinageUserBalance = _WTON(await coinage.balanceOf(userAddr), WTON_UNIT);
-  const commissioniRate = _WTON(await seigManager.commissionRates(rootchainAddr), WTON_UNIT);
-  const isCommissionRateNegative = await seigManager.isCommissionRateNegative(rootchainAddr);
+  const commissioniRate = _WTON(await seigManager.commissionRates(layer2Addr), WTON_UNIT);
+  const isCommissionRateNegative = await seigManager.isCommissionRateNegative(layer2Addr);
 
   // helpers
   async function calcNumSeigBlocks () {
@@ -167,10 +167,10 @@ async function expectedSeigs (seigManager, rootchainAddr, userAddr) {
   }
 
   const {stakedSeigs, pseigs} = await increaseTot();
-  const rootchainSeigs = stakedSeigs.plus(pseigs).times(prevTotBalance).div(prevTotTotalSupply);
+  const layer2Seigs = stakedSeigs.plus(pseigs).times(prevTotBalance).div(prevTotTotalSupply);
 
-  const operatorSeigs = rootchainSeigs.times(prevCoinageOperatorBalance).div(prevCoinageTotalSupply);
-  const usersSeigs = rootchainSeigs.times(prevCoinageUsersBalance).div(prevCoinageTotalSupply);
+  const operatorSeigs = layer2Seigs.times(prevCoinageOperatorBalance).div(prevCoinageTotalSupply);
+  const usersSeigs = layer2Seigs.times(prevCoinageUsersBalance).div(prevCoinageTotalSupply);
 
   function _calcSeigsDistribution () {
     let operatorSeigsWithCommissionRate = operatorSeigs;
@@ -223,7 +223,7 @@ async function expectedSeigs (seigManager, rootchainAddr, userAddr) {
   return {
     operatorSeigs: operatorSeigsWithCommissionRate,
     userSeigs: userSeigsWithCommissionRate,
-    rootchainSeigs: rootchainSeigs,
+    layer2Seigs: layer2Seigs,
     usersSeigs: usersSeigs,
   };
 }
@@ -251,19 +251,19 @@ describe('stake/SeigManager', function () {
 
   /**
    *
-   * @param {*} rootchain
-   * @param {RootChainState} rootchainState
+   * @param {*} layer2
+   * @param {Layer2State} layer2State
    */
-  async function submitDummyNRE (rootchain, rootchainState) {
-    const pos1 = makePos(rootchainState.currentFork, rootchainState.lastEpoch + 1);
-    const pos2 = makePos(rootchainState.lastBlock + 1, rootchainState.lastBlock + rootchainState.NRE_LENGTH);
+  async function submitDummyNRE (layer2, layer2State) {
+    const pos1 = makePos(layer2State.currentFork, layer2State.lastEpoch + 1);
+    const pos2 = makePos(layer2State.lastBlock + 1, layer2State.lastBlock + layer2State.NRE_LENGTH);
 
-    rootchainState.lastEpoch += 2; // skip ORE
-    rootchainState.lastBlock += rootchainState.NRE_LENGTH;
+    layer2State.lastEpoch += 2; // skip ORE
+    layer2State.lastBlock += layer2State.NRE_LENGTH;
 
-    const COST_NRB = await rootchain.COST_NRB();
+    const COST_NRB = await layer2.COST_NRB();
 
-    return rootchain.submitNRE(
+    return layer2.submitNRE(
       pos1,
       pos2,
       dummyStatesRoot,
@@ -273,10 +273,10 @@ describe('stake/SeigManager', function () {
     );
   }
 
-  async function submitDummyNREs (rootchain, rootchainState, n) {
+  async function submitDummyNREs (layer2, layer2State, n) {
     for (const _ of range(n)) {
       await time.increase(time.duration.seconds(1));
-      await submitDummyNRE(rootchain, rootchainState);
+      await submitDummyNRE(layer2, layer2State);
     }
   }
 
@@ -296,7 +296,7 @@ describe('stake/SeigManager', function () {
     const epochHandler = await EpochHandler.new();
     const submitHandler = await SubmitHandler.new(epochHandler.address);
 
-    this.rootchains = await Promise.all(range(NUM_ROOTCHAINS).map(_ => RootChain.new(
+    this.layer2s = await Promise.all(range(NUM_ROOTCHAINS).map(_ => Layer2.new(
       epochHandler.address,
       submitHandler.address,
       this.etherToken.address,
@@ -307,13 +307,13 @@ describe('stake/SeigManager', function () {
       dummyReceiptsRoot,
     )));
 
-    // root chain state in local
-    this.rootchainState = {};
-    for (const rootchain of this.rootchains) {
-      this.rootchainState[rootchain.address] = new RootChainState(NRE_LENGTH);
+    // layer2 state in local
+    this.layer2State = {};
+    for (const layer2 of this.layer2s) {
+      this.layer2State[layer2.address] = new Layer2State(NRE_LENGTH);
     }
 
-    this.registry = await RootChainRegistry.new();
+    this.registry = await Layer2Registry.new();
 
     this.depositManager = await DepositManager.new(
       this.wton.address,
@@ -356,10 +356,10 @@ describe('stake/SeigManager', function () {
       this.depositManager,
       this.wton,
     ].map(contract => contract.setSeigManager(this.seigManager.address)));
-    await Promise.all(this.rootchains.map(rootchain => rootchain.setSeigManager(this.seigManager.address)));
+    await Promise.all(this.layer2s.map(layer2 => layer2.setSeigManager(this.seigManager.address)));
 
-    // register root chain and deploy coinage
-    await Promise.all(this.rootchains.map(rootchain => this.registry.registerAndDeployCoinage(rootchain.address, this.seigManager.address)));
+    // register layer2 and deploy coinage
+    await Promise.all(this.layer2s.map(layer2 => this.registry.registerAndDeployCoinage(layer2.address, this.seigManager.address)));
 
     // mint TON to accounts
     await this.ton.mint(operator, TON_INITIAL_SUPPLY.toFixed(TON_UNIT));
@@ -368,21 +368,21 @@ describe('stake/SeigManager', function () {
     // load tot token and coinage tokens
     this.tot = await AutoRefactorCoinage.at(await this.seigManager.tot());
     const coinageAddrs = await Promise.all(
-      this.rootchains.map(rootchain => this.seigManager.coinages(rootchain.address)),
+      this.layer2s.map(layer2 => this.seigManager.coinages(layer2.address)),
     );
 
     this.coinages = [];
-    this.coinagesByRootChain = {};
+    this.coinagesByLayer2 = {};
     for (const addr of coinageAddrs) {
       const i = coinageAddrs.findIndex(a => a === addr);
       this.coinages[i] = await AutoRefactorCoinage.at(addr);
-      this.coinagesByRootChain[this.rootchains[i].address] = this.coinages[i];
+      this.coinagesByLayer2[this.layer2s[i].address] = this.coinages[i];
     }
 
     // contract-call wrapper functions
     this._deposit = (from, to, amount) => this.depositManager.deposit(to, amount, { from });
-    this._commit = (rootchain) => submitDummyNRE(rootchain, this.rootchainState[rootchain.address]);
-    this._multiCommit = (rootchain, n) => submitDummyNREs(rootchain, this.rootchainState[rootchain.address], n);
+    this._commit = (layer2) => submitDummyNRE(layer2, this.layer2State[layer2.address]);
+    this._multiCommit = (layer2, n) => submitDummyNREs(layer2, this.layer2State[layer2.address], n);
 
     this.seigManager.setPowerTONSeigRate(POWERTON_SEIG_RATE.toFixed(WTON_UNIT));
     this.seigManager.setDaoSeigRate(DAO_SEIG_RATE.toFixed(WTON_UNIT));
@@ -401,23 +401,23 @@ describe('stake/SeigManager', function () {
 
     await this.wton.approve(this.depositManager.address, tokenAmount.toFixed(WTON_UNIT), { from: operator });
     await expectRevert(
-      this._deposit(operator, this.rootchains[0].address, tokenAmount.toFixed(WTON_UNIT))
+      this._deposit(operator, this.layer2s[0].address, tokenAmount.toFixed(WTON_UNIT))
       , "minimum amount is required"
     );
   });
 
-  describe('when the token owner are the only depositor of each root chain', function () {
+  describe('when the token owner are the only depositor of each layer2', function () {
     beforeEach(async function () {
       await this.wton.swapFromTONAndTransfer(tokenOwner1, tokenOwnerInitialBalance.toFixed(TON_UNIT));
 
       await this.wton.approve(this.depositManager.address, tokenOwnerInitialBalance.toFixed(WTON_UNIT), { from: tokenOwner1 });
     });
 
-    describe('when the token owner equally deposit WTON to all root chains', function () {
+    describe('when the token owner equally deposit WTON to all layer2s', function () {
       beforeEach(async function () {
         // deposit from the token owner
-        this.receipts = await Promise.all(this.rootchains.map(
-          rootchain => this._deposit(tokenOwner1, rootchain.address, tokenAmount.toFixed(WTON_UNIT)),
+        this.receipts = await Promise.all(this.layer2s.map(
+          layer2 => this._deposit(tokenOwner1, layer2.address, tokenAmount.toFixed(WTON_UNIT)),
         ));
       });
 
@@ -427,9 +427,9 @@ describe('stake/SeigManager', function () {
 
       it('should emit Deposited event', function () {
         this.receipts.forEach(({ logs }, i) => {
-          const rootchain = this.rootchains[i];
+          const layer2 = this.layer2s[i];
           expectEvent.inLogs(logs, 'Deposited', {
-            rootchain: rootchain.address,
+            layer2: layer2.address,
             depositor: tokenOwner1,
             amount: tokenAmount.toFixed(WTON_UNIT),
           });
@@ -456,50 +456,50 @@ describe('stake/SeigManager', function () {
         ));
       });
 
-      it('tot balance of root chain must be increased by deposited WTON amount', async function () {
-        await Promise.all(this.rootchains.map(
-          async (rootchain) => {
-            expect(await this.tot.balanceOf(rootchain.address))
+      it('tot balance of layer2 must be increased by deposited WTON amount', async function () {
+        await Promise.all(this.layer2s.map(
+          async (layer2) => {
+            expect(await this.tot.balanceOf(layer2.address))
               .to.be.bignumber.equal(tokenAmount.toFixed(WTON_UNIT));
           },
         ));
       });
 
-      // multiple root chains test
+      // multiple layer2 test
       for (const _i in range(NUM_ROOTCHAINS)) {
         const i = Number(_i);
         const indices = range(0, i + 1);
         const c = indices.map(i => `${i}-th`).join(', ');
 
-        describe(`when ${c} root chains commits first ORE each`, function () {
+        describe(`when ${c} layer2 commits first ORE each`, function () {
           beforeEach(async function () {
             this.previousSeigBlock = await this.seigManager.lastSeigBlock();
 
-            this.totBalancesAtCommit = {}; // track tot balance when root chain is comitted
+            this.totBalancesAtCommit = {}; // track tot balance when layer2 is comitted
             this.accSeig = _WTON('0');
             this.seigs = [];
 
             o = '';
 
             for (const i of indices) {
-              const rootchain = this.rootchains[i];
+              const layer2 = this.layer2s[i];
 
               const sb0 = await this.seigManager.lastSeigBlock();
               const prevTotTotalSupply = await this.tot.totalSupply();
 
-              const prevBalance = await this.tot.balanceOf(rootchain.address);
+              const prevBalance = await this.tot.balanceOf(layer2.address);
 
               await time.advanceBlock();
               await time.advanceBlock();
               await time.advanceBlock();
-              const { tx } = await this._commit(rootchain);
+              const { tx } = await this._commit(layer2);
 
               const sb1 = await this.seigManager.lastSeigBlock();
               const curTotTotalSupply = await this.tot.totalSupply();
 
-              const curBalance = await this.tot.balanceOf(rootchain.address);
+              const curBalance = await this.tot.balanceOf(layer2.address);
 
-              this.totBalancesAtCommit[rootchain.address] = curBalance;
+              this.totBalancesAtCommit[layer2.address] = curBalance;
 
               const {
                 args: {
@@ -527,7 +527,7 @@ describe('stake/SeigManager', function () {
 
               o += `\n\n\n
     ${'-'.repeat(40)}
-    ${i}-th root chain first commit
+    ${i}-th layer2 first commit
     ${'-'.repeat(40)}
 
     totalStakedAmount     : ${_WTON(_totalStakedAmount, 'ray').toString().padStart(15)}
@@ -575,8 +575,8 @@ describe('stake/SeigManager', function () {
 
           for (const _i in indices) {
             const i = Number(_i);
-            it(`${i}-th root chain: check amount of total supply, balance, staked amount, uncomitted amount`, async function () {
-              const rootchain = this.rootchains[i];
+            it(`${i}-th layer2: check amount of total supply, balance, staked amount, uncomitted amount`, async function () {
+              const layer2 = this.layer2s[i];
 
               const accSeigAtCommit = this.seigs.slice(0, i + 1).reduce((a, b) => a.plus(b));
               const balnceAtCommit = tokenAmount.times(WTON_TON_RATIO)
@@ -586,45 +586,45 @@ describe('stake/SeigManager', function () {
               const balanceAtCurrent = tokenAmount.times(WTON_TON_RATIO)
                 .plus(accSeig.div(NUM_ROOTCHAINS));
 
-              // tot balance of a root chain
+              // tot balance of a layer2
               checkBalance(
-                this.totBalancesAtCommit[rootchain.address],
+                this.totBalancesAtCommit[layer2.address],
                 balnceAtCommit,
                 WTON_UNIT,
               );
 
               // coinage total supply
               checkBalance(
-                await this.coinagesByRootChain[rootchain.address].totalSupply(),
+                await this.coinagesByLayer2[layer2.address].totalSupply(),
                 balnceAtCommit,
                 WTON_UNIT,
               );
 
               // coinage balance of the tokwn owner
               checkBalance(
-                await this.coinagesByRootChain[rootchain.address].balanceOf(tokenOwner1),
+                await this.coinagesByLayer2[layer2.address].balanceOf(tokenOwner1),
                 balnceAtCommit,
                 WTON_UNIT,
               );
 
               // staked amount of the token owner
               checkBalance(
-                await this.seigManager.stakeOf(rootchain.address, tokenOwner1),
+                await this.seigManager.stakeOf(layer2.address, tokenOwner1),
                 balnceAtCommit,
                 WTON_UNIT,
               );
 
               // uncomitted amount of the tokwn owner
               checkBalance(
-                await this.seigManager.uncomittedStakeOf(rootchain.address, tokenOwner1),
+                await this.seigManager.uncomittedStakeOf(layer2.address, tokenOwner1),
                 balanceAtCurrent.minus(balnceAtCommit),
                 WTON_UNIT,
               );
             });
 
-            it(`${i}-th root chain: the tokwn owner should claim staked amount`, async function () {
-              const rootchain = this.rootchains[i];
-              const coinage = this.coinagesByRootChain[rootchain.address];
+            it(`${i}-th layer2: the tokwn owner should claim staked amount`, async function () {
+              const layer2 = this.layer2s[i];
+              const coinage = this.coinagesByLayer2[layer2.address];
 
               const precomitted = toBN(
                 (
@@ -633,8 +633,8 @@ describe('stake/SeigManager', function () {
                     : _WTON('0')
                 ).toFixed(WTON_UNIT),
               );
-              const amount = await this.seigManager.stakeOf(rootchain.address, tokenOwner1);
-              const additionalTotBurnAmount = await this.seigManager.additionalTotBurnAmount(rootchain.address, tokenOwner1, amount);
+              const amount = await this.seigManager.stakeOf(layer2.address, tokenOwner1);
+              const additionalTotBurnAmount = await this.seigManager.additionalTotBurnAmount(layer2.address, tokenOwner1, amount);
 
               // console.log(`
               // amount                     ${amount.toString(10).padStart(30)}
@@ -646,19 +646,19 @@ describe('stake/SeigManager', function () {
               const prevCoinageTotalSupply = await coinage.totalSupply();
               const prevCoinageBalance = await coinage.balanceOf(tokenOwner1);
               const prevTotTotalSupply = await this.tot.totalSupply();
-              const prevTotBalance = await this.tot.balanceOf(rootchain.address);
+              const prevTotBalance = await this.tot.balanceOf(layer2.address);
 
               // 1. make a withdrawal request
-              expect(await this.depositManager.pendingUnstaked(rootchain.address, tokenOwner1)).to.be.bignumber.equal('0');
-              expect(await this.depositManager.accUnstaked(rootchain.address, tokenOwner1)).to.be.bignumber.equal('0');
+              expect(await this.depositManager.pendingUnstaked(layer2.address, tokenOwner1)).to.be.bignumber.equal('0');
+              expect(await this.depositManager.accUnstaked(layer2.address, tokenOwner1)).to.be.bignumber.equal('0');
 
-              const tx = await this.depositManager.requestWithdrawal(rootchain.address, amount, { from: tokenOwner1 });
+              const tx = await this.depositManager.requestWithdrawal(layer2.address, amount, { from: tokenOwner1 });
 
               expectEvent.inLogs(
                 tx.logs,
                 'WithdrawalRequested',
                 {
-                  rootchain: rootchain.address,
+                  layer2: layer2.address,
                   depositor: tokenOwner1,
                   amount: amount,
                 },
@@ -670,32 +670,32 @@ describe('stake/SeigManager', function () {
               // console.log('totBurnAmount      ', totBurnAmount.toString(10).padStart(35));
               // console.log('diff               ', toBN(totBurnAmount).sub(toBN(coinageBurnAmount)).toString(10).padStart(35));
 
-              expect(await this.depositManager.pendingUnstaked(rootchain.address, tokenOwner1)).to.be.bignumber.equal(amount);
-              expect(await this.depositManager.accUnstaked(rootchain.address, tokenOwner1)).to.be.bignumber.equal('0');
+              expect(await this.depositManager.pendingUnstaked(layer2.address, tokenOwner1)).to.be.bignumber.equal(amount);
+              expect(await this.depositManager.accUnstaked(layer2.address, tokenOwner1)).to.be.bignumber.equal('0');
 
               // 2. process the request
-              await expectRevert(this.depositManager.processRequest(rootchain.address, false, { from: tokenOwner1 }), 'DepositManager: wait for withdrawal delay');
+              await expectRevert(this.depositManager.processRequest(layer2.address, false, { from: tokenOwner1 }), 'DepositManager: wait for withdrawal delay');
 
               await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
 
               expectEvent(
-                await this.depositManager.processRequest(rootchain.address, false, { from: tokenOwner1 }),
+                await this.depositManager.processRequest(layer2.address, false, { from: tokenOwner1 }),
                 'WithdrawalProcessed',
                 {
-                  rootchain: rootchain.address,
+                  layer2: layer2.address,
                   depositor: tokenOwner1,
                   amount: amount,
                 },
               );
 
-              expect(await this.depositManager.pendingUnstaked(rootchain.address, tokenOwner1)).to.be.bignumber.equal('0');
-              expect(await this.depositManager.accUnstaked(rootchain.address, tokenOwner1)).to.be.bignumber.equal(amount);
+              expect(await this.depositManager.pendingUnstaked(layer2.address, tokenOwner1)).to.be.bignumber.equal('0');
+              expect(await this.depositManager.accUnstaked(layer2.address, tokenOwner1)).to.be.bignumber.equal(amount);
 
               const curWTONBalance = await this.wton.balanceOf(tokenOwner1);
               const curCoinageTotalSupply = await coinage.totalSupply();
               const curCoinageBalance = await coinage.balanceOf(tokenOwner1);
               const curTotTotalSupply = await this.tot.totalSupply();
-              const curTotBalance = await this.tot.balanceOf(rootchain.address);
+              const curTotBalance = await this.tot.balanceOf(layer2.address);
 
               // 3. check tokens status
               expect(curWTONBalance.sub(prevWTONBalance))
@@ -723,7 +723,7 @@ describe('stake/SeigManager', function () {
         });
       }
 
-      describe('when 0-th root chain commits 10 times', function () {
+      describe('when 0-th layer2 commits 10 times', function () {
         const i = 0;
         const n = 10;
 
@@ -736,7 +736,7 @@ describe('stake/SeigManager', function () {
           for (const _ of range(n)) {
             this.seigBlocks.push(await this.seigManager.lastSeigBlock());
             this.totTotalSupplies.push(await this.tot.totalSupply());
-            await this._commit(this.rootchains[i]);
+            await this._commit(this.layer2s[i]);
           }
           this.seigBlocks.push(await this.seigManager.lastSeigBlock());
           this.totTotalSupplies.push(await this.tot.totalSupply());
@@ -808,8 +808,8 @@ describe('stake/SeigManager', function () {
           }
         });
 
-        it(`${i}-th root chain: check amount of total supply, balance, staked amount`, async function () {
-          const rootchain = this.rootchains[i];
+        it(`${i}-th layer2: check amount of total supply, balance, staked amount`, async function () {
+          const layer2 = this.layer2s[i];
 
           const expected = tokenAmount.times(WTON_TON_RATIO).plus(this.accSeig.div(4)); // actually not .div(4)...
 
@@ -817,21 +817,21 @@ describe('stake/SeigManager', function () {
 
           // coinage total supply
           checkBalance(
-            await this.coinagesByRootChain[rootchain.address].totalSupply(),
+            await this.coinagesByLayer2[layer2.address].totalSupply(),
             expected,
             WTON_UNIT,
           );
 
           // coinage balance of the tokwn owner
           checkBalance(
-            await this.coinagesByRootChain[rootchain.address].balanceOf(tokenOwner1),
+            await this.coinagesByLayer2[layer2.address].balanceOf(tokenOwner1),
             expected,
             WTON_UNIT,
           );
 
           // staked amount of the token owner
           checkBalance(
-            await this.seigManager.stakeOf(rootchain.address, tokenOwner1),
+            await this.seigManager.stakeOf(layer2.address, tokenOwner1),
             expected,
             WTON_UNIT,
           );
@@ -841,7 +841,7 @@ describe('stake/SeigManager', function () {
           let wtonAmount;
 
           beforeEach(async function () {
-            wtonAmount = await this.seigManager.stakeOf(this.rootchains[i].address, tokenOwner1);
+            wtonAmount = await this.seigManager.stakeOf(this.layer2s[i].address, tokenOwner1);
           });
 
           it('should withdraw', async function () {
@@ -850,11 +850,11 @@ describe('stake/SeigManager', function () {
             const depositManagerWtonBalance0 = await this.wton.balanceOf(this.depositManager.address);
             const deposit0 = await this.coinages[0].balanceOf(tokenOwner1);
 
-            await this.depositManager.requestWithdrawal(this.rootchains[i].address, wtonAmount, { from: tokenOwner1 });
+            await this.depositManager.requestWithdrawal(this.layer2s[i].address, wtonAmount, { from: tokenOwner1 });
 
             await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
 
-            await this.depositManager.processRequest(this.rootchains[i].address, false, { from: tokenOwner1 });
+            await this.depositManager.processRequest(this.layer2s[i].address, false, { from: tokenOwner1 });
 
             const factor1 = await this.coinages[0].factor();
             const tokenOwnerWtonBalance1 = await this.wton.balanceOf(tokenOwner1);
@@ -876,11 +876,11 @@ describe('stake/SeigManager', function () {
             let test11 = toBN('100000000000000000000');
             await this.wton.swapFromTONAndTransfer(tokenOwner2, test11);
             await this.wton.approve(this.depositManager.address, test11, { from: tokenOwner2 });
-            await this._deposit(tokenOwner2, this.rootchains[0].address, test11);
+            await this._deposit(tokenOwner2, this.layer2s[0].address, test11);
 
             //await this.wton.swapFromTONAndTransfer(tokenOwner1, toBN('100'));
             await this.wton.approve(this.depositManager.address, test11, { from: tokenOwner1 });
-            await this._deposit(tokenOwner1, this.rootchains[0].address, test11);
+            await this._deposit(tokenOwner1, this.layer2s[0].address, test11);
 
             const factor2 = await this.coinages[0].factor();
             const tokenOwnerWtonBalance2 = await this.wton.balanceOf(tokenOwner1);
@@ -911,11 +911,11 @@ describe('stake/SeigManager', function () {
             const tokenOwnerWtonBalance0 = await this.wton.balanceOf(tokenOwner1);
             const depositManagerWtonBalance0 = await this.wton.balanceOf(this.depositManager.address);
 
-            await this.depositManager.requestWithdrawal(this.rootchains[i].address, wtonAmount, { from: tokenOwner1 });
+            await this.depositManager.requestWithdrawal(this.layer2s[i].address, wtonAmount, { from: tokenOwner1 });
 
             await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
 
-            await this.depositManager.redeposit(this.rootchains[i].address, { from: tokenOwner1 });
+            await this.depositManager.redeposit(this.layer2s[i].address, { from: tokenOwner1 });
 
             const tokenOwnerWtonBalance1 = await this.wton.balanceOf(tokenOwner1);
             const depositManagerWtonBalance1 = await this.wton.balanceOf(this.depositManager.address);
@@ -928,24 +928,24 @@ describe('stake/SeigManager', function () {
             let tonAmount;
 
             beforeEach(async function () {
-              await this.depositManager.requestWithdrawal(this.rootchains[i].address, wtonAmount, { from: tokenOwner1 });
+              await this.depositManager.requestWithdrawal(this.layer2s[i].address, wtonAmount, { from: tokenOwner1 });
 
               await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
 
               const tonBalance0 = await this.ton.balanceOf(tokenOwner1);
-              await this.depositManager.processRequest(this.rootchains[i].address, true, { from: tokenOwner1 });
+              await this.depositManager.processRequest(this.layer2s[i].address, true, { from: tokenOwner1 });
               const tonBalance1 = await this.ton.balanceOf(tokenOwner1);
 
               tonAmount = tonBalance1.sub(tonBalance0);
             });
 
-            it('the root chain can commit next epochs', async function () {
-              await this._multiCommit(this.rootchains[i], 10);
+            it('the layer2 can commit next epochs', async function () {
+              await this._multiCommit(this.layer2s[i], 10);
             });
 
             it('the token holder can deposit again', async function () {
               const data = marshalString(
-                [this.depositManager.address, this.rootchains[i].address]
+                [this.depositManager.address, this.layer2s[i].address]
                   .map(unmarshalString)
                   .map(str => padLeft(str, 64))
                   .join(''),
@@ -959,14 +959,14 @@ describe('stake/SeigManager', function () {
               );
             });
 
-            describe('after the root chain commits 10 epochs', function () {
+            describe('after the layer2 commits 10 epochs', function () {
               beforeEach(async function () {
-                await this._multiCommit(this.rootchains[i], 10);
+                await this._multiCommit(this.layer2s[i], 10);
               });
 
               it('the token holder can deposit again', async function () {
                 const data = marshalString(
-                  [this.depositManager.address, this.rootchains[i].address]
+                  [this.depositManager.address, this.layer2s[i].address]
                     .map(unmarshalString)
                     .map(str => padLeft(str, 64))
                     .join(''),
@@ -984,14 +984,14 @@ describe('stake/SeigManager', function () {
 
           describe('when the token holder make withdrawal request', async function () {
             beforeEach(async function () {
-              await this.depositManager.requestWithdrawal(this.rootchains[i].address, wtonAmount, { from: tokenOwner1 });
+              await this.depositManager.requestWithdrawal(this.layer2s[i].address, wtonAmount, { from: tokenOwner1 });
             });
 
             it('the token owner can re-deposit', async function () {
-              const tx = await this.depositManager.redeposit(this.rootchains[i].address, { from: tokenOwner1 });
+              const tx = await this.depositManager.redeposit(this.layer2s[i].address, { from: tokenOwner1 });
 
               expectEvent.inLogs(tx.logs, 'Deposited', {
-                rootchain: this.rootchains[i].address,
+                layer2: this.layer2s[i].address,
                 depositor: tokenOwner1,
                 amount: wtonAmount,
               });
@@ -1001,26 +1001,26 @@ describe('stake/SeigManager', function () {
               beforeEach(async function () {
                 await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
 
-                await this.depositManager.processRequest(this.rootchains[i].address, false, { from: tokenOwner1 });
+                await this.depositManager.processRequest(this.layer2s[i].address, false, { from: tokenOwner1 });
               });
 
-              it('the root chain can commit next epochs', async function () {
-                await Promise.all(range(10).map(_ => this._commit(this.rootchains[i])));
+              it('the layer2 can commit next epochs', async function () {
+                await Promise.all(range(10).map(_ => this._commit(this.layer2s[i])));
               });
 
               it('the token holder can deposit again', async function () {
                 await this.wton.approve(this.depositManager.address, wtonAmount, { from: tokenOwner1 });
-                await this._deposit(tokenOwner1, this.rootchains[i].address, wtonAmount);
+                await this._deposit(tokenOwner1, this.layer2s[i].address, wtonAmount);
               });
 
-              describe('after the root chain commits 10 epochs', function () {
+              describe('after the layer2 commits 10 epochs', function () {
                 beforeEach(async function () {
-                  await Promise.all(range(10).map(_ => this._commit(this.rootchains[i])));
+                  await Promise.all(range(10).map(_ => this._commit(this.layer2s[i])));
                 });
 
                 it('the token holder can deposit again', async function () {
                   await this.wton.approve(this.depositManager.address, wtonAmount, { from: tokenOwner1 });
-                  await this._deposit(tokenOwner1, this.rootchains[i].address, wtonAmount);
+                  await this._deposit(tokenOwner1, this.layer2s[i].address, wtonAmount);
                 });
               });
             });
@@ -1033,18 +1033,18 @@ describe('stake/SeigManager', function () {
           let amount;
 
           beforeEach(async function () {
-            amount = (await this.seigManager.stakeOf(this.rootchains[i].address, tokenOwner1)).div(nBN);
+            amount = (await this.seigManager.stakeOf(this.layer2s[i].address, tokenOwner1)).div(nBN);
           });
 
           it('should withdraw', async function () {
             const tokenOwnerWtonBalance0 = await this.wton.balanceOf(tokenOwner1);
             const depositManagerWtonBalance0 = await this.wton.balanceOf(this.depositManager.address);
 
-            await Promise.all(range(n).map(_ => this.depositManager.requestWithdrawal(this.rootchains[i].address, amount, { from: tokenOwner1 })));
+            await Promise.all(range(n).map(_ => this.depositManager.requestWithdrawal(this.layer2s[i].address, amount, { from: tokenOwner1 })));
 
             await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
 
-            await Promise.all(range(n).map(_ => this.depositManager.processRequest(this.rootchains[i].address, false, { from: tokenOwner1 })));
+            await Promise.all(range(n).map(_ => this.depositManager.processRequest(this.layer2s[i].address, false, { from: tokenOwner1 })));
 
             const tokenOwnerWtonBalance1 = await this.wton.balanceOf(tokenOwner1);
             const depositManagerWtonBalance1 = await this.wton.balanceOf(this.depositManager.address);
@@ -1057,11 +1057,11 @@ describe('stake/SeigManager', function () {
             const tokenOwnerWtonBalance0 = await this.wton.balanceOf(tokenOwner1);
             const depositManagerWtonBalance0 = await this.wton.balanceOf(this.depositManager.address);
 
-            await Promise.all(range(n).map(_ => this.depositManager.requestWithdrawal(this.rootchains[i].address, amount, { from: tokenOwner1 })));
+            await Promise.all(range(n).map(_ => this.depositManager.requestWithdrawal(this.layer2s[i].address, amount, { from: tokenOwner1 })));
 
             await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
 
-            await Promise.all(range(n).map(_ => this.depositManager.redeposit(this.rootchains[i].address, { from: tokenOwner1 })));
+            await Promise.all(range(n).map(_ => this.depositManager.redeposit(this.layer2s[i].address, { from: tokenOwner1 })));
 
             const tokenOwnerWtonBalance1 = await this.wton.balanceOf(tokenOwner1);
             const depositManagerWtonBalance1 = await this.wton.balanceOf(this.depositManager.address);
@@ -1073,24 +1073,24 @@ describe('stake/SeigManager', function () {
 
         function behaveWhenPausedOrNot () {
           it('commit should not be reverted', async function () {
-            await this._commit(this.rootchains[i]);
+            await this._commit(this.layer2s[i]);
           });
 
           it('deposit should not be reverted', async function () {
             const from = tokenOwner1;
             const balance = (await this.wton.balanceOf(from)).div(toBN(NUM_ROOTCHAINS));
-            await Promise.all(this.rootchains.map(
-              (rootchain) =>
-                this._deposit(from, rootchain.address, balance),
+            await Promise.all(this.layer2s.map(
+              (layer2) =>
+                this._deposit(from, layer2.address, balance),
             ));
           });
 
           it('withdrawal should not be reverted', async function () {
             await Promise.all(
-              this.rootchains.map(async (rootchain) => {
-                const staked = await this.seigManager.stakeOf(rootchain.address, tokenOwner1);
+              this.layer2s.map(async (layer2) => {
+                const staked = await this.seigManager.stakeOf(layer2.address, tokenOwner1);
                 if (staked.cmp(toBN('0')) > 0) {
-                  return this.depositManager.requestWithdrawal(rootchain.address, staked, { from: tokenOwner1 });
+                  return this.depositManager.requestWithdrawal(layer2.address, staked, { from: tokenOwner1 });
                 }
               }),
             );
@@ -1098,14 +1098,14 @@ describe('stake/SeigManager', function () {
             await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
 
             await Promise.all(
-              this.rootchains.map(async (rootchain) => {
-                const numPendingRequests = await this.depositManager.numPendingRequests(rootchain.address, tokenOwner1);
+              this.layer2s.map(async (layer2) => {
+                const numPendingRequests = await this.depositManager.numPendingRequests(layer2.address, tokenOwner1);
 
                 if (numPendingRequests.cmp(toBN('0')) > 0) {
-                  await this.depositManager.processRequests(rootchain.address, numPendingRequests, false, { from: tokenOwner1 });
+                  await this.depositManager.processRequests(layer2.address, numPendingRequests, false, { from: tokenOwner1 });
                 }
 
-                const staked = await this.seigManager.stakeOf(rootchain.address, tokenOwner1);
+                const staked = await this.seigManager.stakeOf(layer2.address, tokenOwner1);
                 expect(staked).to.be.bignumber.equal('0');
               }),
             );
@@ -1117,11 +1117,11 @@ describe('stake/SeigManager', function () {
 
           async function makeWithdrawalRequest (n) {
             await Promise.all(
-              this.rootchains.slice(0, n).map(async (rootchain) => {
-                const staked = await this.seigManager.stakeOf(rootchain.address, tokenOwner1);
+              this.layer2s.slice(0, n).map(async (layer2) => {
+                const staked = await this.seigManager.stakeOf(layer2.address, tokenOwner1);
                 const amount = staked.div(toBN(2));
                 if (amount.cmp(toBN('0')) > 0) {
-                  return this.depositManager.requestWithdrawal(rootchain.address, amount, { from: tokenOwner1 });
+                  return this.depositManager.requestWithdrawal(layer2.address, amount, { from: tokenOwner1 });
                 }
               }),
             );
@@ -1134,7 +1134,7 @@ describe('stake/SeigManager', function () {
 
           it('seigniorage must not be given', async function () {
             const totTotalSupply1 = await this.tot.totalSupply();
-            await this._commit(this.rootchains[i]);
+            await this._commit(this.layer2s[i]);
             const totTotalSupply2 = await this.tot.totalSupply();
 
             expect(totTotalSupply2).to.be.bignumber.equal(totTotalSupply1);
@@ -1151,7 +1151,7 @@ describe('stake/SeigManager', function () {
             // TODO: check seig amount
             it('seigniorage must be given', async function () {
               const totTotalSupply1 = await this.tot.totalSupply();
-              await this._commit(this.rootchains[i]);
+              await this._commit(this.layer2s[i]);
               const totTotalSupply2 = await this.tot.totalSupply();
 
               expect(totTotalSupply2).to.be.bignumber.gt(totTotalSupply1);
@@ -1160,7 +1160,7 @@ describe('stake/SeigManager', function () {
         });
       });
 
-      describe('when 0-th root chain changes commission rate with operator deposit', function () {
+      describe('when 0-th layer2 changes commission rate with operator deposit', function () {
         const i = 0;
         const n = 1;
 
@@ -1191,36 +1191,36 @@ describe('stake/SeigManager', function () {
               await this.wton.approve(this.depositManager.address, operatorAmount.times(NUM_ROOTCHAINS).toFixed(WTON_UNIT), { from: operator });
             });
 
-            describe(`when 0-th root chain has ${commissionRateSignStr} commission rate of ${commissionPercent}%`, function () {
-              it(`the root chain can commit next ${n} epochs`, async function () {
-                await this._multiCommit(this.rootchains[i], n);
+            describe(`when 0-th layer2 has ${commissionRateSignStr} commission rate of ${commissionPercent}%`, function () {
+              it(`the layer2 can commit next ${n} epochs`, async function () {
+                await this._multiCommit(this.layer2s[i], n);
               });
 
               beforeEach(async function () {
-                await this.seigManager.setCommissionRate(this.rootchains[i].address, commissionRate.toFixed(WTON_UNIT), isCommissionRateNegative);
+                await this.seigManager.setCommissionRate(this.layer2s[i].address, commissionRate.toFixed(WTON_UNIT), isCommissionRateNegative);
 
-                await Promise.all(this.rootchains.map(
-                  rootchain => this._deposit(operator, rootchain.address, operatorAmount.toFixed(WTON_UNIT)),
+                await Promise.all(this.layer2s.map(
+                  layer2 => this._deposit(operator, layer2.address, operatorAmount.toFixed(WTON_UNIT)),
                 ));
                 depositBlock = await web3.eth.getBlockNumber();
               });
 
-              describe('when the root chain commits once', function () {
+              describe('when the layer2 commits once', function () {
                 it('exact amount of seig must be given to token owner and operator', async function () {
-                  const rootchainAddr = this.rootchains[i].address;
+                  const layer2Addr = this.layer2s[i].address;
 
                   const {
                     operatorSeigs: expectedOperatorSeigs,
                     userSeigs: expectedTokenOwnerSeigs,
-                  } = await expectedSeigs(this.seigManager, rootchainAddr, tokenOwner1);
+                  } = await expectedSeigs(this.seigManager, layer2Addr, tokenOwner1);
 
-                  const beforeOperatorStake = await this.seigManager.stakeOf(rootchainAddr, operator);
-                  const beforeTokenOwnerStake = await this.seigManager.stakeOf(rootchainAddr, tokenOwner1);
+                  const beforeOperatorStake = await this.seigManager.stakeOf(layer2Addr, operator);
+                  const beforeTokenOwnerStake = await this.seigManager.stakeOf(layer2Addr, tokenOwner1);
 
-                  await this._commit(this.rootchains[i]);
+                  await this._commit(this.layer2s[i]);
 
-                  const afterOperatorStake = await this.seigManager.stakeOf(rootchainAddr, operator);
-                  const afterTokenOwnerStake = await this.seigManager.stakeOf(rootchainAddr, tokenOwner1);
+                  const afterOperatorStake = await this.seigManager.stakeOf(layer2Addr, operator);
+                  const afterTokenOwnerStake = await this.seigManager.stakeOf(layer2Addr, tokenOwner1);
 
                   /*console.log(`
                   beforeOperatorStake                 : ${beforeOperatorStake}
@@ -1235,7 +1235,7 @@ describe('stake/SeigManager', function () {
                 });
               });
 
-              describe('when the root chain commits multiple times', async function () {
+              describe('when the layer2 commits multiple times', async function () {
                 let beforeCoinageTotalSupply;
                 let afterCoinageTotalSupply;
 
@@ -1247,16 +1247,16 @@ describe('stake/SeigManager', function () {
 
                 beforeEach(async function () {
                   beforeCoinageTotalSupply = await this.coinages[i].totalSupply();
-                  beforeOperatorStake = await this.seigManager.stakeOf(this.rootchains[i].address, operator);
-                  beforeCommitBlock = await this.seigManager.lastCommitBlock(this.rootchains[i].address);
+                  beforeOperatorStake = await this.seigManager.stakeOf(this.layer2s[i].address, operator);
+                  beforeCommitBlock = await this.seigManager.lastCommitBlock(this.layer2s[i].address);
 
                   //console.log('beforeOperatorStake', toWTONString(beforeOperatorStake));
 
-                  await this._multiCommit(this.rootchains[i], n);
+                  await this._multiCommit(this.layer2s[i], n);
 
                   afterCoinageTotalSupply = await this.coinages[i].totalSupply();
-                  afterOperatorStake = await this.seigManager.stakeOf(this.rootchains[i].address, operator);
-                  afterCommitBlock = await this.seigManager.lastCommitBlock(this.rootchains[i].address);
+                  afterOperatorStake = await this.seigManager.stakeOf(this.layer2s[i].address, operator);
+                  afterCommitBlock = await this.seigManager.lastCommitBlock(this.layer2s[i].address);
 
                   //console.log('afterOperatorStake', toWTONString(afterOperatorStake));
                 });
@@ -1333,7 +1333,7 @@ describe('stake/SeigManager', function () {
     });
   });
 
-  describe('when 2 token owners deposit to each root chains', async function () {
+  describe('when 2 token owners deposit to each layer2s', async function () {
     beforeEach(async function () {
       await Promise.all([tokenOwner1, tokenOwner2].map(async (tokenOwner) => {
         await this.wton.swapFromTONAndTransfer(tokenOwner, tokenOwnerInitialBalance.toFixed(TON_UNIT));
@@ -1345,85 +1345,85 @@ describe('stake/SeigManager', function () {
       const commissionPercent = commissionRate.toNumber() * 100;
       const commissionRateSignStr = isCommissionRateNegative ? 'negative' : 'positive';
 
-      describe(`when all root chains have ${commissionRateSignStr} commission rate of ${commissionPercent}%`, function () {
+      describe(`when all layer2s have ${commissionRateSignStr} commission rate of ${commissionPercent}%`, function () {
         beforeEach(async function () {
           if (commissionPercent > 0) {
-            await Promise.all(this.rootchains.map(
-              rootchain => this.seigManager.setCommissionRate(rootchain.address, commissionRate.toFixed(WTON_UNIT), isCommissionRateNegative),
+            await Promise.all(this.layer2s.map(
+              layer2 => this.seigManager.setCommissionRate(layer2.address, commissionRate.toFixed(WTON_UNIT), isCommissionRateNegative),
             ));
           }
         });
 
-        describe('when the first owner deposit 95% of his balance to 0-th root chain, and the second one deposits 5% of his balance', function () {
+        describe('when the first owner deposit 95% of his balance to 0-th layer2, and the second one deposits 5% of his balance', function () {
           const amount1 = tokenOwnerInitialBalance.div(20).times(19).div(NUM_ROOTCHAINS);
           const amount2 = tokenOwnerInitialBalance.div(20).div(NUM_ROOTCHAINS);
 
           beforeEach(async function () {
-            await Promise.all(this.rootchains.map(rootchain => this._deposit(tokenOwner1, rootchain.address, amount1.toFixed(WTON_UNIT))));
-            await Promise.all(this.rootchains.map(rootchain => this._deposit(tokenOwner2, rootchain.address, amount2.toFixed(WTON_UNIT))));
+            await Promise.all(this.layer2s.map(layer2 => this._deposit(tokenOwner1, layer2.address, amount1.toFixed(WTON_UNIT))));
+            await Promise.all(this.layer2s.map(layer2 => this._deposit(tokenOwner2, layer2.address, amount2.toFixed(WTON_UNIT))));
           });
 
           it('the first owner can make a withdraw request with all staked tokens', async function () {
             const from = tokenOwner1;
 
-            await Promise.all(this.rootchains.map(async (rootchain) => {
-              const staked = await this.seigManager.stakeOf(rootchain.address, from);
+            await Promise.all(this.layer2s.map(async (layer2) => {
+              const staked = await this.seigManager.stakeOf(layer2.address, from);
 
-              await this.depositManager.requestWithdrawal(rootchain.address, staked, { from });
+              await this.depositManager.requestWithdrawal(layer2.address, staked, { from });
             }));
           });
 
           it('the second owner can make a withdraw request with all staked tokens', async function () {
             const from = tokenOwner2;
 
-            await Promise.all(this.rootchains.map(async (rootchain) => {
-              const staked = await this.seigManager.stakeOf(rootchain.address, from);
+            await Promise.all(this.layer2s.map(async (layer2) => {
+              const staked = await this.seigManager.stakeOf(layer2.address, from);
 
-              await this.depositManager.requestWithdrawal(rootchain.address, staked, { from });
+              await this.depositManager.requestWithdrawal(layer2.address, staked, { from });
             }));
           });
 
-          describe('when 0-th root chain commits multiple times', function () {
+          describe('when 0-th layer2 commits multiple times', function () {
             const i = 0;
             const n = 50;
 
             beforeEach(async function () {
-              const rootchain = this.rootchains[i];
-              await this._multiCommit(rootchain, n);
+              const layer2 = this.layer2s[i];
+              await this._multiCommit(layer2, n);
             });
 
-            it('the first owner can make a withdraw request with all staked tokens from all root chains', async function () {
+            it('the first owner can make a withdraw request with all staked tokens from all layer2s', async function () {
               const from = tokenOwner1;
 
-              await Promise.all(this.rootchains.map(async (rootchain, j) => {
-                const staked = await this.seigManager.stakeOf(rootchain.address, from);
+              await Promise.all(this.layer2s.map(async (layer2, j) => {
+                const staked = await this.seigManager.stakeOf(layer2.address, from);
 
                 // NOTE: error found here
-                await this.depositManager.requestWithdrawal(rootchain.address, staked, { from });
+                await this.depositManager.requestWithdrawal(layer2.address, staked, { from });
               }));
             });
 
-            it('the second owner can make a withdraw request with all staked tokens from all root chains', async function () {
+            it('the second owner can make a withdraw request with all staked tokens from all layer2s', async function () {
               const from = tokenOwner2;
 
-              await Promise.all(this.rootchains.map(async (rootchain, j) => {
-                const staked = await this.seigManager.stakeOf(rootchain.address, from);
+              await Promise.all(this.layer2s.map(async (layer2, j) => {
+                const staked = await this.seigManager.stakeOf(layer2.address, from);
 
-                await this.depositManager.requestWithdrawal(rootchain.address, staked, { from });
+                await this.depositManager.requestWithdrawal(layer2.address, staked, { from });
               }));
             });
 
-            it('both owners can make withdraw requests with all staked tokens from all root chains', async function () {
-              await Promise.all(this.rootchains.map(async (rootchain, j) => {
-                const staked1 = await this.seigManager.stakeOf(rootchain.address, tokenOwner1);
-                const staked2 = await this.seigManager.stakeOf(rootchain.address, tokenOwner2);
+            it('both owners can make withdraw requests with all staked tokens from all layer2s', async function () {
+              await Promise.all(this.layer2s.map(async (layer2, j) => {
+                const staked1 = await this.seigManager.stakeOf(layer2.address, tokenOwner1);
+                const staked2 = await this.seigManager.stakeOf(layer2.address, tokenOwner2);
 
-                await this.depositManager.requestWithdrawal(rootchain.address, staked1, { from: tokenOwner1 });
-                await this.depositManager.requestWithdrawal(rootchain.address, staked2, { from: tokenOwner2 });
+                await this.depositManager.requestWithdrawal(layer2.address, staked1, { from: tokenOwner1 });
+                await this.depositManager.requestWithdrawal(layer2.address, staked2, { from: tokenOwner2 });
               }));
             });
 
-            describe('when all root chains commit multiple times', function () {
+            describe('when all layer2s commit multiple times', function () {
               beforeEach(async function () {
                 for (const _ of range(10)) {
                   await Promise.all(range(10).map(async (_) => {
@@ -1431,17 +1431,17 @@ describe('stake/SeigManager', function () {
                     await time.increase(time.duration.seconds(10));
                   }));
 
-                  await Promise.all(this.rootchains.map((rootchain) => this._multiCommit(rootchain, 10)));
+                  await Promise.all(this.layer2s.map((layer2) => this._multiCommit(layer2, 10)));
                 }
               });
 
-              it('both owners can make withdraw requests with all staked tokens from all root chains', async function () {
-                await Promise.all(this.rootchains.map(async (rootchain, j) => {
-                  const staked1 = await this.seigManager.stakeOf(rootchain.address, tokenOwner1);
-                  const staked2 = await this.seigManager.stakeOf(rootchain.address, tokenOwner2);
+              it('both owners can make withdraw requests with all staked tokens from all layer2s', async function () {
+                await Promise.all(this.layer2s.map(async (layer2, j) => {
+                  const staked1 = await this.seigManager.stakeOf(layer2.address, tokenOwner1);
+                  const staked2 = await this.seigManager.stakeOf(layer2.address, tokenOwner2);
 
-                  await this.depositManager.requestWithdrawal(rootchain.address, staked1, { from: tokenOwner1 });
-                  await this.depositManager.requestWithdrawal(rootchain.address, staked2, { from: tokenOwner2 });
+                  await this.depositManager.requestWithdrawal(layer2.address, staked1, { from: tokenOwner1 });
+                  await this.depositManager.requestWithdrawal(layer2.address, staked2, { from: tokenOwner2 });
                 }));
               });
             });

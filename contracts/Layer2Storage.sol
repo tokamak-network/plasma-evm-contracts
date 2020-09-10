@@ -3,7 +3,7 @@ pragma solidity ^0.5.12;
 import "./lib/Data.sol";
 
 
-contract RootChainStorage {
+contract Layer2Storage {
   /*
    * Storage
    */
@@ -99,6 +99,6 @@ contract RootChainStorage {
   // Gas limit for request trasaction
   uint public constant REQUEST_GAS = 100000;
 
-  bool public constant isRootChain = true;
+  bool public constant isLayer2 = true;
 }
 

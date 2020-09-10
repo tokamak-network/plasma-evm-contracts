@@ -12,7 +12,7 @@ const { expect } = chai;
 
 const EpochHandler = artifacts.require('EpochHandler.sol');
 const SubmitHandler = artifacts.require('SubmitHandler.sol');
-const RootChain = artifacts.require('RootChain.sol');
+const Layer2 = artifacts.require('Layer2.sol');
 const ERC20Mintable = artifacts.require('ERC20Mintable.sol');
 const EtherToken = artifacts.require('EtherToken.sol');
 const RequestableSimpleToken = artifacts.require('RequestableSimpleToken.sol');
@@ -33,16 +33,16 @@ String.prototype.add = function (n) { return (web3.utils.toBN(this.toString())).
 String.prototype.cmp = function (n) { return (web3.utils.toBN(this.toString())).cmp(web3.utils.toBN(n)); };
 /* eslint-enable no-extend-native */
 
-contract('RootChain', async ([
+contract('Layer2', async ([
   operator,
   ...others
 ]) => {
-  let rootchain;
+  let layer2;
   let token, mintableToken, etherToken;
 
   const tokenInChildChain = '0x000000000000000000000000000000000000dead';
 
-  // rootchain parameters
+  // layer2 parameters
   const NRELength = 1024;
   let MAX_REQUESTS;
   let COST_ERO, COST_ERU, COST_URB_PREPARE, COST_URB, COST_ORB, COST_NRB;
@@ -55,7 +55,7 @@ contract('RootChain', async ([
 
   before(async () => {
     const developmentEtherToken = true;
-    const developmentRootChain = false;
+    const developmentLayer2 = false;
     const swapEnabled = true;
 
     mintableToken = await ERC20Mintable.new();
@@ -64,28 +64,28 @@ contract('RootChain', async ([
     const epochHandler = await EpochHandler.new();
     const submitHandler = await SubmitHandler.new(epochHandler.address);
 
-    rootchain = await RootChain.new(
+    layer2 = await Layer2.new(
       epochHandler.address,
       submitHandler.address,
       etherToken.address,
-      developmentRootChain,
+      developmentLayer2,
       web3.utils.toBN(NRELength),
       dummyStatesRoot,
       dummyTransactionsRoot,
       dummyReceiptsRoot,
     );
 
-    COST_ERO = await rootchain.COST_ERO();
-    COST_ERU = await rootchain.COST_ERU();
-    COST_URB_PREPARE = await rootchain.COST_URB_PREPARE();
-    COST_URB = await rootchain.COST_URB();
-    COST_ORB = await rootchain.COST_ORB();
-    COST_NRB = await rootchain.COST_NRB();
-    CP_COMPUTATION = (await rootchain.CP_COMPUTATION()).toNumber();
-    CP_WITHHOLDING = (await rootchain.CP_WITHHOLDING()).toNumber();
-    CP_EXIT = (await rootchain.CP_EXIT()).toNumber();
+    COST_ERO = await layer2.COST_ERO();
+    COST_ERU = await layer2.COST_ERU();
+    COST_URB_PREPARE = await layer2.COST_URB_PREPARE();
+    COST_URB = await layer2.COST_URB();
+    COST_ORB = await layer2.COST_ORB();
+    COST_NRB = await layer2.COST_NRB();
+    CP_COMPUTATION = (await layer2.CP_COMPUTATION()).toNumber();
+    CP_WITHHOLDING = (await layer2.CP_WITHHOLDING()).toNumber();
+    CP_EXIT = (await layer2.CP_EXIT()).toNumber();
 
-    rootchain.allEvents().on('data', function (e) {
+    layer2.allEvents().on('data', function (e) {
       console.log('Event?', e);
       // const eventName = e.event;
       // log(`[${eventName}]: ${JSON.stringify(e.args)}`, e);
@@ -114,7 +114,7 @@ contract('RootChain', async ([
 
     await time.increase(CP_WITHHOLDING + 2);
 
-    const tx = await rootchain.submitNRE(
+    const tx = await layer2.submitNRE(
       pos1,
       pos2,
       epochStateRoot,
@@ -136,8 +136,8 @@ contract('RootChain', async ([
   it('Block should be finalized while submitting', async () => {
     await submitNRE();
 
-    expect(await rootchain.getLastFinalizedBlock(currentFork)).to.be.bignumber.equal(new BN(NRELength * numNRE));
-    expect(await rootchain.getLastFinalizedEpoch(currentFork)).to.be.bignumber.equal(new BN(numNRE * 2 - 1));
+    expect(await layer2.getLastFinalizedBlock(currentFork)).to.be.bignumber.equal(new BN(NRELength * numNRE));
+    expect(await layer2.getLastFinalizedEpoch(currentFork)).to.be.bignumber.equal(new BN(numNRE * 2 - 1));
   });
 });
 

@@ -7,33 +7,33 @@ interface DepositManagerI {
   function registry() external view returns (address);
   function seigManager() external view returns (address);
 
-  function accStaked(address rootchain, address account) external view returns (uint256 wtonAmount);
-  function accStakedRootChain(address rootchain) external view returns (uint256 wtonAmount);
+  function accStaked(address layer2, address account) external view returns (uint256 wtonAmount);
+  function accStakedLayer2(address layer2) external view returns (uint256 wtonAmount);
   function accStakedAccount(address account) external view returns (uint256 wtonAmount);
 
-  function pendingUnstaked(address rootchain, address account) external view returns (uint256 wtonAmount);
-  function pendingUnstakedRootChain(address rootchain) external view returns (uint256 wtonAmount);
+  function pendingUnstaked(address layer2, address account) external view returns (uint256 wtonAmount);
+  function pendingUnstakedLayer2(address layer2) external view returns (uint256 wtonAmount);
   function pendingUnstakedAccount(address account) external view returns (uint256 wtonAmount);
 
-  function accUnstaked(address rootchain, address account) external view returns (uint256 wtonAmount);
-  function accUnstakedRootChain(address rootchain) external view returns (uint256 wtonAmount);
+  function accUnstaked(address layer2, address account) external view returns (uint256 wtonAmount);
+  function accUnstakedLayer2(address layer2) external view returns (uint256 wtonAmount);
   function accUnstakedAccount(address account) external view returns (uint256 wtonAmount);
 
 
-  function withdrawalRequestIndex(address rootchain, address account) external view returns (uint256 index);
-  function withdrawalRequest(address rootchain, address account, uint256 index) external view returns (uint128 withdrawableBlockNumber, uint128 amount, bool processed );
+  function withdrawalRequestIndex(address layer2, address account) external view returns (uint256 index);
+  function withdrawalRequest(address layer2, address account, uint256 index) external view returns (uint128 withdrawableBlockNumber, uint128 amount, bool processed );
 
   function WITHDRAWAL_DELAY() external view returns (uint256);
 
   function setSeigManager(address seigManager) external;
-  function deposit(address rootchain, uint256 amount) external returns (bool);
-  function requestWithdrawal(address rootchain, uint256 amount) external returns (bool);
-  function processRequest(address rootchain) external returns (bool);
-  function requestWithdrawalAll(address rootchain) external returns (bool);
-  function processRequests(address rootchain, uint256 n) external returns (bool);
+  function deposit(address layer2, uint256 amount) external returns (bool);
+  function requestWithdrawal(address layer2, uint256 amount) external returns (bool);
+  function processRequest(address layer2) external returns (bool);
+  function requestWithdrawalAll(address layer2) external returns (bool);
+  function processRequests(address layer2, uint256 n) external returns (bool);
 
-  function numRequests(address rootchain, address account) external view returns (uint256);
-  function numPendingRequests(address rootchain, address account) external view returns (uint256);
+  function numRequests(address layer2, address account) external view returns (uint256);
+  function numPendingRequests(address layer2, address account) external view returns (uint256);
 
-  function slash(address rootchain, address recipient, uint256 amount) external returns (bool);
+  function slash(address layer2, address recipient, uint256 amount) external returns (bool);
 }

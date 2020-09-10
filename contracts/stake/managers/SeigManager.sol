@@ -17,10 +17,10 @@ import { CoinageFactoryI } from "../interfaces/CoinageFactoryI.sol";
 import { AuthController } from "../tokens/AuthController.sol";
 import { ChallengerRole } from "../../roles/ChallengerRole.sol";
 
-import { RootChainI } from "../../RootChainI.sol";
+import { Layer2I } from "../../Layer2I.sol";
 
 import { SeigManagerI } from "../interfaces/SeigManagerI.sol";
-import { RootChainRegistryI } from "../interfaces/RootChainRegistryI.sol";
+import { Layer2RegistryI } from "../interfaces/Layer2RegistryI.sol";
 import { DepositManagerI } from "../interfaces/DepositManagerI.sol";
 import { PowerTONI } from "../interfaces/PowerTONI.sol";
 
@@ -32,26 +32,26 @@ import { PowerTONI } from "../interfaces/PowerTONI.sol";
  * in propotion to the staked (or delegated) amount of WTON.
  *
  * [Tokens]
- * - {tot} tracks total staked or delegated WTON of each RootChain contract (and depositor?).
- * - {coinages[rootchain]} tracks staked or delegated WTON of user or operator to a RootChain contract.
+ * - {tot} tracks total staked or delegated WTON of each Layer2 contract (and depositor?).
+ * - {coinages[layer2]} tracks staked or delegated WTON of user or operator to a Layer2 contract.
  *
  * For each commit by operator,
- *  1. increases all root chains' balance of {tot} by (the staked amount of WTON) /
+ *  1. increases all layer2's balance of {tot} by (the staked amount of WTON) /
  *     (total supply of TON and WTON) * (num blocks * seigniorage per block).
- *  2. increases all depositors' blanace of {coinages[rootchain]} in proportion to the staked amount of WTON,
+ *  2. increases all depositors' blanace of {coinages[layer2]} in proportion to the staked amount of WTON,
  *     up to the increased amount in step (1).
- *  3. set the root chain's balance of {committed} as the root chain's {tot} balance.
+ *  3. set the layer2's balance of {committed} as the layer2's {tot} balance.
  *
- * For each stake or delegate with amount of {v} to a RootChain,
- *  1. mint {v} {coinages[rootchain]} tokens to the account
- *  2. mint {v} {tot} tokens to the root chain contract
+ * For each stake or delegate with amount of {v} to a Layer2,
+ *  1. mint {v} {coinages[layer2]} tokens to the account
+ *  2. mint {v} {tot} tokens to the layer2 contract
  *
- * For each unstake or undelegate (or get rewards) with amount of {v} to a RootChain,
- *  1. burn {v} {coinages[rootchain]} tokens from the account
- *  2. burn {v + ⍺} {tot} tokens from the root chain contract,
- *   where ⍺ = SEIGS * staked ratio of the root chian * withdrawal ratio of the account
- *     - SEIGS                              = tot total supply - tot total supply at last commit from the root chain
- *     - staked ratio of the root chian     = tot balance of the root chain / tot total supply
+ * For each unstake or undelegate (or get rewards) with amount of {v} to a Layer2,
+ *  1. burn {v} {coinages[layer2]} tokens from the account
+ *  2. burn {v + ⍺} {tot} tokens from the layer2 contract,
+ *   where ⍺ = SEIGS * staked ratio of the layer2 * withdrawal ratio of the account
+ *     - SEIGS                              = tot total supply - tot total supply at last commit from the layer2
+ *     - staked ratio of the layer2     = tot balance of the layer2 / tot total supply
  *     - withdrawal ratio of the account  = amount to withdraw / total supply of coinage
  *
  */
@@ -63,7 +63,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   // Common contracts
   //////////////////////////////
 
-  RootChainRegistryI internal _registry;
+  Layer2RegistryI internal _registry;
   DepositManagerI internal _depositManager;
   PowerTONI internal _powerton;
   address public _dao;
@@ -81,13 +81,13 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   // contract factory
   CoinageFactoryI public factory;
 
-  // track total deposits of each root chain.
+  // track total deposits of each layer2.
   AutoRefactorCoinageI internal _tot;
 
-  // coinage token for each root chain.
+  // coinage token for each layer2.
   mapping (address => AutoRefactorCoinageI) internal _coinages;
 
-  // last commit block number for each root chain.
+  // last commit block number for each layer2.
   mapping (address => uint256) internal _lastCommitBlock;
 
   // total seigniorage per block
@@ -140,8 +140,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     _;
   }
 
-  modifier onlyRegistryOrOperator(address rootchain) {
-    require(msg.sender == address(_registry) || msg.sender == RootChainI(rootchain).operator());
+  modifier onlyRegistryOrOperator(address layer2) {
+    require(msg.sender == address(_registry) || msg.sender == Layer2I(layer2).operator());
     _;
   }
 
@@ -150,13 +150,13 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     _;
   }
 
-  modifier onlyRootChain(address rootchain) {
-    require(_registry.rootchains(rootchain));
+  modifier onlyLayer2(address layer2) {
+    require(_registry.layer2s(layer2));
     _;
   }
 
-  modifier checkCoinage(address rootchain) {
-    require(address(_coinages[rootchain]) != address(0), "SeigManager: coinage has not been deployed yet");
+  modifier checkCoinage(address layer2) {
+    require(address(_coinages[layer2]) != address(0), "SeigManager: coinage has not been deployed yet");
     _;
   }
 
@@ -164,10 +164,10 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   // Events
   //////////////////////////////
 
-  event CoinageCreated(address indexed rootchain, address coinage);
-  event SeigGiven(address indexed rootchain, uint256 totalSeig, uint256 stakedSeig, uint256 unstakedSeig, uint256 powertonSeig, uint256 pseig);
-  event Comitted(address indexed rootchain);
-  event CommissionRateSet(address indexed rootchain, uint256 previousRate, uint256 newRate);
+  event CoinageCreated(address indexed layer2, address coinage);
+  event SeigGiven(address indexed layer2, uint256 totalSeig, uint256 stakedSeig, uint256 unstakedSeig, uint256 powertonSeig, uint256 pseig);
+  event Comitted(address indexed layer2);
+  event CommissionRateSet(address indexed layer2, uint256 previousRate, uint256 newRate);
 
   //////////////////////////////
   // Constuctor
@@ -176,7 +176,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   constructor (
     ERC20Mintable ton,
     ERC20Mintable wton,
-    RootChainRegistryI registry,
+    Layer2RegistryI registry,
     DepositManagerI depositManager,
     uint256 seigPerBlock,
     address factory_
@@ -227,34 +227,34 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   }
 
   /**
-   * @dev deploy coinage token for the root chain.
+   * @dev deploy coinage token for the layer2.
    */
-  function deployCoinage(address rootchain) external onlyRegistry returns (bool) {
-    // create new coinage token for the root chain contract
-    if (address(_coinages[rootchain]) == address(0)) {
-      /*_coinages[rootchain] = new CustomIncrementCoinageMock(
+  function deployCoinage(address layer2) external onlyRegistry returns (bool) {
+    // create new coinage token for the layer2 contract
+    if (address(_coinages[layer2]) == address(0)) {
+      /*_coinages[layer2] = new CustomIncrementCoinageMock(
         "",
         "",
         _DEFAULT_FACTOR,
         false
       );*/
       address c = factory.deploy();
-      _lastCommitBlock[rootchain] = block.number;
-      addChallenger(rootchain);
-      _coinages[rootchain] = AutoRefactorCoinageI(c);
-      emit CoinageCreated(rootchain, c);
+      _lastCommitBlock[layer2] = block.number;
+      addChallenger(layer2);
+      _coinages[layer2] = AutoRefactorCoinageI(c);
+      emit CoinageCreated(layer2, c);
     }
 
     return true;
   }
 
   function setCommissionRate(
-    address rootchain,
+    address layer2,
     uint256 commissionRate,
     bool isCommissionRateNegative
   )
     external
-    onlyRegistryOrOperator(rootchain)
+    onlyRegistryOrOperator(layer2)
     returns (bool)
   {
     // check commission range
@@ -264,24 +264,24 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
       "SeigManager: commission rate must be 0 or between 1 RAY and 0.01 RAY"
     );
 
-    uint256 previous = _commissionRates[rootchain];
+    uint256 previous = _commissionRates[layer2];
     if (adjustCommissionDelay == 0) {
-      _commissionRates[rootchain] = commissionRate;
-      _isCommissionRateNegative[rootchain] = isCommissionRateNegative;
+      _commissionRates[layer2] = commissionRate;
+      _isCommissionRateNegative[layer2] = isCommissionRateNegative;
     } else {
-      delayedCommissionBlock[rootchain] = block.number + adjustCommissionDelay;
-      delayedCommissionRate[rootchain] = commissionRate;
-      delayedCommissionRateNegative[rootchain] = isCommissionRateNegative;
+      delayedCommissionBlock[layer2] = block.number + adjustCommissionDelay;
+      delayedCommissionRate[layer2] = commissionRate;
+      delayedCommissionRateNegative[layer2] = isCommissionRateNegative;
     }
 
-    emit CommissionRateSet(rootchain, previous, commissionRate);
+    emit CommissionRateSet(layer2, previous, commissionRate);
 
     return true;
   }
 
-  function getOperatorAmount(address rootchain) public view returns (bool) {
-    address operator = RootChainI(msg.sender).operator();
-    require(_coinages[rootchain].balanceOf(operator) >= minimumAmount);
+  function getOperatorAmount(address layer2) public view returns (bool) {
+    address operator = Layer2I(msg.sender).operator();
+    require(_coinages[layer2].balanceOf(operator) >= minimumAmount);
   }
 
   /**
@@ -301,20 +301,20 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
 
     _lastCommitBlock[msg.sender] = block.number;
 
-    // 2. increase total supply of {coinages[rootchain]}
+    // 2. increase total supply of {coinages[layer2]}
     AutoRefactorCoinageI coinage = _coinages[msg.sender];
 
     uint256 prevTotalSupply = coinage.totalSupply();
     uint256 nextTotalSupply = _tot.balanceOf(msg.sender);
 
-    // short circuit if there is no seigs for the root chain
+    // short circuit if there is no seigs for the layer2
     if (prevTotalSupply >= nextTotalSupply) {
       emit Comitted(msg.sender);
       return true;
     }
 
     uint256 seigs = nextTotalSupply - prevTotalSupply;
-    address operator = RootChainI(msg.sender).operator();
+    address operator = Layer2I(msg.sender).operator();
     uint256 operatorSeigs;
 
     // calculate commission amount
@@ -329,7 +329,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
       operator
     );
 
-    // gives seigniorages to the root chain as coinage
+    // gives seigniorages to the layer2 as coinage
     coinage.setFactor(
       _calcNewFactor(
         prevTotalSupply,
@@ -357,7 +357,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   }
 
   function _calcSeigsDistribution(
-    address rootchain,
+    address layer2,
     AutoRefactorCoinageI coinage,
     uint256 prevTotalSupply,
     uint256 seigs,
@@ -367,10 +367,10 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     uint256 nextTotalSupply,
     uint256 operatorSeigs
   ) {
-    if (block.number >= delayedCommissionBlock[rootchain] && delayedCommissionBlock[rootchain] != 0) {
-      _commissionRates[rootchain] = delayedCommissionRate[rootchain];
-      _isCommissionRateNegative[rootchain] = delayedCommissionRateNegative[rootchain];
-      delayedCommissionBlock[rootchain] = 0;
+    if (block.number >= delayedCommissionBlock[layer2] && delayedCommissionBlock[layer2] != 0) {
+      _commissionRates[layer2] = delayedCommissionRate[layer2];
+      _isCommissionRateNegative[layer2] = delayedCommissionRateNegative[layer2];
+      delayedCommissionBlock[layer2] = 0;
     }
 
     uint256 commissionRate = _commissionRates[msg.sender];
@@ -451,20 +451,20 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   /**
    * @dev Callback for a new deposit
    */
-  function onDeposit(address rootchain, address account, uint256 amount)
+  function onDeposit(address layer2, address account, uint256 amount)
     external
     onlyDepositManager
-    checkCoinage(rootchain)
+    checkCoinage(layer2)
     returns (bool)
   {
-    if (_isOperator(rootchain, account)) {
-      uint256 newAmount = _coinages[rootchain].balanceOf(account).add(amount);
+    if (_isOperator(layer2, account)) {
+      uint256 newAmount = _coinages[layer2].balanceOf(account).add(amount);
       require(newAmount >= minimumAmount, "minimum amount is required");
     }
-    _tot.mint(rootchain, amount);
-    _coinages[rootchain].mint(account, amount);
+    _tot.mint(layer2, amount);
+    _coinages[layer2].mint(account, amount);
     if (address(_powerton) != address(0)) {
-      _powerton.onDeposit(rootchain, account, amount);
+      _powerton.onDeposit(layer2, account, amount);
     }
     return true;
   }
@@ -472,31 +472,31 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   // DEV ONLY
   event UnstakeLog(uint coinageBurnAmount, uint totBurnAmount);
 
-  function onWithdraw(address rootchain, address account, uint256 amount)
+  function onWithdraw(address layer2, address account, uint256 amount)
     external
     onlyDepositManager
-    checkCoinage(rootchain)
+    checkCoinage(layer2)
     returns (bool)
   {
-    require(_coinages[rootchain].balanceOf(account) >= amount, "SeigManager: insufficiant balance to unstake");
+    require(_coinages[layer2].balanceOf(account) >= amount, "SeigManager: insufficiant balance to unstake");
 
-    if (_isOperator(rootchain, account)) {
-      require(_coinages[rootchain].balanceOf(account) >= amount, "test 1234");
-      uint256 newAmount = _coinages[rootchain].balanceOf(account).sub(amount);
+    if (_isOperator(layer2, account)) {
+      require(_coinages[layer2].balanceOf(account) >= amount, "test 1234");
+      uint256 newAmount = _coinages[layer2].balanceOf(account).sub(amount);
       require(newAmount >= minimumAmount, "minimum amount is required");
     }
 
-    // burn {v + ⍺} {tot} tokens to the root chain contract,
-    uint256 totAmount = _additionalTotBurnAmount(rootchain, account, amount);
-    require(_tot.balanceOf(rootchain) >= amount.add(totAmount), "test 111");
-    _tot.burnFrom(rootchain, amount.add(totAmount));
+    // burn {v + ⍺} {tot} tokens to the layer2 contract,
+    uint256 totAmount = _additionalTotBurnAmount(layer2, account, amount);
+    require(_tot.balanceOf(layer2) >= amount.add(totAmount), "test 111");
+    _tot.burnFrom(layer2, amount.add(totAmount));
 
-    // burn {v} {coinages[rootchain]} tokens to the account
-    require(_coinages[rootchain].balanceOf(account) >= amount, "test 222");
-    _coinages[rootchain].burnFrom(account, amount);
+    // burn {v} {coinages[layer2]} tokens to the account
+    require(_coinages[layer2].balanceOf(account) >= amount, "test 222");
+    _coinages[layer2].burnFrom(account, amount);
 
     if (address(_powerton) != address(0)) {
-      _powerton.onWithdraw(rootchain, account, amount);
+      _powerton.onWithdraw(layer2, account, amount);
     }
 
     emit UnstakeLog(amount, totAmount);
@@ -548,28 +548,28 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     _wton.renounceMinter();
   }
 
-  function slash(address rootchain, address challenger) external onlyChallenger checkCoinage(rootchain) returns (bool) {
-    RootChainI(rootchain).changeOperator(challenger);
+  function slash(address layer2, address challenger) external onlyChallenger checkCoinage(layer2) returns (bool) {
+    Layer2I(layer2).changeOperator(challenger);
 
     return true;
   }
 
-  function additionalTotBurnAmount(address rootchain, address account, uint256 amount)
+  function additionalTotBurnAmount(address layer2, address account, uint256 amount)
     external
     view
     returns (uint256 totAmount)
   {
-    return _additionalTotBurnAmount(rootchain, account, amount);
+    return _additionalTotBurnAmount(layer2, account, amount);
   }
 
-  // return ⍺, where ⍺ = (tot.balanceOf(rootchain) - coinages[rootchain].totalSupply()) * (amount / coinages[rootchain].totalSupply())
-  function _additionalTotBurnAmount(address rootchain, address account, uint256 amount)
+  // return ⍺, where ⍺ = (tot.balanceOf(layer2) - coinages[layer2].totalSupply()) * (amount / coinages[layer2].totalSupply())
+  function _additionalTotBurnAmount(address layer2, address account, uint256 amount)
     internal
     view
     returns (uint256 totAmount)
   {
-    uint256 coinageTotalSupply = _coinages[rootchain].totalSupply();
-    uint256 totBalalnce = _tot.balanceOf(rootchain);
+    uint256 coinageTotalSupply = _coinages[layer2].totalSupply();
+    uint256 totBalalnce = _tot.balanceOf(layer2);
 
     // NOTE: arithamtic operations (mul and div) make some errors, so we gonna adjust them under 1e-9 WTON.
     //       note that coinageTotalSupply and totBalalnce are RAY values.
@@ -598,12 +598,12 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   // Public and internal functions
   //////////////////////////////
 
-  function uncomittedStakeOf(address rootchain, address account) external view returns (uint256) {
-    AutoRefactorCoinageI coinage = _coinages[rootchain];
+  function uncomittedStakeOf(address layer2, address account) external view returns (uint256) {
+    AutoRefactorCoinageI coinage = _coinages[layer2];
 
     uint256 prevFactor = coinage.factor();
     uint256 prevTotalSupply = coinage.totalSupply();
-    uint256 nextTotalSupply = _tot.balanceOf(rootchain);
+    uint256 nextTotalSupply = _tot.balanceOf(layer2);
     uint256 newFactor = _calcNewFactor(prevTotalSupply, nextTotalSupply, prevFactor);
 
     uint256 uncomittedBalance = rmul(
@@ -612,11 +612,11 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     );
 
     return uncomittedBalance
-      .sub(_coinages[rootchain].balanceOf(account));
+      .sub(_coinages[layer2].balanceOf(account));
   }
 
-  function stakeOf(address rootchain, address account) external view returns (uint256) {
-    return _coinages[rootchain].balanceOf(account);
+  function stakeOf(address layer2, address account) external view returns (uint256) {
+    return _coinages[layer2].balanceOf(account);
   }
 
   function _calcNewFactor(uint256 source, uint256 target, uint256 oldFactor) internal pure returns (uint256) {
@@ -722,8 +722,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     return span - (_unpausedBlock - _pausedBlock);
   }
 
-  function _isOperator(address rootchain, address operator) internal view returns (bool) {
-    return operator == RootChainI(rootchain).operator();
+  function _isOperator(address layer2, address operator) internal view returns (bool) {
+    return operator == Layer2I(layer2).operator();
   }
 
   //////////////////////////////
@@ -737,11 +737,11 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   function wton() external view returns (address) { return address(_wton); }
   function powerton() external view returns (address) { return address(_powerton); }
   function tot() external view returns (address) { return address(_tot); }
-  function coinages(address rootchain) external view returns (address) { return address(_coinages[rootchain]); }
-  function commissionRates(address rootchain) external view returns (uint256) { return _commissionRates[rootchain]; }
-  function isCommissionRateNegative(address rootchain) external view returns (bool) { return _isCommissionRateNegative[rootchain]; }
+  function coinages(address layer2) external view returns (address) { return address(_coinages[layer2]); }
+  function commissionRates(address layer2) external view returns (uint256) { return _commissionRates[layer2]; }
+  function isCommissionRateNegative(address layer2) external view returns (bool) { return _isCommissionRateNegative[layer2]; }
 
-  function lastCommitBlock(address rootchain) external view returns (uint256) { return _lastCommitBlock[rootchain]; }
+  function lastCommitBlock(address layer2) external view returns (uint256) { return _lastCommitBlock[layer2]; }
   function seigPerBlock() external view returns (uint256) { return _seigPerBlock; }
   function lastSeigBlock() external view returns (uint256) { return _lastSeigBlock; }
   function pausedBlock() external view returns (uint256) { return _pausedBlock; }
