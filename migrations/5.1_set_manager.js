@@ -34,8 +34,9 @@ module.exports = async function (deployer, network) {
     const wton = await WTON.at(data.WTON);
     const powerton = await PowerTON.at(data.PowerTON);
     const depositManager = await DepositManager.at(data.DepositManager);
+    const ton = await TON.at(data.TON);
 
-    const factory = await deployer.deploy(CoinageFactory);
+    const factory = await CoinageFactory.at(data.Factory);
     await seigManager.setCoinageFactory(factory.address);
     // await factory.setSeigManager(seigManager.address);
 
@@ -62,6 +63,8 @@ module.exports = async function (deployer, network) {
 
     console.log('Start PowerTON...');
     await powerton.start();
+
+    await ton.addMinter(wton.address);
 
     // owner 권한 변경 transferOwnership
   }

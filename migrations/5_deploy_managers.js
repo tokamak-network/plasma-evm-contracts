@@ -74,6 +74,9 @@ module.exports = async function (deployer, network) {
       addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
       registry = await deployer.deploy(Layer2Registry);
       addrs.Layer2Registry = registry.address;
+      fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
+        if (err) throw err;
+      });
     }
 
     if (process.env.deposit) {

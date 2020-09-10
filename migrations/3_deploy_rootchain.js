@@ -20,6 +20,15 @@ module.exports = async function (deployer, network) {
     let layer2;
     let epochHandler;
     const data = JSON.parse(fs.readFileSync('deployed.json').toString());
+    console.log(data);
+    // const managers = {
+    //   TON: '0x3734E35231abE68818996dC07Be6a8889202DEe9',
+    //   WTON: '0x5B4500fc3355e095238871a94cAcF4E2A2a17Bea',
+    //   Layer2Registry: '0xEBE02379d5411277EB1f8999E8a8c14AaB98CeCA',
+    //   DepositManager: '0x35Ce5A45F76cA3B86bbbeAa61F48e97723a7aBBD',
+    //   SeigManager: '0x4079295D8217585103Abe5eC71f1907B3C024a2f',
+    //   PowerTON: '0xC620A4C14D0e2886dCa76b85A0f79cD2B899634A',
+    // };
 
     await deployer.deploy(EpochHandler)
       .then((_epochHandler) => { epochHandler = _epochHandler; })
@@ -40,10 +49,11 @@ module.exports = async function (deployer, network) {
       .then(() => layer2.setSeigManager(data.SeigManager))
       .catch(e => { throw e; });
 
-    await layer2.setSeigManager(data.SeigManager);
+    // await layer2.setSeigManager(data.SeigManager);
     const registry = await Layer2Registry.at(data.Layer2Registry);
 
     // register root chain and deploy coinage
+    console.log('register and deploy...');
     await registry.registerAndDeployCoinage(layer2.address, data.SeigManager);
 
     await axios.post('http://localhost:9002/operators', {
@@ -61,5 +71,18 @@ module.exports = async function (deployer, network) {
     }).catch(function (err) {
       console.log(err);
     });
+    // await deployer.deploy(
+    //   Layer2,
+    //   zeroAddress,
+    //   zeroAddress,
+    //   zeroAddress,
+    //   development,
+    //   NRBEpochLength,
+    //   statesRoot,
+    //   transactionsRoot,
+    //   receiptsRoot,
+    // ).then(async () => { layer2 = await Layer2.deployed(); })
+    //   .then(() => layer2.setSeigManager(data.SeigManager))
+    //   .catch(e => { throw e; });
   }
 };
