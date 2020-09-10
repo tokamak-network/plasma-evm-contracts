@@ -32,11 +32,11 @@ module.exports = async function (deployer, network) {
       .then((_epochHandler) => { epochHandler = _epochHandler; })
       .then(() => deployer.deploy(
         SubmitHandler,
-        epochHandler.address,
+        epochHandler.address, // TODO: handler remove
       )).then((submitHandler) => deployer.deploy(
         Layer2,
-        epochHandler.address,
-        submitHandler.address,
+        epochHandler.address, // TODO: 0x000
+        submitHandler.address, // TODO: 0x000
         EtherToken.address,
         development,
         NRBEpochLength,

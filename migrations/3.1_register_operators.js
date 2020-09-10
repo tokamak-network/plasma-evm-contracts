@@ -20,9 +20,11 @@ module.exports = async function (deployer, network) {
     // process.env.operator_name &&
     // process.env.website &&
     // process.env.description
-    const data = JSON.parse(fs.readFileSync('deployed.json').toString());
+    const data = JSON.parse(fs.readFileSync('managers.json').toString());
     const layer2 = await Layer2.at(process.env.layer2);
+
     await layer2.setSeigManager(data.SeigManager);
+
     const registry = await Layer2Registry.at(data.Layer2Registry);
 
     // register root chain and deploy coinage
@@ -43,5 +45,6 @@ module.exports = async function (deployer, network) {
     }).catch(function (err) {
       console.log(err);
     });
+    await layer2.changeOperator();
   }
 };

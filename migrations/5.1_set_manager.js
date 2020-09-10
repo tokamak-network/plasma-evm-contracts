@@ -3,10 +3,10 @@ const fs = require('fs');
 
 const _WTON = createCurrency('WTON');
 
-const RootChain = artifacts.require('RootChain');
+const Layer2 = artifacts.require('Layer2');
 const TON = artifacts.require('TON');
 const WTON = artifacts.require('WTON');
-const RootChainRegistry = artifacts.require('RootChainRegistry');
+const Layer2Registry = artifacts.require('Layer2Registry');
 const DepositManager = artifacts.require('DepositManager');
 const SeigManager = artifacts.require('SeigManager');
 const CoinageFactory = artifacts.require('CoinageFactory');
@@ -58,6 +58,8 @@ module.exports = async function (deployer, network) {
 
     console.log('Start PowerTON...');
     await powerton.start();
+
+    // owner 권한 변경 transferOwnership
   }
 }
 ;

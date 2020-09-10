@@ -23,7 +23,7 @@ const ROUND_DURATION_MAINNET = 1209600;
 const ROUND_DURATION_RINKEBY = Math.floor(ROUND_DURATION_MAINNET / (14 * 24 * 2)); // 30 min
 
 // 100 WTON per block as seigniorage
-const SEIG_PER_BLOCK = process.env.SEIG_PER_BLOCK || '3.91615931';
+const SEIG_PER_BLOCK = process.env.SEIG_PER_BLOCK || '3.92';
 
 const TON_MAINNET = process.env.TON_MAINNET;
 const TON_RINKEBY = process.env.TON_RINKEBY;
@@ -62,6 +62,7 @@ module.exports = async function (deployer, network) {
       withdrawalDelay,
     );
     const factory = await deployer.deploy(CoinageFactory);
+
     const daoVault = await deployer.deploy(DAOVault, ton.address, 0); // TODO: set timestamp parameter
     const seigManager = await deployer.deploy(
       SeigManager,
