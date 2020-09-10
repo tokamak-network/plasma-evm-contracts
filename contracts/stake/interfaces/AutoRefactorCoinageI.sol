@@ -8,4 +8,7 @@ interface AutoRefactorCoinageI {
   function mint(address account, uint256 amount) external returns (bool);
   function totalSupply() external view returns (uint256);
   function balanceOf(address account) external view returns (uint256);
+  function addMinter(address account) external;
+  function renounceMinter() external;
+  function transferOwnership(address newOwner) external;
 }

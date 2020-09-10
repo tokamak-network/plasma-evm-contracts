@@ -82,11 +82,9 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   CoinageFactoryI public factory;
 
   // track total deposits of each root chain.
-  //CustomIncrementCoinageMock internal _tot;
   AutoRefactorCoinageI internal _tot;
 
   // coinage token for each root chain.
-  //mapping (address => CustomIncrementCoinageMock) internal _coinages;
   mapping (address => AutoRefactorCoinageI) internal _coinages;
 
   // last commit block number for each root chain.
@@ -101,12 +99,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   // block number when paused or unpaused
   uint256 internal _pausedBlock;
   uint256 internal _unpausedBlock;
-
-  // global minimum withdrawal period
-  //uint256 public globalMinimumWithdrawalPeriod;
-
-  // minimum withdrawal period
-  //mapping (address => uint256) public minimumWithdrawalPeriod;
 
   // commission rates in RAY
   mapping (address => uint256) internal _commissionRates;
@@ -173,7 +165,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
   //////////////////////////////
 
   event CoinageCreated(address indexed rootchain, address coinage);
-  event SeigGiven(address indexed rootchain, uint256 totalSeig, uint256 stakedSeig, uint256 unstakedSeig, uint256 powertonSeig);
+  event SeigGiven(address indexed rootchain, uint256 totalSeig, uint256 stakedSeig, uint256 unstakedSeig, uint256 powertonSeig, uint256 pseig);
   event Comitted(address indexed rootchain);
   event CommissionRateSet(address indexed rootchain, uint256 previousRate, uint256 newRate);
 
@@ -196,20 +188,8 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     _seigPerBlock = seigPerBlock;
 
     factory = CoinageFactoryI(factory_);
-    /*_tot = new CustomIncrementCoinageMock(
-      "",
-      "",
-      _DEFAULT_FACTOR,
-      false
-    );*/
-    /*_tot = new AutoRefactorCoinage(
-      "",
-      "",
-      _DEFAULT_FACTOR
-    );*/
     address c = factory.deploy();
     _tot = AutoRefactorCoinageI(c);
-    //_tot = CustomIncrementCoinageMock(factory.deploy());
 
     _lastSeigBlock = block.number;
   }
@@ -260,7 +240,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
       );*/
       address c = factory.deploy();
       _lastCommitBlock[rootchain] = block.number;
-      addChallenger(c);
+      addChallenger(rootchain);
       _coinages[rootchain] = AutoRefactorCoinageI(c);
       emit CoinageCreated(rootchain, c);
     }
@@ -297,6 +277,11 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     emit CommissionRateSet(rootchain, previous, commissionRate);
 
     return true;
+  }
+
+  function getOperatorAmount(address rootchain) public view returns (bool) {
+    address operator = RootChainI(msg.sender).operator();
+    require(_coinages[rootchain].balanceOf(operator) >= minimumAmount);
   }
 
   /**
@@ -550,8 +535,20 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     _addChallenger(account);
   }
 
-  function slash(address rootchain, address challenger) external onlyChallenger returns (bool) {
-    // TODO: check
+  function transferCoinageOwnership(address newSeigManager, address[] calldata coinages) external onlyOwner {
+    for (uint256 i = 0; i < coinages.length; i++) {
+      AutoRefactorCoinageI c = AutoRefactorCoinageI(coinages[i]);
+      c.addMinter(newSeigManager);
+      c.renounceMinter();
+      c.transferOwnership(newSeigManager);
+    }
+  }
+
+  function renounceWTONMinter() external onlyOwner {
+    _wton.renounceMinter();
+  }
+
+  function slash(address rootchain, address challenger) external onlyChallenger checkCoinage(rootchain) returns (bool) {
     RootChainI(rootchain).changeOperator(challenger);
 
     return true;
@@ -709,7 +706,7 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
 
     require(powertonSeig.add(daoSeig).add(relativeSeig) <= unstakedSeig, "powerton seig + dao seig exceeded unstaked amount");
 
-    emit SeigGiven(msg.sender, maxSeig, stakedSeig, unstakedSeig, powertonSeig);
+    emit SeigGiven(msg.sender, maxSeig, stakedSeig, unstakedSeig, powertonSeig, relativeSeig);
 
     return true;
   }
