@@ -1,8 +1,8 @@
 const EpochHandler = artifacts.require('EpochHandler.sol');
 const SubmitHandler = artifacts.require('SubmitHandler.sol');
-const RootChain = artifacts.require('RootChain.sol');
+const Layer2 = artifacts.require('Layer2.sol');
 const EtherToken = artifacts.require('EtherToken.sol');
-const RootChainRegistry = artifacts.require('RootChainRegistry');
+const Layer2Registry = artifacts.require('Layer2Registry');
 const axios = require('axios');
 const fs = require('fs');
 
@@ -16,13 +16,13 @@ const receiptsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5
 module.exports = async function (deployer, network) {
   // skip production network
   if (process.env.SET_OPERATOR) {
-    let rootchain;
+    let layer2;
     let epochHandler;
     const data = JSON.parse(fs.readFileSync('managers.json').toString());
     // const managers = {
     //   TON: '0x3734E35231abE68818996dC07Be6a8889202DEe9',
     //   WTON: '0x6c6079EF61F4128639607EA10FE3D8FDDB41F781',
-    //   RootChainRegistry: '0xF7dbB432b68295329790EF81fedE861645969112',
+    //   Layer2Registry: '0xF7dbB432b68295329790EF81fedE861645969112',
     //   DepositManager: '0x537111FA5F7188aFA996ed73b273D17EEfc3F866',
     //   SeigManager: '0x0ed93958871Cd9512d5de65CFeb6f4837c0d5B17',
     //   PowerTON: '0xc144aC1bC0F85A01B1e3Ce93789EB3f516f245eB',
@@ -34,7 +34,7 @@ module.exports = async function (deployer, network) {
         SubmitHandler,
         epochHandler.address,
       )).then((submitHandler) => deployer.deploy(
-        RootChain,
+        Layer2,
         epochHandler.address,
         submitHandler.address,
         EtherToken.address,
@@ -43,8 +43,8 @@ module.exports = async function (deployer, network) {
         statesRoot,
         transactionsRoot,
         receiptsRoot))
-      .then(async () => { rootchain = await RootChain.deployed(); })
-      .then(() => rootchain.setSeigManager(data.SeigManager))
+      .then(async () => { layer2 = await Layer2.deployed(); })
+      .then(() => layer2.setSeigManager(data.SeigManager))
       .catch(e => { throw e; });
   }
 };

@@ -3,10 +3,10 @@ const fs = require('fs');
 
 const _WTON = createCurrency('WTON');
 
-const RootChain = artifacts.require('RootChain');
+const Layer2 = artifacts.require('Layer2');
 const TON = artifacts.require('TON');
 const WTON = artifacts.require('WTON');
-const RootChainRegistry = artifacts.require('RootChainRegistry');
+const Layer2Registry = artifacts.require('Layer2Registry');
 const DepositManager = artifacts.require('DepositManager');
 const SeigManager = artifacts.require('SeigManager');
 const CoinageFactory = artifacts.require('CoinageFactory');
@@ -50,11 +50,11 @@ module.exports = async function (deployer, network) {
 
     const ton = tonAddr ? await TON.at(tonAddr) : await deployer.deploy(TON);
 
-    // const rootchain = await RootChain.deployed();
+    // const Layer2 = await Layer2.deployed();
     // const ton = await deployer.deploy(TON);
     // console.log(ton);
     const wton = await deployer.deploy(WTON, ton.address);
-    const registry = await deployer.deploy(RootChainRegistry);
+    const registry = await deployer.deploy(Layer2Registry);
     const depositManager = await deployer.deploy(
       DepositManager,
       wton.address,
@@ -84,7 +84,7 @@ module.exports = async function (deployer, network) {
     const addrs = {
       TON: ton.address,
       WTON: wton.address,
-      RootChainRegistry: registry.address,
+      Layer2Registry: registry.address,
       DepositManager: depositManager.address,
       SeigManager: seigManager.address,
       PowerTON: powerton.address,
