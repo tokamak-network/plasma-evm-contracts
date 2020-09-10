@@ -57,26 +57,31 @@ module.exports = async function (deployer, network) {
     let seigManager;
     let powerton;
 
-    const addrs = {};
+    let addrs = {};
     // const Layer2 = await Layer2.deployed();
     // const ton = await deployer.deploy(TON);
     // console.log(ton);
     if (process.env.wton) {
+      addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
       wton = await deployer.deploy(WTON, ton.address);
       addrs.WTON = wton.address;
       fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
         if (err) throw err;
       });
     }
+
     if (process.env.registry) {
+      addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
       registry = await deployer.deploy(Layer2Registry);
       addrs.Layer2Registry = registry.address;
     }
+
     if (process.env.deposit) {
+      addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
       depositManager = await deployer.deploy(
         DepositManager,
-        wton.address,
-        registry.address,
+        addrs.WTON,
+        addrs.Layer2Registry,
         withdrawalDelay,
       );
       addrs.DepositManager = depositManager.address;
@@ -84,34 +89,49 @@ module.exports = async function (deployer, network) {
         if (err) throw err;
       });
     }
+
     if (process.env.factory) {
+      addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
       factory = await deployer.deploy(CoinageFactory);
+      addrs.Factory = factory.address;
+      fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
+        if (err) throw err;
+      });
     }
+
     if (process.env.daoVault) {
-      daoVault = await deployer.deploy(DAOVault, wton.address, 1609416000);
+      addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
+      daoVault = await deployer.deploy(DAOVault, addrs.WTON, 1609416000);
+      addrs.DaoVault = daoVault.address;
+      fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
+        if (err) throw err;
+      });
     }
+
     if (process.env.seig) {
+      addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
       seigManager = await deployer.deploy(
         SeigManager,
-        ton.address,
-        wton.address,
-        registry.address,
-        depositManager.address,
+        addrs.TON,
+        addrs.WTON,
+        addrs.Layer2Registry,
+        addrs.DepositManager,
         _WTON(SEIG_PER_BLOCK).toFixed('ray'),
-        factory.address,
+        addrs.Factory,
       );
       addrs.SeigManager = seigManager.address;
       fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
         if (err) throw err;
       });
-      await seigManager.setDao(daoVault.address); // TODO: to init?
+      // await seigManager.setDao(addrs.DaoVault); // TODO: to init?
     }
 
     if (process.env.powerton) {
+      addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
       powerton = await deployer.deploy(
         PowerTON,
-        seigManager.address,
-        wton.address,
+        addrs.SeigManager,
+        addrs.WTON,
         roundDuration,
       );
       addrs.PowerTON = powerton.address;

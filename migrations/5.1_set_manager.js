@@ -37,14 +37,18 @@ module.exports = async function (deployer, network) {
 
     const factory = await deployer.deploy(CoinageFactory);
     await seigManager.setCoinageFactory(factory.address);
-    await factory.setSeigManager(seigManager.address);
+    // await factory.setSeigManager(seigManager.address);
 
     console.log('Initialize PowerTON...');
     await powerton.init();
 
+    // await seigManager.setDao(daoVault.address); // TODO: to init?
+
     console.log('Set PowerTON to SeigManager...');
     await seigManager.setPowerTON(powerton.address);
 
+    console.log('Set DAO to SeigManager...');
+    await seigManager.setDao(data.DaoVault);
     // add WTON minter role to seig manager
     console.log('Add WTON Minter Role to SeigManager...');
     await wton.addMinter(seigManager.address);

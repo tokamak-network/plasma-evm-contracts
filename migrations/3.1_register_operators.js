@@ -20,7 +20,7 @@ module.exports = async function (deployer, network) {
     // process.env.operator_name &&
     // process.env.website &&
     // process.env.description
-    const data = JSON.parse(fs.readFileSync('managers.json').toString());
+    const data = JSON.parse(fs.readFileSync('deployed.json').toString());
     const layer2 = await Layer2.at(process.env.layer2);
 
     await layer2.setSeigManager(data.SeigManager);
@@ -30,12 +30,12 @@ module.exports = async function (deployer, network) {
     // register root chain and deploy coinage
     await registry.registerAndDeployCoinage(layer2.address, data.SeigManager);
 
-    await axios.post('http://dashboard-api.tokamak.network/operators?network=rinkeby', {
+    await axios.post('http://localhost:9002/operators', {
       genesis: {
         config: {
           chainId: process.env.chainid,
         },
-        extraData: layer2.address,
+        extraData: process.env.layer2,
       },
       name: process.env.operator_name,
       website: process.env.website,
@@ -45,6 +45,6 @@ module.exports = async function (deployer, network) {
     }).catch(function (err) {
       console.log(err);
     });
-    await layer2.changeOperator();
+    // await layer2.changeOperator();
   }
 };
