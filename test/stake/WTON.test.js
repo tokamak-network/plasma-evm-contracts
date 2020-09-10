@@ -13,12 +13,12 @@ const TON = contract.fromArtifact('TON');
 
 const EpochHandler = contract.fromArtifact('EpochHandler');
 const SubmitHandler = contract.fromArtifact('SubmitHandler');
-const RootChain = contract.fromArtifact('RootChain');
+const Layer2 = contract.fromArtifact('Layer2');
 const EtherToken = contract.fromArtifact('EtherToken');
 
 const DepositManager = contract.fromArtifact('DepositManager');
 const SeigManager = contract.fromArtifact('SeigManager');
-const RootChainRegistry = contract.fromArtifact('RootChainRegistry');
+const Layer2Registry = contract.fromArtifact('Layer2Registry');
 
 const chai = require('chai');
 const { expect } = chai;

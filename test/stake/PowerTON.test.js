@@ -14,12 +14,12 @@ const TON = contract.fromArtifact('TON');
 
 const EpochHandler = contract.fromArtifact('EpochHandler');
 const SubmitHandler = contract.fromArtifact('SubmitHandler');
-const RootChain = contract.fromArtifact('RootChain');
+const Layer2 = contract.fromArtifact('Layer2');
 const EtherToken = contract.fromArtifact('EtherToken');
 
 const DepositManager = contract.fromArtifact('DepositManager');
 const SeigManager = contract.fromArtifact('SeigManager');
-const RootChainRegistry = contract.fromArtifact('RootChainRegistry');
+const Layer2Registry = contract.fromArtifact('Layer2Registry');
 const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
 const PowerTON = contract.fromArtifact('PowerTON');
 
@@ -69,7 +69,7 @@ const NRE_LENGTH = 2;
 
 const ROUND_DURATION = time.duration.minutes(1);
 
-class RootChainState {
+class Layer2State {
   constructor (NRE_LENGTH) {
     this.currentFork = 0;
     this.lastEpoch = 0;
@@ -92,21 +92,21 @@ describe('stake/PowerTON', function () {
 
   /**
    *
-   * @param {*} rootchain
-   * @param {RootChainState} rootchainState
+   * @param {*} layer2
+   * @param {Layer2State} layer2State
    */
-  async function submitDummyNRE (rootchain, rootchainState) {
-    const pos1 = makePos(rootchainState.currentFork, rootchainState.lastEpoch + 1);
-    const pos2 = makePos(rootchainState.lastBlock + 1, rootchainState.lastBlock + rootchainState.NRE_LENGTH);
+  async function submitDummyNRE (layer2, layer2State) {
+    const pos1 = makePos(layer2State.currentFork, layer2State.lastEpoch + 1);
+    const pos2 = makePos(layer2State.lastBlock + 1, layer2State.lastBlock + layer2State.NRE_LENGTH);
 
-    // console.log(`before commit RootChain#${rootchain.address}`, pos1, pos2, rootchainState);
+    // console.log(`before commit Layer2#${layer2.address}`, pos1, pos2, layer2State);
 
-    rootchainState.lastEpoch += 2; // skip ORE
-    rootchainState.lastBlock += rootchainState.NRE_LENGTH;
+    layer2State.lastEpoch += 2; // skip ORE
+    layer2State.lastBlock += layer2State.NRE_LENGTH;
 
-    const COST_NRB = await rootchain.COST_NRB();
+    const COST_NRB = await layer2.COST_NRB();
 
-    return rootchain.submitNRE(
+    return layer2.submitNRE(
       pos1,
       pos2,
       dummyStatesRoot,
@@ -117,10 +117,10 @@ describe('stake/PowerTON', function () {
   }
 
   function commits () {
-    return Promise.all(this.rootchains.map(rootchain => this._commit(rootchain)));
+    return Promise.all(this.layer2s.map(layer2 => this._commit(layer2)));
   }
 
-  function behaveRootChains () {
+  function behaveLayer2s () {
     it('operators should commit', async function () {
       await commits.call(this);
     });
@@ -142,7 +142,7 @@ describe('stake/PowerTON', function () {
         await commits.call(this);
       });
 
-      behaveRootChains();
+      behaveLayer2s();
 
       it(`round ${round} should be end`, async function () {
         await this.powerton.endRound();
@@ -206,7 +206,7 @@ describe('stake/PowerTON', function () {
     const epochHandler = await EpochHandler.new();
     const submitHandler = await SubmitHandler.new(epochHandler.address);
 
-    this.rootchains = await Promise.all(range(NUM_ROOTCHAINS).map(_ => RootChain.new(
+    this.layer2s = await Promise.all(range(NUM_ROOTCHAINS).map(_ => Layer2.new(
       epochHandler.address,
       submitHandler.address,
       this.etherToken.address,
@@ -217,13 +217,13 @@ describe('stake/PowerTON', function () {
       dummyReceiptsRoot,
     )));
 
-    // root chain state in local
-    this.rootchainState = {};
-    for (const rootchain of this.rootchains) {
-      this.rootchainState[rootchain.address] = new RootChainState(NRE_LENGTH);
+    // layer2 state in local
+    this.layer2State = {};
+    for (const layer2 of this.layer2s) {
+      this.layer2State[layer2.address] = new Layer2State(NRE_LENGTH);
     }
 
-    this.registry = await RootChainRegistry.new();
+    this.registry = await Layer2Registry.new();
 
     this.depositManager = await DepositManager.new(
       this.wton.address,
@@ -256,10 +256,10 @@ describe('stake/PowerTON', function () {
       this.depositManager,
       this.wton,
     ].map(contract => contract.setSeigManager(this.seigManager.address)));
-    await Promise.all(this.rootchains.map(rootchain => rootchain.setSeigManager(this.seigManager.address)));
+    await Promise.all(this.layer2s.map(layer2 => layer2.setSeigManager(this.seigManager.address)));
 
-    // register root chain and deploy coinage
-    await Promise.all(this.rootchains.map(rootchain => this.registry.registerAndDeployCoinage(rootchain.address, this.seigManager.address)));
+    // register layer2 and deploy coinage
+    await Promise.all(this.layer2s.map(layer2 => this.registry.registerAndDeployCoinage(layer2.address, this.seigManager.address)));
 
     // mint TON to accounts
     await this.ton.mint(defaultSender, TON_INITIAL_SUPPLY.toFixed(TON_UNIT));
@@ -284,39 +284,39 @@ describe('stake/PowerTON', function () {
     // load tot token and coinage tokens
     this.tot = await CustomIncrementCoinage.at(await this.seigManager.tot());
     const coinageAddrs = await Promise.all(
-      this.rootchains.map(rootchain => this.seigManager.coinages(rootchain.address)),
+      this.layer2s.map(layer2 => this.seigManager.coinages(layer2.address)),
     );
 
     this.coinages = [];
-    this.coinagesByRootChain = {};
+    this.coinagesByLayer2 = {};
     for (const addr of coinageAddrs) {
       const i = coinageAddrs.findIndex(a => a === addr);
       this.coinages[i] = await CustomIncrementCoinage.at(addr);
-      this.coinagesByRootChain[this.rootchains[i].address] = this.coinages[i];
+      this.coinagesByLayer2[this.layer2s[i].address] = this.coinages[i];
     }
 
     // contract-call wrapper functions
     this._deposit = (from, to, amount) => this.depositManager.deposit(to, amount, { from });
-    this._commit = (rootchain) => submitDummyNRE(rootchain, this.rootchainState[rootchain.address]);
+    this._commit = (layer2) => submitDummyNRE(layer2, this.layer2State[layer2.address]);
   });
 
   describe('check compatibility', function () {
     describe('before setting PowerTON to SeigManager', function () {
       describe('before deposit TON', function () {
-        behaveRootChains();
+        behaveLayer2s();
         behavePowerTONStart();
       });
 
       describe('after deposit TON', function () {
         beforeEach(async function () {
           await Promise.all(
-            this.rootchains.map(
-              rootchain => this._deposit(players[0], rootchain.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
+            this.layer2s.map(
+              layer2 => this._deposit(players[0], layer2.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
             ),
           );
         });
 
-        behaveRootChains();
+        behaveLayer2s();
         behavePowerTONStart();
       });
     });
@@ -327,20 +327,20 @@ describe('stake/PowerTON', function () {
       });
 
       describe('before deposit TON', function () {
-        behaveRootChains();
+        behaveLayer2s();
         behavePowerTONStart();
       });
 
       describe('after deposit TON', function () {
         beforeEach(async function () {
           await Promise.all(
-            this.rootchains.map(
-              rootchain => this._deposit(players[0], rootchain.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
+            this.layer2s.map(
+              layer2 => this._deposit(players[0], layer2.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
             ),
           );
         });
 
-        behaveRootChains();
+        behaveLayer2s();
         behavePowerTONStart();
       });
 
@@ -350,19 +350,19 @@ describe('stake/PowerTON', function () {
         });
 
         describe('before deposit TON', function () {
-          behaveRootChains();
+          behaveLayer2s();
         });
 
         describe('after deposit TON', function () {
           beforeEach(async function () {
             await Promise.all(
-              this.rootchains.map(
-                rootchain => this._deposit(players[0], rootchain.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
+              this.layer2s.map(
+                layer2 => this._deposit(players[0], layer2.address, tokenAmount.div(NUM_PLAYERS).toFixed(WTON_UNIT)),
               ),
             );
           });
 
-          behaveRootChains();
+          behaveLayer2s();
         });
       });
     });
@@ -384,8 +384,8 @@ describe('stake/PowerTON', function () {
           flatten(
             players.map(
               player =>
-                this.rootchains.map(
-                  rootchain => this._deposit(player, rootchain.address, amount.toFixed(WTON_UNIT)),
+                this.layer2s.map(
+                  layer2 => this._deposit(player, layer2.address, amount.toFixed(WTON_UNIT)),
                 ),
             ),
           ),
@@ -414,7 +414,7 @@ describe('stake/PowerTON', function () {
         ));
       });
 
-      behaveRootChains();
+      behaveLayer2s();
 
       behaveRound(0);
     });

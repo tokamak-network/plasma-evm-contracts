@@ -6,10 +6,10 @@ import { IERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/to
 import { SafeERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 import { ERC165 } from "../../../node_modules/openzeppelin-solidity/contracts/introspection/ERC165.sol";
 
-import { RootChainI } from "../../RootChainI.sol";
+import { Layer2I } from "../../Layer2I.sol";
 
 import { DepositManagerI } from "../interfaces/DepositManagerI.sol";
-import { RootChainRegistryI } from "../interfaces/RootChainRegistryI.sol";
+import { Layer2RegistryI } from "../interfaces/Layer2RegistryI.sol";
 import { SeigManagerI } from "../interfaces/SeigManagerI.sol";
 import { WTON } from "../tokens/WTON.sol";
 import { OnApprove } from "../tokens/OnApprove.sol";
@@ -29,7 +29,7 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   ////////////////////
 
   WTON internal _wton;
-  RootChainRegistryI internal _registry;
+  Layer2RegistryI internal _registry;
   SeigManagerI internal _seigManager;
 
   ////////////////////
@@ -37,33 +37,33 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   ////////////////////
 
   // accumulated staked amount
-  // rootchian => msg.sender => wton amount
+  // layer2 => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _accStaked;
-  // rootchian => wton amount
-  mapping (address => uint256) internal _accStakedRootChain;
+  // layer2 => wton amount
+  mapping (address => uint256) internal _accStakedLayer2;
   // msg.sender => wton amount
   mapping (address => uint256) internal _accStakedAccount;
 
   // pending unstaked amount
-  // rootchian => msg.sender => wton amount
+  // layer2 => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _pendingUnstaked;
-  // rootchian => wton amount
-  mapping (address => uint256) internal _pendingUnstakedRootChain;
+  // layer2 => wton amount
+  mapping (address => uint256) internal _pendingUnstakedLayer2;
   // msg.sender => wton amount
   mapping (address => uint256) internal _pendingUnstakedAccount;
 
   // accumulated unstaked amount
-  // rootchian => msg.sender => wton amount
+  // layer2 => msg.sender => wton amount
   mapping (address => mapping (address => uint256)) internal _accUnstaked;
-  // rootchian => wton amount
-  mapping (address => uint256) internal _accUnstakedRootChain;
+  // layer2 => wton amount
+  mapping (address => uint256) internal _accUnstakedLayer2;
   // msg.sender => wton amount
   mapping (address => uint256) internal _accUnstakedAccount;
 
-  // rootchain => msg.sender => withdrawal requests
+  // layer2 => msg.sender => withdrawal requests
   mapping (address => mapping (address => WithdrawalReqeust[])) internal _withdrawalRequests;
 
-  // rootchain => msg.sender => index
+  // layer2 => msg.sender => index
   mapping (address => mapping (address => uint256)) internal _withdrawalRequestIndex;
 
   ////////////////////
@@ -86,8 +86,8 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   // Modifiers
   ////////////////////
 
-  modifier onlyRootChain(address rootchain) {
-    require(_registry.rootchains(rootchain));
+  modifier onlyLayer2(address layer2) {
+    require(_registry.layer2s(layer2));
     _;
   }
 
@@ -100,9 +100,9 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   // Events
   ////////////////////
 
-  event Deposited(address indexed rootchain, address depositor, uint256 amount);
-  event WithdrawalRequested(address indexed rootchain, address depositor, uint256 amount);
-  event WithdrawalProcessed(address indexed rootchain, address depositor, uint256 amount);
+  event Deposited(address indexed layer2, address depositor, uint256 amount);
+  event WithdrawalRequested(address indexed layer2, address depositor, uint256 amount);
+  event WithdrawalProcessed(address indexed layer2, address depositor, uint256 amount);
 
   ////////////////////
   // Constructor
@@ -110,7 +110,7 @@ contract DepositManager is Ownable, ERC165, OnApprove {
 
   constructor (
     WTON wton,
-    RootChainRegistryI registry,
+    Layer2RegistryI registry,
     uint256 globalWithdrawalDelay_
   ) public {
     _wton = wton;
@@ -139,19 +139,19 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   ) external returns (bool) {
     require(msg.sender == address(_wton), "DepositManager: only accept WTON approve callback");
 
-    address rootchain = _decodeDepositManagerOnApproveData(data);
-    require(_deposit(rootchain, owner, amount));
+    address layer2 = _decodeDepositManagerOnApproveData(data);
+    require(_deposit(layer2, owner, amount));
 
     return true;
   }
 
   function _decodeDepositManagerOnApproveData(
     bytes memory data
-  ) internal pure returns (address rootchain) {
+  ) internal pure returns (address layer2) {
     require(data.length == 0x20);
 
     assembly {
-      rootchain := mload(add(data, 0x20))
+      layer2 := mload(add(data, 0x20))
     }
   }
 
@@ -163,20 +163,20 @@ contract DepositManager is Ownable, ERC165, OnApprove {
    * @dev deposit `amount` WTON in RAY
    */
 
-  function deposit(address rootchain, uint256 amount) external returns (bool) {
-    require(_deposit(rootchain, msg.sender, amount));
+  function deposit(address layer2, uint256 amount) external returns (bool) {
+    require(_deposit(layer2, msg.sender, amount));
   }
 
-  function _deposit(address rootchain, address account, uint256 amount) internal onlyRootChain(rootchain) returns (bool) {
-    _accStaked[rootchain][account] = _accStaked[rootchain][account].add(amount);
-    _accStakedRootChain[rootchain] = _accStakedRootChain[rootchain].add(amount);
+  function _deposit(address layer2, address account, uint256 amount) internal onlyLayer2(layer2) returns (bool) {
+    _accStaked[layer2][account] = _accStaked[layer2][account].add(amount);
+    _accStakedLayer2[layer2] = _accStakedLayer2[layer2].add(amount);
     _accStakedAccount[account] = _accStakedAccount[account].add(amount);
 
     _wton.safeTransferFrom(account, address(this), amount);
 
-    emit Deposited(rootchain, account, amount);
+    emit Deposited(layer2, account, amount);
 
-    require(_seigManager.onDeposit(rootchain, account, amount));
+    require(_seigManager.onDeposit(layer2, account, amount));
 
     return true;
   }
@@ -189,25 +189,25 @@ contract DepositManager is Ownable, ERC165, OnApprove {
    * @dev re-deposit pending requests in the pending queue
    */
 
-  function redeposit(address rootchain) external returns (bool) {
-    uint256 i = _withdrawalRequestIndex[rootchain][msg.sender];
-    require(_redeposit(rootchain, i, 1));
+  function redeposit(address layer2) external returns (bool) {
+    uint256 i = _withdrawalRequestIndex[layer2][msg.sender];
+    require(_redeposit(layer2, i, 1));
   }
 
-  function redepositMulti(address rootchain, uint256 n) external returns (bool) {
-    uint256 i = _withdrawalRequestIndex[rootchain][msg.sender];
-    require(_redeposit(rootchain, i, n));
+  function redepositMulti(address layer2, uint256 n) external returns (bool) {
+    uint256 i = _withdrawalRequestIndex[layer2][msg.sender];
+    require(_redeposit(layer2, i, n));
   }
 
-  function _redeposit(address rootchain, uint256 i, uint256 n) internal onlyRootChain(rootchain) returns (bool) {
+  function _redeposit(address layer2, uint256 i, uint256 n) internal onlyLayer2(layer2) returns (bool) {
     uint256 accAmount;
 
-    require(_withdrawalRequests[rootchain][msg.sender].length > 0, "DepositManager: no request");
-    require(_withdrawalRequests[rootchain][msg.sender].length - i >= n, "DepositManager: n exceeds num of pending requests");
+    require(_withdrawalRequests[layer2][msg.sender].length > 0, "DepositManager: no request");
+    require(_withdrawalRequests[layer2][msg.sender].length - i >= n, "DepositManager: n exceeds num of pending requests");
 
     uint256 e = i + n;
     for (; i < e; i++) {
-      WithdrawalReqeust storage r = _withdrawalRequests[rootchain][msg.sender][i];
+      WithdrawalReqeust storage r = _withdrawalRequests[layer2][msg.sender][i];
       uint256 amount = r.amount;
 
       require(!r.processed, "DepositManager: pending request already processed");
@@ -219,20 +219,20 @@ contract DepositManager is Ownable, ERC165, OnApprove {
 
 
     // deposit-related storages
-    _accStaked[rootchain][msg.sender] = _accStaked[rootchain][msg.sender].add(accAmount);
-    _accStakedRootChain[rootchain] = _accStakedRootChain[rootchain].add(accAmount);
+    _accStaked[layer2][msg.sender] = _accStaked[layer2][msg.sender].add(accAmount);
+    _accStakedLayer2[layer2] = _accStakedLayer2[layer2].add(accAmount);
     _accStakedAccount[msg.sender] = _accStakedAccount[msg.sender].add(accAmount);
 
     // withdrawal-related storages
-    _pendingUnstaked[rootchain][msg.sender] = _pendingUnstaked[rootchain][msg.sender].sub(accAmount);
-    _pendingUnstakedRootChain[rootchain] = _pendingUnstakedRootChain[rootchain].sub(accAmount);
+    _pendingUnstaked[layer2][msg.sender] = _pendingUnstaked[layer2][msg.sender].sub(accAmount);
+    _pendingUnstakedLayer2[layer2] = _pendingUnstakedLayer2[layer2].sub(accAmount);
     _pendingUnstakedAccount[msg.sender] = _pendingUnstakedAccount[msg.sender].sub(accAmount);
 
-    _withdrawalRequestIndex[rootchain][msg.sender] += n;
+    _withdrawalRequestIndex[layer2][msg.sender] += n;
 
-    emit Deposited(rootchain, msg.sender, accAmount);
+    emit Deposited(layer2, msg.sender, accAmount);
 
-    require(_seigManager.onDeposit(rootchain, msg.sender, accAmount));
+    require(_seigManager.onDeposit(layer2, msg.sender, accAmount));
 
     return true;
   }
@@ -241,7 +241,7 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   // Slash functions
   ////////////////////
 
-  function slash(address rootchain, address recipient, uint256 amount) external onlySeigManager returns (bool) {
+  function slash(address layer2, address recipient, uint256 amount) external onlySeigManager returns (bool) {
     //return _wton.transferFrom(owner, recipient, amount);
   }
 
@@ -262,54 +262,54 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   // Withdrawal functions
   ////////////////////
 
-  function requestWithdrawal(address rootchain, uint256 amount) external returns (bool) {
-    return _requestWithdrawal(rootchain, amount);
+  function requestWithdrawal(address layer2, uint256 amount) external returns (bool) {
+    return _requestWithdrawal(layer2, amount);
   }
 
-  function _requestWithdrawal(address rootchain, uint256 amount) internal onlyRootChain(rootchain) returns (bool) {
+  function _requestWithdrawal(address layer2, uint256 amount) internal onlyLayer2(layer2) returns (bool) {
     require(amount > 0, "DepositManager: amount must not be zero");
 
-    uint256 delay = globalWithdrawalDelay > withdrawalDelay[rootchain] ? globalWithdrawalDelay : withdrawalDelay[rootchain];
-    _withdrawalRequests[rootchain][msg.sender].push(WithdrawalReqeust({
+    uint256 delay = globalWithdrawalDelay > withdrawalDelay[layer2] ? globalWithdrawalDelay : withdrawalDelay[layer2];
+    _withdrawalRequests[layer2][msg.sender].push(WithdrawalReqeust({
       withdrawableBlockNumber: uint128(block.number + delay),
       amount: uint128(amount),
       processed: false
     }));
 
-    _pendingUnstaked[rootchain][msg.sender] = _pendingUnstaked[rootchain][msg.sender].add(amount);
-    _pendingUnstakedRootChain[rootchain] = _pendingUnstakedRootChain[rootchain].add(amount);
+    _pendingUnstaked[layer2][msg.sender] = _pendingUnstaked[layer2][msg.sender].add(amount);
+    _pendingUnstakedLayer2[layer2] = _pendingUnstakedLayer2[layer2].add(amount);
     _pendingUnstakedAccount[msg.sender] = _pendingUnstakedAccount[msg.sender].add(amount);
 
-    emit WithdrawalRequested(rootchain, msg.sender, amount);
+    emit WithdrawalRequested(layer2, msg.sender, amount);
 
-    require(_seigManager.onWithdraw(rootchain, msg.sender, amount));
+    require(_seigManager.onWithdraw(layer2, msg.sender, amount));
 
     return true;
   }
 
-  function processRequest(address rootchain, bool receiveTON) external returns (bool) {
-    return _processRequest(rootchain, receiveTON);
+  function processRequest(address layer2, bool receiveTON) external returns (bool) {
+    return _processRequest(layer2, receiveTON);
   }
 
-  function _processRequest(address rootchain, bool receiveTON) internal returns (bool) {
-    uint256 index = _withdrawalRequestIndex[rootchain][msg.sender];
-    require(_withdrawalRequests[rootchain][msg.sender].length > index, "DepositManager: no request to process");
+  function _processRequest(address layer2, bool receiveTON) internal returns (bool) {
+    uint256 index = _withdrawalRequestIndex[layer2][msg.sender];
+    require(_withdrawalRequests[layer2][msg.sender].length > index, "DepositManager: no request to process");
 
-    WithdrawalReqeust storage r = _withdrawalRequests[rootchain][msg.sender][index];
+    WithdrawalReqeust storage r = _withdrawalRequests[layer2][msg.sender][index];
 
     require(r.withdrawableBlockNumber <= block.number, "DepositManager: wait for withdrawal delay");
     r.processed = true;
 
-    _withdrawalRequestIndex[rootchain][msg.sender] += 1;
+    _withdrawalRequestIndex[layer2][msg.sender] += 1;
 
     uint256 amount = r.amount;
 
-    _pendingUnstaked[rootchain][msg.sender] = _pendingUnstaked[rootchain][msg.sender].sub(amount);
-    _pendingUnstakedRootChain[rootchain] = _pendingUnstakedRootChain[rootchain].sub(amount);
+    _pendingUnstaked[layer2][msg.sender] = _pendingUnstaked[layer2][msg.sender].sub(amount);
+    _pendingUnstakedLayer2[layer2] = _pendingUnstakedLayer2[layer2].sub(amount);
     _pendingUnstakedAccount[msg.sender] = _pendingUnstakedAccount[msg.sender].sub(amount);
 
-    _accUnstaked[rootchain][msg.sender] = _accUnstaked[rootchain][msg.sender].add(amount);
-    _accUnstakedRootChain[rootchain] = _accUnstakedRootChain[rootchain].add(amount);
+    _accUnstaked[layer2][msg.sender] = _accUnstaked[layer2][msg.sender].add(amount);
+    _accUnstakedLayer2[layer2] = _accUnstakedLayer2[layer2].add(amount);
     _accUnstakedAccount[msg.sender] = _accUnstakedAccount[msg.sender].add(amount);
 
     if (receiveTON) {
@@ -318,38 +318,38 @@ contract DepositManager is Ownable, ERC165, OnApprove {
       _wton.safeTransfer(msg.sender, amount);
     }
 
-    emit WithdrawalProcessed(rootchain, msg.sender, amount);
+    emit WithdrawalProcessed(layer2, msg.sender, amount);
     return true;
   }
 
-  function requestWithdrawalAll(address rootchain) external onlyRootChain(rootchain) returns (bool) {
-    uint256 amount = _seigManager.stakeOf(rootchain, msg.sender);
+  function requestWithdrawalAll(address layer2) external onlyLayer2(layer2) returns (bool) {
+    uint256 amount = _seigManager.stakeOf(layer2, msg.sender);
 
-    return _requestWithdrawal(rootchain, amount);
+    return _requestWithdrawal(layer2, amount);
   }
 
-  function processRequests(address rootchain, uint256 n, bool receiveTON) external returns (bool) {
+  function processRequests(address layer2, uint256 n, bool receiveTON) external returns (bool) {
     for (uint256 i = 0; i < n; i++) {
-      require(_processRequest(rootchain, receiveTON));
+      require(_processRequest(layer2, receiveTON));
     }
     return true;
   }
 
-  function numRequests(address rootchain, address account) external view returns (uint256) {
-    return _withdrawalRequests[rootchain][account].length;
+  function numRequests(address layer2, address account) external view returns (uint256) {
+    return _withdrawalRequests[layer2][account].length;
   }
 
-  function numPendingRequests(address rootchain, address account) external view returns (uint256) {
-    uint256 numRequests = _withdrawalRequests[rootchain][account].length;
-    uint256 index = _withdrawalRequestIndex[rootchain][account];
+  function numPendingRequests(address layer2, address account) external view returns (uint256) {
+    uint256 numRequests = _withdrawalRequests[layer2][account].length;
+    uint256 index = _withdrawalRequestIndex[layer2][account];
 
     if (numRequests == 0) return 0;
 
     return numRequests - index;
   }
 
-  function _isOperator(address rootchain, address operator) internal view returns (bool) {
-    return operator == RootChainI(rootchain).operator();
+  function _isOperator(address layer2, address operator) internal view returns (bool) {
+    return operator == Layer2I(layer2).operator();
   }
 
 
@@ -362,23 +362,23 @@ contract DepositManager is Ownable, ERC165, OnApprove {
   function registry() external view returns (address) { return address(_registry); }
   function seigManager() external view returns (address) { return address(_seigManager); }
 
-  function accStaked(address rootchain, address account) external view returns (uint256 wtonAmount) { return _accStaked[rootchain][account]; }
-  function accStakedRootChain(address rootchain) external view returns (uint256 wtonAmount) { return _accStakedRootChain[rootchain]; }
+  function accStaked(address layer2, address account) external view returns (uint256 wtonAmount) { return _accStaked[layer2][account]; }
+  function accStakedLayer2(address layer2) external view returns (uint256 wtonAmount) { return _accStakedLayer2[layer2]; }
   function accStakedAccount(address account) external view returns (uint256 wtonAmount) { return _accStakedAccount[account]; }
 
-  function pendingUnstaked(address rootchain, address account) external view returns (uint256 wtonAmount) { return _pendingUnstaked[rootchain][account]; }
-  function pendingUnstakedRootChain(address rootchain) external view returns (uint256 wtonAmount) { return _pendingUnstakedRootChain[rootchain]; }
+  function pendingUnstaked(address layer2, address account) external view returns (uint256 wtonAmount) { return _pendingUnstaked[layer2][account]; }
+  function pendingUnstakedLayer2(address layer2) external view returns (uint256 wtonAmount) { return _pendingUnstakedLayer2[layer2]; }
   function pendingUnstakedAccount(address account) external view returns (uint256 wtonAmount) { return _pendingUnstakedAccount[account]; }
 
-  function accUnstaked(address rootchain, address account) external view returns (uint256 wtonAmount) { return _accUnstaked[rootchain][account]; }
-  function accUnstakedRootChain(address rootchain) external view returns (uint256 wtonAmount) { return _accUnstakedRootChain[rootchain]; }
+  function accUnstaked(address layer2, address account) external view returns (uint256 wtonAmount) { return _accUnstaked[layer2][account]; }
+  function accUnstakedLayer2(address layer2) external view returns (uint256 wtonAmount) { return _accUnstakedLayer2[layer2]; }
   function accUnstakedAccount(address account) external view returns (uint256 wtonAmount) { return _accUnstakedAccount[account]; }
 
-  function withdrawalRequestIndex(address rootchain, address account) external view returns (uint256 index) { return _withdrawalRequestIndex[rootchain][account]; }
-  function withdrawalRequest(address rootchain, address account, uint256 index) external view returns (uint128 withdrawableBlockNumber, uint128 amount, bool processed ) {
-    withdrawableBlockNumber = _withdrawalRequests[rootchain][account][index].withdrawableBlockNumber;
-    amount = _withdrawalRequests[rootchain][account][index].amount;
-    processed = _withdrawalRequests[rootchain][account][index].processed;
+  function withdrawalRequestIndex(address layer2, address account) external view returns (uint256 index) { return _withdrawalRequestIndex[layer2][account]; }
+  function withdrawalRequest(address layer2, address account, uint256 index) external view returns (uint128 withdrawableBlockNumber, uint128 amount, bool processed ) {
+    withdrawableBlockNumber = _withdrawalRequests[layer2][account][index].withdrawableBlockNumber;
+    amount = _withdrawalRequests[layer2][account][index].amount;
+    processed = _withdrawalRequests[layer2][account][index].processed;
   }
 
   // solium-enable

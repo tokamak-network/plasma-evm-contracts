@@ -1,13 +1,13 @@
 pragma solidity ^0.5.12;
 
-import "./RootChainStorage.sol";
-import "./RootChainEvent.sol";
+import "./Layer2Storage.sol";
+import "./Layer2Event.sol";
 
 /**
- * @notice RootChainBase provides functions to be delegated to other handlers,
+ * @notice Layer2Base provides functions to be delegated to other handlers,
  *         EpochHandler, SubmitHandler.
  */
-contract RootChainBase is RootChainStorage, RootChainEvent {
+contract Layer2Base is Layer2Storage, Layer2Event {
   /**
    * Constants
    */

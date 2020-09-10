@@ -167,7 +167,7 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   //////////////////////////////
 
   function onDeposit(
-    address rootchain,
+    address layer2,
     address account,
     uint256 amount
   ) external checkRound {
@@ -179,7 +179,7 @@ contract PowerTON is Ownable, Pausable, AuthController, PowerTONI {
   }
 
   function onWithdraw(
-    address rootchain,
+    address layer2,
     address account,
     uint256 amount
   ) external checkRound {

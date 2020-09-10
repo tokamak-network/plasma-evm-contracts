@@ -12,7 +12,7 @@ const { marshalString, unmarshalString } = require('./helpers/marshal');
 
 const { expect } = chai;
 
-const RootChain = artifacts.require('RootChain.sol');
+const Layer2 = artifacts.require('Layer2.sol');
 const TON = artifacts.require('TON.sol');
 const EtherToken = artifacts.require('EtherToken.sol');
 const RequestableSimpleToken = artifacts.require('RequestableSimpleToken.sol');
@@ -39,11 +39,11 @@ String.prototype.add = function (n) { return (web3.utils.toBN(this.toString())).
 String.prototype.cmp = function (n) { return (web3.utils.toBN(this.toString())).cmp(web3.utils.toBN(n)); };
 /* eslint-enable no-extend-native */
 
-contract('RootChain', async ([
+contract('Layer2', async ([
   operator,
   ...others
 ]) => {
-  let rootchain;
+  let layer2;
   let token, mintableToken, etherToken;
 
   const tokenInChildChain = '0x000000000000000000000000000000000000dead';
@@ -53,7 +53,7 @@ contract('RootChain', async ([
   const users = others.slice(0, 4);
   const submiter = users[0]; // URB submiter
 
-  // rootchain parameters
+  // layer2 parameters
   let MAX_REQUESTS;
   let NRELength; // === 2
   let COST_ERO, COST_ERU, COST_URB_PREPARE, COST_URB, COST_ORB, COST_NRB;
@@ -83,7 +83,7 @@ contract('RootChain', async ([
     const lastFinalizedBlock = last(forks).lastFinalizedBlock;
 
     const firstBlock = lastFinalizedBlock + 1;
-    const firstEpoch = (await rootchain.getBlock(currentFork, firstBlock)).epochNumber.toNumber();
+    const firstEpoch = (await layer2.getBlock(currentFork, firstBlock)).epochNumber.toNumber();
 
     currentFork += 1;
     forks.push({
@@ -103,7 +103,7 @@ contract('RootChain', async ([
       throw new Error(`This test requires at least 11 accounts. but provided ${1 + others.length} accounts`);
     }
 
-    rootchain = await RootChain.deployed();
+    layer2 = await Layer2.deployed();
     mintableToken = await TON.deployed();
     etherToken = await EtherToken.deployed();
     token = await RequestableSimpleToken.new();
@@ -118,25 +118,25 @@ contract('RootChain', async ([
       await etherToken.deposit(tokenAmount.mul(new BN('100)))')), { from: other });
     }));
 
-    await rootchain.mapRequestableContractByOperator(etherToken.address, etherToken.address);
-    await rootchain.mapRequestableContractByOperator(token.address, tokenInChildChain);
+    await layer2.mapRequestableContractByOperator(etherToken.address, etherToken.address);
+    await layer2.mapRequestableContractByOperator(token.address, tokenInChildChain);
 
     // read parameters
-    MAX_REQUESTS = await rootchain.MAX_REQUESTS();
-    NRELength = await rootchain.NRELength();
-    COST_ERO = await rootchain.COST_ERO();
-    COST_ERU = await rootchain.COST_ERU();
-    COST_URB_PREPARE = await rootchain.COST_URB_PREPARE();
-    COST_URB = await rootchain.COST_URB();
-    COST_ORB = await rootchain.COST_ORB();
-    COST_NRB = await rootchain.COST_NRB();
-    CP_COMPUTATION = (await rootchain.CP_COMPUTATION()).toNumber();
-    CP_WITHHOLDING = (await rootchain.CP_WITHHOLDING()).toNumber();
-    CP_EXIT = (await rootchain.CP_EXIT()).toNumber();
+    MAX_REQUESTS = await layer2.MAX_REQUESTS();
+    NRELength = await layer2.NRELength();
+    COST_ERO = await layer2.COST_ERO();
+    COST_ERU = await layer2.COST_ERU();
+    COST_URB_PREPARE = await layer2.COST_URB_PREPARE();
+    COST_URB = await layer2.COST_URB();
+    COST_ORB = await layer2.COST_ORB();
+    COST_NRB = await layer2.COST_NRB();
+    CP_COMPUTATION = (await layer2.CP_COMPUTATION()).toNumber();
+    CP_WITHHOLDING = (await layer2.CP_WITHHOLDING()).toNumber();
+    CP_EXIT = (await layer2.CP_EXIT()).toNumber();
 
     log(`
-      EpochHandler contract at ${await rootchain.epochHandler()}
-      RootChain contract at ${rootchain.address}
+      EpochHandler contract at ${await layer2.epochHandler()}
+      Layer2 contract at ${layer2.address}
 
       MAX_REQUESTS        ${Number(MAX_REQUESTS)}
       NRELength           ${Number(NRELength)}
@@ -178,13 +178,13 @@ contract('RootChain', async ([
 
     // TODO: event listening doesn't work...
     if (VERBOSE) {
-      // rootchain.allEvents().on('data', (e) => {
+      // layer2.allEvents().on('data', (e) => {
       //   const eventName = e.event;
       //   console.log(`[${eventName}]: ${JSON.stringify(e.args)}`, e);
       // });
 
       for (const eventName of targetEvents) {
-        rootchain[eventName]().on('data', (e) => {
+        layer2[eventName]().on('data', (e) => {
           log(`[${eventName}]: ${JSON.stringify(e.args)}`, e);
 
           if (typeof eventHandlers[eventName] === 'function') {
@@ -199,20 +199,20 @@ contract('RootChain', async ([
     const forkNumber = currentFork;
     const fork = forks[forkNumber];
 
-    const block = await rootchain.getBlock(forkNumber, blockNumber);
-    const epoch = await rootchain.getEpoch(forkNumber, block.epochNumber);
-    const requestBlock = await rootchain.ORBs(block.requestBlockId);
+    const block = await layer2.getBlock(forkNumber, blockNumber);
+    const epoch = await layer2.getEpoch(forkNumber, block.epochNumber);
+    const requestBlock = await layer2.ORBs(block.requestBlockId);
 
     let perviousEpochNumber = block.epochNumber.sub(new BN('2'));
-    let perviousEpoch = await rootchain.getEpoch(forkNumber, perviousEpochNumber);
+    let perviousEpoch = await layer2.getEpoch(forkNumber, perviousEpochNumber);
 
     // in case of first ORE after forked (not ORE')
     if (forkNumber !== 0 && block.epochNumber.cmp(fork.firstEpoch + 4) === 0) {
       perviousEpochNumber = block.epochNumber.sub(new BN('3'));
-      perviousEpoch = await rootchain.getEpoch(forkNumber, perviousEpochNumber);
+      perviousEpoch = await layer2.getEpoch(forkNumber, perviousEpochNumber);
     }
 
-    const firstFilledORENumber = await rootchain.firstFilledORENumber(currentFork);
+    const firstFilledORENumber = await layer2.firstFilledORENumber(currentFork);
 
     // if (!epoch.rebase) {
     //   await logEpoch(forkNumber, perviousEpochNumber);
@@ -249,7 +249,7 @@ contract('RootChain', async ([
           expect(perviousEpoch.isRequest).to.equal(true);
 
           // this epoch is the first request epoch
-          expect(await rootchain.firstFilledORENumber(forkNumber)).to.be.bignumber.equal(block.epochNumber);
+          expect(await layer2.firstFilledORENumber(forkNumber)).to.be.bignumber.equal(block.epochNumber);
         }
 
         if (perviousEpoch.isEmpty) {
@@ -271,11 +271,11 @@ contract('RootChain', async ([
         if (epoch.endBlockNumber.cmp(0) !== 0) {
           const previousForkNumber = forkNumber - 1;
           const previousFork = forks[previousForkNumber];
-          const forkedBlock = await rootchain.getBlock(previousForkNumber, previousFork.forkedBlock);
+          const forkedBlock = await layer2.getBlock(previousForkNumber, previousFork.forkedBlock);
 
           const previousEpochNumbers = range(forkedBlock.epochNumber, previousFork.lastEpoch + 1);
           const previousEpochs = await Promise.all(previousEpochNumbers
-            .map(epochNumber => rootchain.getEpoch(previousForkNumber, epochNumber)));
+            .map(epochNumber => layer2.getEpoch(previousForkNumber, epochNumber)));
 
           const previousRequestEpochs = [];
           const proms = [];
@@ -306,8 +306,8 @@ contract('RootChain', async ([
             const referenceEpoch = e.epoch;
             for (const referenceBlockNumber of range(
               referenceEpoch.startBlockNumber.toNumber(), referenceEpoch.endBlockNumber.toNumber())) {
-              const referenceBlock = await rootchain.getBlock(previousForkNumber, referenceBlockNumber);
-              const currentBlock = await rootchain.getBlock(currentFork, currentBlockNumber);
+              const referenceBlock = await layer2.getBlock(previousForkNumber, referenceBlockNumber);
+              const currentBlock = await layer2.getBlock(currentFork, currentBlockNumber);
               expect(new BN(currentBlock.referenceBlock)).to.be.bignumber.equal(referenceBlockNumber);
               expect(new BN(currentBlock.requestBlockId)).to.be.bignumber.equal(referenceBlock.requestBlockId);
 
@@ -327,7 +327,7 @@ contract('RootChain', async ([
   }
 
   async function checkLastBlockNumber () {
-    expect(await rootchain.lastBlock(currentFork))
+    expect(await layer2.lastBlock(currentFork))
       .to.be.bignumber.equal(String(forks[currentFork].lastBlock));
   }
 
@@ -371,7 +371,7 @@ contract('RootChain', async ([
     // epochReceiptsRoots     : ${epochReceiptsRoots}
     // `);
 
-    const tx = await rootchain.submitNRE(
+    const tx = await layer2.submitNRE(
       pos1,
       pos2,
       epochStateRoot,
@@ -390,7 +390,7 @@ contract('RootChain', async ([
       forks[currentFork].lastBlock += 1;
       const pos = makePos(currentFork, forks[currentFork].lastBlock);
 
-      const tx = await rootchain.submitORB(pos, dummyStatesRoot, dummyTransactionsRoot, dummyReceiptsRoot, { value: COST_ORB });
+      const tx = await layer2.submitORB(pos, dummyStatesRoot, dummyTransactionsRoot, dummyReceiptsRoot, { value: COST_ORB });
       logtx(tx);
 
       await checkRequestBlock(forks[currentFork].lastBlock);
@@ -409,7 +409,7 @@ contract('RootChain', async ([
       firstURB = false;
       const pos = makePos(currentFork, forks[currentFork].lastBlock);
 
-      const tx = await rootchain.submitURB(pos, dummyStatesRoot, dummyTransactionsRoot, dummyReceiptsRoot,
+      const tx = await layer2.submitURB(pos, dummyStatesRoot, dummyTransactionsRoot, dummyReceiptsRoot,
         { from: submiter, value: COST_URB });
       logtx(tx);
 
@@ -422,9 +422,9 @@ contract('RootChain', async ([
 
   async function finalizeBlocks (nTry = 0) {
     // finalize blocks until all blocks are fianlized
-    const lastFinalizedBlockNumber = await rootchain.getLastFinalizedBlock(currentFork);
+    const lastFinalizedBlockNumber = await layer2.getLastFinalizedBlock(currentFork);
     const blockNumberToFinalize = lastFinalizedBlockNumber.add(new BN('1'));
-    const block = await rootchain.getBlock(currentFork, blockNumberToFinalize);
+    const block = await layer2.getBlock(currentFork, blockNumberToFinalize);
 
     // short circuit if all blocks are finalized
     if (lastFinalizedBlockNumber.gte(new BN(forks[currentFork].lastBlock))) {
@@ -432,9 +432,9 @@ contract('RootChain', async ([
     }
 
     await time.increase(CP_WITHHOLDING + 1);
-    await rootchain.finalizeBlock();
+    await layer2.finalizeBlock();
 
-    forks[currentFork].lastFinalizedBlock = (await rootchain.getLastFinalizedBlock(currentFork)).toNumber();
+    forks[currentFork].lastFinalizedBlock = (await layer2.getLastFinalizedBlock(currentFork)).toNumber();
 
     return finalizeBlocks(nTry + 1);
   }
@@ -442,8 +442,8 @@ contract('RootChain', async ([
   async function finalizeRequests (requestIds = []) {
     await finalizeBlocks();
 
-    let requestIdToFinalize = await rootchain.EROIdToFinalize();
-    const numRequests = await rootchain.getNumEROs();
+    let requestIdToFinalize = await layer2.EROIdToFinalize();
+    const numRequests = await layer2.getNumEROs();
 
     if (requestIds.length === 0) {
       requestIds = range(requestIdToFinalize, numRequests);
@@ -460,8 +460,8 @@ contract('RootChain', async ([
 
       expect(requestIdToFinalize).to.be.bignumber.equal(new BN(requestId));
       await time.increase(CP_EXIT + 1);
-      await rootchain.finalizeRequest();
-      requestIdToFinalize = await rootchain.EROIdToFinalize();
+      await layer2.finalizeRequest();
+      requestIdToFinalize = await layer2.EROIdToFinalize();
     }
 
     expect(requestIdToFinalize.cmp(lastRequestId) === 0, 'Some requests are not finalized yet');
@@ -470,20 +470,20 @@ contract('RootChain', async ([
   async function logEpoch (forkNumber, epochNumber) {
     if (epochNumber < 0) return;
 
-    const epoch = await rootchain.getEpoch(forkNumber, epochNumber);
+    const epoch = await layer2.getEpoch(forkNumber, epochNumber);
     log(`      Epoch#${forkNumber}.${epochNumber} ${JSON.stringify(epoch)}`);
   }
 
   async function logBlock (forkNumber, blockNumber) {
-    const block = await rootchain.getBlock(forkNumber, blockNumber);
+    const block = await layer2.getBlock(forkNumber, blockNumber);
     log(`      Block#${forkNumber}.${blockNumber} ${JSON.stringify(block)}`);
   }
 
   async function logEpochAndBlock (forkNumber, epochNumber) {
-    const epoch = await rootchain.getEpoch(forkNumber, epochNumber);
+    const epoch = await layer2.getEpoch(forkNumber, epochNumber);
     log(`
       Epoch#${forkNumber}.${epochNumber} ${JSON.stringify(epoch)}
-      ORBs.length: ${await rootchain.getNumORBs()}
+      ORBs.length: ${await layer2.getNumORBs()}
       `);
 
     for (const i of range(
@@ -491,7 +491,7 @@ contract('RootChain', async ([
       epoch.endBlockNumber.toNumber() + 1,
     )) {
       log(`
-        Block#${i} ${JSON.stringify(await rootchain.getBlock(forkNumber, i))}`);
+        Block#${i} ${JSON.stringify(await layer2.getBlock(forkNumber, i))}`);
     }
   }
 
@@ -510,9 +510,9 @@ contract('RootChain', async ([
     const requestIds = range(0, 4);
 
     before('check NRE', async () => {
-      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
+      expect((await layer2.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
       expect(epoch.initialized).to.equal(true);
       expect(epoch.isRequest).to.equal(false);
       expect(epoch.isEmpty).to.equal(false);
@@ -525,7 +525,7 @@ contract('RootChain', async ([
         const trieKey = await etherToken.getBalanceTrieKey(other);
         const trieValue = padLeft(web3.utils.numberToHex(etherAmount));
 
-        const tx = await rootchain.startEnter(etherToken.address, trieKey, trieValue, {
+        const tx = await layer2.startEnter(etherToken.address, trieKey, trieValue, {
           from: other,
         });
 
@@ -533,7 +533,7 @@ contract('RootChain', async ([
       }));
 
       await Promise.all(requestIds.map(async (requestId) => {
-        const ERO = await rootchain.EROs(requestId);
+        const ERO = await layer2.EROs(requestId);
         expect(ERO.isTransfer).to.equal(isTransfer);
         expect(ERO.finalized).to.equal(false);
         expect(ERO.isExit).to.equal(false);
@@ -545,14 +545,14 @@ contract('RootChain', async ([
     });
 
     it('NRE#1 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
 
       expect(epoch.startBlockNumber).to.equal(String(first(NRBNumbers)));
       expect(epoch.endBlockNumber).to.equal(String(last(NRBNumbers)));
     });
 
     it('ORE#2 should be empty', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(last(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
@@ -567,7 +567,7 @@ contract('RootChain', async ([
     });
 
     it('Next request block should be sealed', async () => {
-      const requestBlock = await rootchain.ORBs(NextORBId);
+      const requestBlock = await layer2.ORBs(NextORBId);
 
       expect(requestBlock.submitted).to.be.equal(true);
       expect(requestBlock.requestStart).to.be.bignumber.equal(String(first(requestIds)));
@@ -575,7 +575,7 @@ contract('RootChain', async ([
     });
 
     it('Next ORE#4 should have correct request ids', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
+      const epoch = await layer2.getEpoch(currentFork, NextORENumber);
 
       expect(epoch.isEmpty).to.be.equal(false);
       expect(epoch.RE.requestStart).to.be.equal(String(first(requestIds)));
@@ -601,9 +601,9 @@ contract('RootChain', async ([
     const requestIds = range(4, 8);
 
     before('check NRE', async () => {
-      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
+      expect((await layer2.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
       expect(epoch.initialized).to.be.equal(true);
       expect(epoch.isRequest).to.be.equal(false);
       expect(epoch.isEmpty).to.be.equal(false);
@@ -618,14 +618,14 @@ contract('RootChain', async ([
 
         const tokenBalance = await token.balances(other);
 
-        const tx = await rootchain.startEnter(token.address, trieKey, trieValue, { from: other });
+        const tx = await layer2.startEnter(token.address, trieKey, trieValue, { from: other });
         logtx(tx);
 
         expect((await token.balances(other))).to.be.bignumber.equal(tokenBalance.sub(tokenAmount));
       }));
 
       await Promise.all(requestIds.map(async (requestId) => {
-        const ERO = await rootchain.EROs(requestId);
+        const ERO = await layer2.EROs(requestId);
 
         expect(ERO.isTransfer).to.be.equal(isTransfer);
         expect(ERO.finalized).to.be.equal(false);
@@ -638,7 +638,7 @@ contract('RootChain', async ([
     });
 
     it('NRE#3 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
@@ -647,7 +647,7 @@ contract('RootChain', async ([
     it('operator should submit ORB#5', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = await rootchain.ORBs(ORBId);
+      const requestBlock = await layer2.ORBs(ORBId);
       expect(requestBlock.requestStart).to.be.bignumber.equal(String(first(previousRequestIds)));
       expect(requestBlock.requestEnd).to.be.bignumber.equal(String(last(previousRequestIds)));
       expect(requestBlock.submitted).to.be.equal(true);
@@ -655,7 +655,7 @@ contract('RootChain', async ([
     });
 
     it('Next request block should be sealed', async () => {
-      const nextRequestBlock = await rootchain.ORBs(NextORBId);
+      const nextRequestBlock = await layer2.ORBs(NextORBId);
 
       expect(nextRequestBlock.submitted).to.be.equal(true);
       expect(nextRequestBlock.requestStart).to.be.bignumber.equal(String(first(requestIds)));
@@ -663,7 +663,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#4 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
@@ -673,7 +673,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#4 should have previous requests', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(ORBId));
       expect(epoch.initialized).to.be.equal(true);
@@ -684,7 +684,7 @@ contract('RootChain', async ([
     });
 
     it('Next ORE#6 should have correct request ids', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
+      const epoch = await layer2.getEpoch(currentFork, NextORENumber);
 
       expect(epoch.isEmpty).to.be.equal(false);
       expect(epoch.RE.requestStart).to.be.equal(String(first(requestIds)));
@@ -710,9 +710,9 @@ contract('RootChain', async ([
     const requestIds = [7];
 
     before('check NRE', async () => {
-      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
+      expect((await layer2.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
       expect(epoch.initialized).to.be.equal(true);
       expect(epoch.isRequest).to.be.equal(false);
       expect(epoch.isEmpty).to.be.equal(false);
@@ -723,7 +723,7 @@ contract('RootChain', async ([
     });
 
     it('NRE#5 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
@@ -732,7 +732,7 @@ contract('RootChain', async ([
     it('operator should submit ORB#8', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = await rootchain.ORBs(ORBId);
+      const requestBlock = await layer2.ORBs(ORBId);
       expect(requestBlock.requestStart).to.be.bignumber.equal(String(first(previousRequestIds)));
       expect(requestBlock.requestEnd).to.be.bignumber.equal(String(last(previousRequestIds)));
       expect(requestBlock.submitted).to.be.equal(true);
@@ -740,7 +740,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#6 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
@@ -750,7 +750,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#6 should have previous requests', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(ORBId));
       expect(epoch.initialized).to.be.equal(true);
@@ -761,7 +761,7 @@ contract('RootChain', async ([
     });
 
     it('Next empty ORE#8 should have correct request block id', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
+      const epoch = await layer2.getEpoch(currentFork, NextORENumber);
 
       expect(epoch.isEmpty).to.be.equal(true);
       expect(epoch.RE.requestStart).to.be.equal(String(first(requestIds)));
@@ -790,9 +790,9 @@ contract('RootChain', async ([
     const requestIds = range(8, 12);
 
     before('check NRE', async () => {
-      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
+      expect((await layer2.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
       expect(epoch.initialized).to.be.equal(true);
       expect(epoch.isRequest).to.be.equal(false);
       expect(epoch.isEmpty).to.be.equal(false);
@@ -806,12 +806,12 @@ contract('RootChain', async ([
         const trieKey = await token.getBalanceTrieKey(other);
         const trieValue = padLeft(web3.utils.numberToHex(tokenAmount));
 
-        const tx = await rootchain.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
+        const tx = await layer2.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
         logtx(tx);
       }));
 
       await Promise.all(requestIds.map(async (requestId) => {
-        const ERO = await rootchain.EROs(requestId);
+        const ERO = await layer2.EROs(requestId);
 
         expect(ERO.isTransfer).to.be.equal(isTransfer);
         expect(ERO.finalized).to.be.equal(false);
@@ -824,14 +824,14 @@ contract('RootChain', async ([
     });
 
     it('NRE#7 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('ORE#8 should be empty', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(last(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
@@ -846,12 +846,12 @@ contract('RootChain', async ([
     });
 
     it('Next request block should be sealed', async () => {
-      const nextRequestBlock = await rootchain.ORBs(NextORBId);
+      const nextRequestBlock = await layer2.ORBs(NextORBId);
       expect(nextRequestBlock.submitted).to.be.equal(true);
     });
 
     it('Next ORE#10 should have correct request ids', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
+      const epoch = await layer2.getEpoch(currentFork, NextORENumber);
 
       expect(epoch.isEmpty).to.be.equal(false);
       expect(epoch.RE.requestStart).to.be.equal(String(first(requestIds)));
@@ -877,9 +877,9 @@ contract('RootChain', async ([
     const requestIds = range(12, 52);
 
     before('check NRE', async () => {
-      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
+      expect((await layer2.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
       expect(epoch.initialized).to.be.equal(true);
       expect(epoch.isRequest).to.be.equal(false);
       expect(epoch.isEmpty).to.be.equal(false);
@@ -894,11 +894,11 @@ contract('RootChain', async ([
           const trieKey = await token.getBalanceTrieKey(other);
           const trieValue = padLeft(web3.utils.numberToHex(tokenAmount));
 
-          return rootchain.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
+          return layer2.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
         }));
       }
 
-      const EROs = await Promise.all(requestIds.map(i => rootchain.EROs(i)));
+      const EROs = await Promise.all(requestIds.map(i => layer2.EROs(i)));
 
       EROs.forEach(ERO => {
         expect(ERO.isTransfer).to.be.equal(isTransfer);
@@ -912,7 +912,7 @@ contract('RootChain', async ([
     });
 
     it('NRE#9 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
@@ -921,7 +921,7 @@ contract('RootChain', async ([
     it('operator should submit ORB#13', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = await rootchain.ORBs(ORBId);
+      const requestBlock = await layer2.ORBs(ORBId);
       expect(requestBlock.requestStart).to.be.bignumber.equal(String(first(previousRequestIds)));
       expect(requestBlock.requestEnd).to.be.bignumber.equal(String(last(previousRequestIds)));
       expect(requestBlock.submitted).to.be.equal(true);
@@ -929,8 +929,8 @@ contract('RootChain', async ([
     });
 
     it('Next request blocks should be sealed', async () => {
-      const nextRequestBlock0 = await rootchain.ORBs(NextORBIds[0]);
-      const nextRequestBlock1 = await rootchain.ORBs(NextORBIds[1]);
+      const nextRequestBlock0 = await layer2.ORBs(NextORBIds[0]);
+      const nextRequestBlock1 = await layer2.ORBs(NextORBIds[1]);
 
       expect(nextRequestBlock0.submitted).to.be.equal(true);
       expect(nextRequestBlock1.submitted).to.be.equal(true);
@@ -939,7 +939,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#10 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
@@ -949,7 +949,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#10 should have previous requests', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(ORBId));
       expect(epoch.initialized).to.be.equal(true);
@@ -960,7 +960,7 @@ contract('RootChain', async ([
     });
 
     it('Next ORE#12 should have correct request ids', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
+      const epoch = await layer2.getEpoch(currentFork, NextORENumber);
 
       expect(epoch.isEmpty).to.be.equal(false);
       expect(epoch.RE.requestStart).to.be.equal(String(first(requestIds)));
@@ -988,9 +988,9 @@ contract('RootChain', async ([
     const requestIds = range(52, 80);
 
     before('check NRE', async () => {
-      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
+      expect((await layer2.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
       expect(epoch.initialized).to.be.equal(true);
       expect(epoch.isRequest).to.be.equal(false);
       expect(epoch.isEmpty).to.be.equal(false);
@@ -1006,7 +1006,7 @@ contract('RootChain', async ([
           const trieKey = await token.getBalanceTrieKey(other);
           const trieValue = padLeft(web3.utils.numberToHex(tokenAmount));
 
-          return rootchain.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
+          return layer2.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
         }));
       }
 
@@ -1015,10 +1015,10 @@ contract('RootChain', async ([
         const trieKey = await token.getBalanceTrieKey(other);
         const trieValue = padLeft(web3.utils.numberToHex(tokenAmount));
 
-        return rootchain.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
+        return layer2.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
       }));
 
-      const EROs = await Promise.all(requestIds.map(i => rootchain.EROs(i)));
+      const EROs = await Promise.all(requestIds.map(i => layer2.EROs(i)));
 
       EROs.forEach(ERO => {
         expect(ERO.isTransfer).to.be.equal(isTransfer);
@@ -1032,7 +1032,7 @@ contract('RootChain', async ([
     });
 
     it('NRE#11 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
@@ -1041,7 +1041,7 @@ contract('RootChain', async ([
     it('operator should submit ORB#16', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = await rootchain.ORBs(ORBIds[0]);
+      const requestBlock = await layer2.ORBs(ORBIds[0]);
       expect(requestBlock.requestStart).to.be.bignumber.equal(String(12));
       expect(requestBlock.requestEnd).to.be.bignumber.equal(String(31));
       expect(requestBlock.submitted).to.be.equal(true);
@@ -1051,7 +1051,7 @@ contract('RootChain', async ([
     it('operator should submit ORB#17', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = await rootchain.ORBs(ORBIds[1]);
+      const requestBlock = await layer2.ORBs(ORBIds[1]);
       expect(requestBlock.requestStart).to.be.bignumber.equal(String(32));
       expect(requestBlock.requestEnd).to.be.bignumber.equal(String(51));
       expect(requestBlock.submitted).to.be.equal(true);
@@ -1059,8 +1059,8 @@ contract('RootChain', async ([
     });
 
     it('Next request blocks should be sealed', async () => {
-      const nextRequestBlock0 = await rootchain.ORBs(NextORBIds[0]);
-      const nextRequestBlock1 = await rootchain.ORBs(NextORBIds[1]);
+      const nextRequestBlock0 = await layer2.ORBs(NextORBIds[0]);
+      const nextRequestBlock1 = await layer2.ORBs(NextORBIds[1]);
 
       expect(nextRequestBlock0.submitted).to.be.equal(true);
       expect(nextRequestBlock1.submitted).to.be.equal(true);
@@ -1069,7 +1069,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#12 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
@@ -1079,7 +1079,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#12 should have previous requests', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(first(ORBIds)));
       expect(epoch.initialized).to.be.equal(true);
@@ -1090,7 +1090,7 @@ contract('RootChain', async ([
     });
 
     it('Next ORE#14 should have correct request ids', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
+      const epoch = await layer2.getEpoch(currentFork, NextORENumber);
 
       expect(epoch.isEmpty).to.be.equal(false);
       expect(epoch.RE.requestStart).to.be.equal(String(first(requestIds)));
@@ -1118,9 +1118,9 @@ contract('RootChain', async ([
     const requestIds = [79];
 
     before('check NRE', async () => {
-      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
+      expect((await layer2.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
       expect(epoch.initialized).to.be.equal(true);
       expect(epoch.isRequest).to.be.equal(false);
       expect(epoch.isEmpty).to.be.equal(false);
@@ -1131,7 +1131,7 @@ contract('RootChain', async ([
     });
 
     it('NRE#13 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
@@ -1140,7 +1140,7 @@ contract('RootChain', async ([
     it('operator should submit ORB#20', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = await rootchain.ORBs(ORBIds[0]);
+      const requestBlock = await layer2.ORBs(ORBIds[0]);
       expect(requestBlock.requestStart).to.be.bignumber.equal(String(52));
       expect(requestBlock.requestEnd).to.be.bignumber.equal(String(71));
       expect(requestBlock.submitted).to.be.equal(true);
@@ -1150,7 +1150,7 @@ contract('RootChain', async ([
     it('operator should submit ORB#21', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = await rootchain.ORBs(ORBIds[1]);
+      const requestBlock = await layer2.ORBs(ORBIds[1]);
       expect(requestBlock.requestStart).to.be.bignumber.equal(String(72));
       expect(requestBlock.requestEnd).to.be.bignumber.equal(String(79));
       expect(requestBlock.submitted).to.be.equal(true);
@@ -1158,7 +1158,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#14 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
@@ -1168,7 +1168,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#14 should have previous requests', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(first(ORBIds)));
       expect(epoch.initialized).to.be.equal(true);
@@ -1179,7 +1179,7 @@ contract('RootChain', async ([
     });
 
     it('Next empty ORE#16 should have correct request ids', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
+      const epoch = await layer2.getEpoch(currentFork, NextORENumber);
 
       expect(epoch.isEmpty).to.be.equal(true);
       expect(epoch.RE.requestStart).to.be.equal(String(first(requestIds)));
@@ -1206,9 +1206,9 @@ contract('RootChain', async ([
     const requestIds = previousRequestIds;
 
     before('check NRE', async () => {
-      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
+      expect((await layer2.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
       expect(epoch.initialized).to.be.equal(true);
       expect(epoch.isRequest).to.be.equal(false);
       expect(epoch.isEmpty).to.be.equal(false);
@@ -1219,14 +1219,14 @@ contract('RootChain', async ([
     });
 
     it('NRE#15 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('ORE#16 should be empty', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(last(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
@@ -1241,7 +1241,7 @@ contract('RootChain', async ([
     });
 
     it('Next empty ORE#18 should have correct request ids', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
+      const epoch = await layer2.getEpoch(currentFork, NextORENumber);
 
       expect(epoch.isEmpty).to.be.equal(true);
       expect(epoch.RE.requestStart).to.be.equal(String(first(requestIds)));
@@ -1266,9 +1266,9 @@ contract('RootChain', async ([
     const requestIds = previousRequestIds;
 
     before('check NRE', async () => {
-      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
+      expect((await layer2.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
       expect(epoch.initialized).to.be.equal(true);
       expect(epoch.isRequest).to.be.equal(false);
       expect(epoch.isEmpty).to.be.equal(false);
@@ -1279,14 +1279,14 @@ contract('RootChain', async ([
     });
 
     it('NRE#17 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('ORE#18 should be empty', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(last(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
@@ -1301,7 +1301,7 @@ contract('RootChain', async ([
     });
 
     it('Next empty ORE#20 should have correct request ids', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
+      const epoch = await layer2.getEpoch(currentFork, NextORENumber);
 
       expect(epoch.isEmpty).to.be.equal(true);
       expect(epoch.RE.requestStart).to.be.equal(String(first(requestIds)));
@@ -1327,9 +1327,9 @@ contract('RootChain', async ([
     const requestIds = range(80, 120);
 
     before('check NRE', async () => {
-      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
+      expect((await layer2.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
       expect(epoch.initialized).to.be.equal(true);
       expect(epoch.isRequest).to.be.equal(false);
       expect(epoch.isEmpty).to.be.equal(false);
@@ -1344,11 +1344,11 @@ contract('RootChain', async ([
           const trieKey = await token.getBalanceTrieKey(other);
           const trieValue = padLeft(web3.utils.numberToHex(tokenAmount));
 
-          return rootchain.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
+          return layer2.startExit(token.address, trieKey, trieValue, { from: other, value: COST_ERU });
         }));
       }
 
-      const EROs = await Promise.all(requestIds.map(i => rootchain.EROs(i)));
+      const EROs = await Promise.all(requestIds.map(i => layer2.EROs(i)));
 
       EROs.forEach(ERO => {
         expect(ERO.isTransfer).to.be.equal(isTransfer);
@@ -1362,14 +1362,14 @@ contract('RootChain', async ([
     });
 
     it('NRE#19 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
     });
 
     it('ORE#20 should be empty', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(last(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
@@ -1384,8 +1384,8 @@ contract('RootChain', async ([
     });
 
     it('Next request blocks should be sealed', async () => {
-      const nextRequestBlock0 = await rootchain.ORBs(NextORBIds[0]);
-      const nextRequestBlock1 = await rootchain.ORBs(NextORBIds[1]);
+      const nextRequestBlock0 = await layer2.ORBs(NextORBIds[0]);
+      const nextRequestBlock1 = await layer2.ORBs(NextORBIds[1]);
 
       expect(nextRequestBlock0.submitted).to.be.equal(true);
       expect(nextRequestBlock1.submitted).to.be.equal(true);
@@ -1394,7 +1394,7 @@ contract('RootChain', async ([
     });
 
     it('Next empty ORE#22 should have correct request ids', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
+      const epoch = await layer2.getEpoch(currentFork, NextORENumber);
 
       expect(epoch.isEmpty).to.be.equal(false);
       expect(epoch.RE.requestStart).to.be.equal(String(first(requestIds)));
@@ -1420,9 +1420,9 @@ contract('RootChain', async ([
     const requestIds = [119];
 
     before('check NRE', async () => {
-      expect((await rootchain.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
+      expect((await layer2.lastEpoch(0))).to.be.bignumber.equal(String(NRENumber - 1));
 
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
       expect(epoch.initialized).to.be.equal(true);
       expect(epoch.isRequest).to.be.equal(false);
       expect(epoch.isEmpty).to.be.equal(false);
@@ -1433,7 +1433,7 @@ contract('RootChain', async ([
     });
 
     it('NRE#21 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NRENumber);
+      const epoch = await layer2.getEpoch(currentFork, NRENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(NRBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(NRBNumbers)));
@@ -1442,7 +1442,7 @@ contract('RootChain', async ([
     it('operator should submit ORB#30', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = await rootchain.ORBs(ORBIds[0]);
+      const requestBlock = await layer2.ORBs(ORBIds[0]);
       expect(requestBlock.requestStart).to.be.bignumber.equal(String(80));
       expect(requestBlock.requestEnd).to.be.bignumber.equal(String(99));
       expect(requestBlock.submitted).to.be.equal(true);
@@ -1452,7 +1452,7 @@ contract('RootChain', async ([
     it('operator should submit ORB#31', async () => {
       await submitDummyORBs(1);
 
-      const requestBlock = await rootchain.ORBs(ORBIds[1]);
+      const requestBlock = await layer2.ORBs(ORBIds[1]);
       expect(requestBlock.requestStart).to.be.bignumber.equal(String(100));
       expect(requestBlock.requestEnd).to.be.bignumber.equal(String(119));
       expect(requestBlock.submitted).to.be.equal(true);
@@ -1460,7 +1460,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#22 should have correct blocks', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.startBlockNumber).to.be.equal(String(first(ORBNumbers)));
       expect(epoch.endBlockNumber).to.be.equal(String(last(ORBNumbers)));
@@ -1470,7 +1470,7 @@ contract('RootChain', async ([
     });
 
     it('ORE#22 should have previous requests', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, ORENumber);
+      const epoch = await layer2.getEpoch(currentFork, ORENumber);
 
       expect(epoch.RE.firstRequestBlockId).to.be.equal(String(first(ORBIds)));
       expect(epoch.initialized).to.be.equal(true);
@@ -1481,7 +1481,7 @@ contract('RootChain', async ([
     });
 
     it('Next empty ORE#24 should have correct request ids', async () => {
-      const epoch = await rootchain.getEpoch(currentFork, NextORENumber);
+      const epoch = await layer2.getEpoch(currentFork, NextORENumber);
 
       expect(epoch.isEmpty).to.be.equal(true);
       expect(epoch.RE.requestStart).to.be.equal(String(first(requestIds)));

@@ -1,7 +1,5 @@
 pragma solidity ^0.5.12;
 
-//import { CustomIncrementCoinageMock } from "../../../node_modules/coinage-token/flatten.sol";
-//import { AutoRefactorCoinage } from "../../../node_modules/coinage-token/flatten.sol";
 import { AutoRefactorCoinage } from "../tokens/AutoRefactorCoinage.sol";
 import { CoinageFactoryI } from "../interfaces/CoinageFactoryI.sol";
 

@@ -16,6 +16,6 @@ interface PowerTONI {
   function start() external;
   function endRound() external;
 
-  function onDeposit(address rootchain, address account, uint256 amount) external;
-  function onWithdraw(address rootchain, address account, uint256 amount) external;
+  function onDeposit(address layer2, address account, uint256 amount) external;
+  function onWithdraw(address layer2, address account, uint256 amount) external;
 }

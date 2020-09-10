@@ -17,14 +17,14 @@ const TON = contract.fromArtifact('TON');
 
 const EpochHandler = contract.fromArtifact('EpochHandler');
 const SubmitHandler = contract.fromArtifact('SubmitHandler');
-const RootChain = contract.fromArtifact('RootChain');
+const Layer2 = contract.fromArtifact('Layer2');
 const EtherToken = contract.fromArtifact('EtherToken');
 
 const CoinageFactory = contract.fromArtifact('CoinageFactory');
 
 const DepositManager = contract.fromArtifact('DepositManager');
 const SeigManager = contract.fromArtifact('SeigManager');
-const RootChainRegistry = contract.fromArtifact('RootChainRegistry');
+const Layer2Registry = contract.fromArtifact('Layer2Registry');
 //const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
 const AutoRefactorCoinage = contract.fromArtifact('AutoRefactorCoinage');
 const PowerTON = contract.fromArtifact('PowerTON');
@@ -68,7 +68,7 @@ describe('stake/DepositManager', function () {
     const epochHandler = await EpochHandler.new();
     const submitHandler = await SubmitHandler.new(epochHandler.address);
 
-    this.rootchain = await RootChain.new(
+    this.layer2 = await Layer2.new(
       epochHandler.address,
       submitHandler.address,
       this.etherToken.address,
@@ -79,7 +79,7 @@ describe('stake/DepositManager', function () {
       dummyReceiptsRoot,
     );
 
-    this.registry = await RootChainRegistry.new();
+    this.registry = await Layer2Registry.new();
 
     this.depositManager = await DepositManager.new(
       this.wton.address,
@@ -120,16 +120,16 @@ describe('stake/DepositManager', function () {
       this.depositManager,
       this.wton,
     ].map(contract => contract.setSeigManager(this.seigManager.address)));
-    await this.rootchain.setSeigManager(this.seigManager.address);
+    await this.layer2.setSeigManager(this.seigManager.address);
 
-    // register root chain and deploy coinage
-    await this.registry.registerAndDeployCoinage(this.rootchain.address, this.seigManager.address);
+    // register layer2 and deploy coinage
+    await this.registry.registerAndDeployCoinage(this.layer2.address, this.seigManager.address);
 
     // mint WTON to account
     await this.wton.mint(tokenOwner, initialSupply.toFixed(WTON_UNIT));
 
     // load coinage and tot
-    this.coinage = await AutoRefactorCoinage.at(await this.seigManager.coinages(this.rootchain.address));
+    this.coinage = await AutoRefactorCoinage.at(await this.seigManager.coinages(this.layer2.address));
     this.tot = await AutoRefactorCoinage.at(await this.seigManager.tot());
   });
 
@@ -142,7 +142,7 @@ describe('stake/DepositManager', function () {
       it('should deposit WTON', async function () {
         const wtonBalance0 = await this.wton.balanceOf(tokenOwner);
 
-        const { tx } = await this.depositManager.deposit(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+        const { tx } = await this.depositManager.deposit(this.layer2.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
         const wtonBalance1 = await this.wton.balanceOf(tokenOwner);
 
         await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
@@ -152,12 +152,12 @@ describe('stake/DepositManager', function () {
         });
 
         await expectEvent.inTransaction(tx, this.depositManager, 'Deposited', {
-          rootchain: this.rootchain.address,
+          layer2: this.layer2.address,
           depositor: tokenOwner,
           amount: tokenAmount.toFixed(WTON_UNIT),
         });
 
-        expect(await this.seigManager.stakeOf(this.rootchain.address, tokenOwner)).to.be.bignumber.equal(tokenAmount.toFixed(WTON_UNIT));
+        expect(await this.seigManager.stakeOf(this.layer2.address, tokenOwner)).to.be.bignumber.equal(tokenAmount.toFixed(WTON_UNIT));
         expect(wtonBalance0.sub(wtonBalance1)).to.be.bignumber.equal(tokenAmount.toFixed(WTON_UNIT));
       });
     });
@@ -171,7 +171,7 @@ describe('stake/DepositManager', function () {
         const tonBalance0 = await this.ton.balanceOf(tokenOwner);
 
         const data = marshalString(
-          [this.depositManager.address, this.rootchain.address]
+          [this.depositManager.address, this.layer2.address]
             .map(unmarshalString)
             .map(str => padLeft(str, 64))
             .join(''),
@@ -192,12 +192,12 @@ describe('stake/DepositManager', function () {
         });
 
         await expectEvent.inTransaction(tx, this.depositManager, 'Deposited', {
-          rootchain: this.rootchain.address,
+          layer2: this.layer2.address,
           depositor: tokenOwner,
           amount: tokenAmount.toFixed(WTON_UNIT),
         });
 
-        expect(await this.seigManager.stakeOf(this.rootchain.address, tokenOwner)).to.be.bignumber.equal(tokenAmount.toFixed(WTON_UNIT));
+        expect(await this.seigManager.stakeOf(this.layer2.address, tokenOwner)).to.be.bignumber.equal(tokenAmount.toFixed(WTON_UNIT));
         expect(tonBalance0.sub(tonBalance1)).to.be.bignumber.equal(tokenAmount.toFixed(TON_UNIT));
       });
     });
@@ -206,25 +206,25 @@ describe('stake/DepositManager', function () {
   describe('after the token owner deposits tokens', function () {
     beforeEach(async function () {
       await this.wton.approve(this.depositManager.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
-      await this.depositManager.deposit(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+      await this.depositManager.deposit(this.layer2.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
     });
 
     describe('when the token owner tries to withdraw', function () {
       it('should make a withdrawal request', async function () {
-        await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+        await this.depositManager.requestWithdrawal(this.layer2.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
       });
 
       it('should get request data', async function () {
         const n = 10;
         for (const index of range(n)) {
-          await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.div(n).toFixed(WTON_UNIT), { from: tokenOwner });
+          await this.depositManager.requestWithdrawal(this.layer2.address, tokenAmount.div(n).toFixed(WTON_UNIT), { from: tokenOwner });
 
-          const request = await this.depositManager.withdrawalRequest(this.rootchain.address, tokenOwner, index);
+          const request = await this.depositManager.withdrawalRequest(this.layer2.address, tokenOwner, index);
           expect(request.amount).to.be.bignumber.equal(tokenAmount.div(n).toFixed(WTON_UNIT));
 
-          expect(await this.depositManager.numRequests(this.rootchain.address, tokenOwner))
+          expect(await this.depositManager.numRequests(this.layer2.address, tokenOwner))
             .to.be.bignumber.equal(toBN(index + 1));
-          expect(await this.depositManager.numPendingRequests(this.rootchain.address, tokenOwner))
+          expect(await this.depositManager.numPendingRequests(this.layer2.address, tokenOwner))
             .to.be.bignumber.equal(toBN(index + 1));
         }
       });
@@ -233,21 +233,21 @@ describe('stake/DepositManager', function () {
         function behaveWithDelay(globalValue, chainValue) {
           it(`global delay ${globalValue}, chain delay ${chainValue}`, async function () {
             await this.depositManager.setGlobalWithdrawalDelay(globalValue);
-            await this.depositManager.setWithdrawalDelay(this.rootchain.address, chainValue);
+            await this.depositManager.setWithdrawalDelay(this.layer2.address, chainValue);
 
             const actualDelay = globalValue > chainValue ? globalValue : chainValue;
 
-            await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+            await this.depositManager.requestWithdrawal(this.layer2.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
             const requestedBlock = await web3.eth.getBlock('latest');
 
             for (var i = 0; i < actualDelay - 1; i++) {
               await expectRevert(
-                this.depositManager.processRequest(this.rootchain.address, false, { from: tokenOwner }),
+                this.depositManager.processRequest(this.layer2.address, false, { from: tokenOwner }),
                 'DepositManager: wait for withdrawal delay',
               );
             }
 
-            const { tx } = await this.depositManager.processRequest(this.rootchain.address, true, { from: tokenOwner });
+            const { tx } = await this.depositManager.processRequest(this.layer2.address, true, { from: tokenOwner });
 
             await expectEvent.inTransaction(tx, this.ton, 'Transfer', {
               from: this.wton.address,
@@ -265,29 +265,29 @@ describe('stake/DepositManager', function () {
 
       describe('before WITHDRAWAL_DELAY blocks are mined', function () {
         beforeEach(async function () {
-          await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+          await this.depositManager.requestWithdrawal(this.layer2.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
         });
 
         it('should not process withdrawal request', async function () {
           await expectRevert(
-            this.depositManager.processRequest(this.rootchain.address, false, { from: tokenOwner }),
+            this.depositManager.processRequest(this.layer2.address, false, { from: tokenOwner }),
             'DepositManager: wait for withdrawal delay',
           );
         });
 
         it('should be able to re-deposit pending request', async function () {
-          await this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner });
+          await this.depositManager.redeposit(this.layer2.address, { from: tokenOwner });
         });
       });
 
       describe('after WITHDRAWAL_DELAY blocks are mined', function () {
         beforeEach(async function () {
-          await this.depositManager.requestWithdrawal(this.rootchain.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
+          await this.depositManager.requestWithdrawal(this.layer2.address, tokenAmount.toFixed(WTON_UNIT), { from: tokenOwner });
           await Promise.all(range(WITHDRAWAL_DELAY + 1).map(_ => time.advanceBlock()));
         });
 
         it('should withdraw deposited WTON to the token owner', async function () {
-          const { tx } = await this.depositManager.processRequest(this.rootchain.address, false, { from: tokenOwner });
+          const { tx } = await this.depositManager.processRequest(this.layer2.address, false, { from: tokenOwner });
 
           await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
             from: this.depositManager.address,
@@ -297,7 +297,7 @@ describe('stake/DepositManager', function () {
         });
 
         it('should withdraw deposited WTON to the token owner in TON', async function () {
-          const { tx } = await this.depositManager.processRequest(this.rootchain.address, true, { from: tokenOwner });
+          const { tx } = await this.depositManager.processRequest(this.layer2.address, true, { from: tokenOwner });
 
           await expectEvent.inTransaction(tx, this.ton, 'Transfer', {
             from: this.wton.address,
@@ -307,7 +307,7 @@ describe('stake/DepositManager', function () {
         });
 
         it('should be able to re-deposit pending request', async function () {
-          await this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner });
+          await this.depositManager.redeposit(this.layer2.address, { from: tokenOwner });
         });
       });
 
@@ -317,28 +317,28 @@ describe('stake/DepositManager', function () {
 
         beforeEach(async function () {
           await Promise.all(range(n).map(_ =>
-            this.depositManager.requestWithdrawal(this.rootchain.address, amount.toFixed(WTON_UNIT), { from: tokenOwner }),
+            this.depositManager.requestWithdrawal(this.layer2.address, amount.toFixed(WTON_UNIT), { from: tokenOwner }),
           ));
         });
 
         describe('before WITHDRAWAL_DELAY blocks are mined', function () {
           it('should not process withdrawal request', async function () {
             await expectRevert(
-              this.depositManager.processRequest(this.rootchain.address, false, { from: tokenOwner }),
+              this.depositManager.processRequest(this.layer2.address, false, { from: tokenOwner }),
               'DepositManager: wait for withdrawal delay',
             );
           });
 
           it('should be able to re-deposit all pending request', async function () {
             await Promise.all(range(n).map(
-              _ => this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner }),
+              _ => this.depositManager.redeposit(this.layer2.address, { from: tokenOwner }),
             ));
-            // await this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner });
-            // await this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner });
+            // await this.depositManager.redeposit(this.layer2.address, { from: tokenOwner });
+            // await this.depositManager.redeposit(this.layer2.address, { from: tokenOwner });
           });
 
           it('should be able to re-deposit all pending request in a single transaction', async function () {
-            await this.depositManager.redepositMulti(this.rootchain.address, 2, { from: tokenOwner });
+            await this.depositManager.redepositMulti(this.layer2.address, 2, { from: tokenOwner });
           });
         });
 
@@ -349,7 +349,7 @@ describe('stake/DepositManager', function () {
 
           it('should process 2 requests', async function () {
             for (const _ of range(2)) {
-              const { tx } = await this.depositManager.processRequest(this.rootchain.address, false, { from: tokenOwner });
+              const { tx } = await this.depositManager.processRequest(this.layer2.address, false, { from: tokenOwner });
 
               await expectEvent.inTransaction(tx, this.wton, 'Transfer', {
                 from: this.depositManager.address,
@@ -361,12 +361,12 @@ describe('stake/DepositManager', function () {
 
           it('should be able to re-deposit all pending request', async function () {
             await Promise.all(range(n).map(
-              _ => this.depositManager.redeposit(this.rootchain.address, { from: tokenOwner }),
+              _ => this.depositManager.redeposit(this.layer2.address, { from: tokenOwner }),
             ));
           });
 
           it('should be able to re-deposit all pending request in a single transaction', async function () {
-            await this.depositManager.redepositMulti(this.rootchain.address, 2, { from: tokenOwner });
+            await this.depositManager.redepositMulti(this.layer2.address, 2, { from: tokenOwner });
           });
         });
       });
