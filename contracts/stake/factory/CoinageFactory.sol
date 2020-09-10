@@ -7,10 +7,7 @@ contract CoinageFactory is CoinageFactoryI {
   uint256 constant public RAY = 10 ** 27; // 1 RAY
   uint256 constant internal _DEFAULT_FACTOR = RAY;
 
-  address public seigManager;
-
   function deploy() external returns (address) {
-    //require(seigManager != address(0), "SeigManager address is zero");
     AutoRefactorCoinage c = new AutoRefactorCoinage(
       "",
       "",
@@ -22,9 +19,5 @@ contract CoinageFactory is CoinageFactoryI {
     c.transferOwnership(msg.sender);
 
     return address(c);
-  }
-
-  function setSeigManager(address seigManager_) external {
-    seigManager = seigManager_;
   }
 }

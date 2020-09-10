@@ -422,15 +422,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     return (nextTotalSupply, operatorSeigs);
   }
 
-  function _calcSlashFactor(
-    AutoRefactorCoinageI coinage,
-    uint256 slashAmount
-  ) internal returns (uint256) {
-    uint256 prevTotalSupply = coinage.totalSupply();
-    uint256 newFactor = rdiv(prevTotalSupply.sub(slashAmount), prevTotalSupply.div(coinage.factor()));
-    return newFactor;
-  }
-
   /**
    * @dev Callback for a token transfer
    */
@@ -649,7 +640,6 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
       ),
       tos
     );
-    //uint256 stakedSeig = rmul(maxSeig, RAY.sub(powerTONSeigRate).sub(daoSeigRate));
 
     // pseig
     uint256 totalPseig = rmul(maxSeig.sub(stakedSeig), relativeSeigRate);
@@ -674,21 +664,19 @@ contract SeigManager is SeigManagerI, DSMath, Ownable, Pausable, AuthController,
     uint256 relativeSeig;
 
     if (address(_powerton) != address(0)) {
-      powertonSeig = unstakedSeig.mul(powerTONSeigRate).div(RAY);
+      powertonSeig = rmul(unstakedSeig, powerTONSeigRate);
       _wton.mint(address(_powerton), powertonSeig);
     }
 
     if (dao != address(0)) {
-      daoSeig = unstakedSeig.mul(daoSeigRate).div(RAY);
+      daoSeig = rmul(unstakedSeig, daoSeigRate);
       _wton.mint(address(dao), daoSeig);
     }
 
     if (relativeSeigRate != 0) {
-      relativeSeig = unstakedSeig.mul(relativeSeigRate).div(RAY);
+      relativeSeig = totalPseig;
       accRelativeSeig = accRelativeSeig.add(relativeSeig);
     }
-
-    //require(powertonSeig.add(daoSeig).add(relativeSeig) <= unstakedSeig, "powerton seig + dao seig exceeded unstaked amount");
 
     emit SeigGiven(msg.sender, maxSeig, stakedSeig, unstakedSeig, powertonSeig, relativeSeig);
 

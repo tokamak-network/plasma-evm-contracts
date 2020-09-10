@@ -8,7 +8,7 @@ contract DAOVault is Ownable {
     using SafeMath for uint256;
 
     WTON public wton;
-    uint256 public claimEnableTime;
+    uint256 public claimEnableTime; // 2021-01-01
 
     modifier onlyClaimEnable() {
       require(block.timestamp >= claimEnableTime, "not possible time");
