@@ -62,7 +62,7 @@ module.exports = async function (deployer, network) {
       withdrawalDelay,
     );
     const factory = await deployer.deploy(CoinageFactory);
-    const daoVault = await deployer.deploy(DAOVault, ton.address, 0); // TODO: set timestamp parameter
+    const daoVault = await deployer.deploy(DAOVault, wton.address, 1609416000);
     const seigManager = await deployer.deploy(
       SeigManager,
       ton.address,
@@ -72,6 +72,8 @@ module.exports = async function (deployer, network) {
       _WTON(SEIG_PER_BLOCK).toFixed('ray'),
       factory.address,
     );
+
+    await seigManager.setDao(daoVault.address); // TODO: to init?
 
     const powerton = await deployer.deploy(
       PowerTON,

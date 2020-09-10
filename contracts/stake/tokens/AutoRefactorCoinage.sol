@@ -35,7 +35,7 @@ contract AutoRefactorCoinage is Context, IERC20, DSMath, Ownable, ERC20Detailed,
     uint256 remain;
   }
 
-  uint256 public REFACTOR_BOUNDARY = 10 ** 18;
+  uint256 public REFACTOR_BOUNDARY = 10 ** 28;
   uint256 public REFACTOR_DIVIDER = 2;
 
   uint256 public refactorCount;
