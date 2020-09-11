@@ -33,7 +33,7 @@ module.exports = async function (deployer, network) {
         epochHandler.address,
         submitHandler.address,
         etherToken,
-        development,
+        false,
         NRBEpochLength,
         statesRoot,
         transactionsRoot,
