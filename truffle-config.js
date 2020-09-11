@@ -32,7 +32,7 @@ module.exports = {
       production: true,
     },
     rinkeby: {
-      provider: () => new PrivateKeyProvider(process.env.FARADAY_PRIVATE_KEY, 'https://rinkeby.infura.io/v3/a608d5cd0f1e42109d964abdffe5d8d9'),
+      provider: () => new PrivateKeyProvider(process.env.RINKEBY_PRIVATE_KEY, process.env.RINKEBY_PROVIDER_URL),
       network_id: 4, // eslint-disable-line camelcase
       // gas: 5000000,
       gasPrice: 5e9,
@@ -46,8 +46,9 @@ module.exports = {
     mainnet: {
       provider: () => new PrivateKeyProvider(process.env.MAINNET_PRIVATE_KEY, process.env.MAINNET_PROVIDER_URL),
       network_id: 1, // eslint-disable-line camelcase
-      gasPrice: 8e9,
-      production: true,
+      gasPrice: 170e9,
+      gasLimit: 300000,
+      skipDryRun: true,
     },
   //   ropsten: {
   //     provider: ropstenProvider,

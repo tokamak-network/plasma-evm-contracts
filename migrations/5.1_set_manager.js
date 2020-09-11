@@ -1,31 +1,13 @@
 const { createCurrency } = require('@makerdao/currency');
 const fs = require('fs');
 
-const _WTON = createCurrency('WTON');
-
-const Layer2 = artifacts.require('Layer2');
 const TON = artifacts.require('TON');
 const WTON = artifacts.require('WTON');
-const Layer2Registry = artifacts.require('Layer2Registry');
 const DepositManager = artifacts.require('DepositManager');
 const SeigManager = artifacts.require('SeigManager');
 const CoinageFactory = artifacts.require('CoinageFactory');
 const PowerTON = artifacts.require('PowerTON');
-
-// 1024 blocks
-// 93046 blocks (= 2 weeks)
-const WITHDRAWAL_DELAY_MAINNET = 93046;
-const WITHDRAWAL_DELAY_RINKEBY = Math.floor(WITHDRAWAL_DELAY_MAINNET / (14 * 24 * 2)); // 30 min
-
-// 1209600 sec (= 2 weeks)
-const ROUND_DURATION_MAINNET = 1209600;
-const ROUND_DURATION_RINKEBY = Math.floor(ROUND_DURATION_MAINNET / (14 * 24 * 2)); // 30 min
-
-// 100 WTON per block as seigniorage
-const SEIG_PER_BLOCK = process.env.SEIG_PER_BLOCK || '3.91615931';
-
-const TON_MAINNET = process.env.TON_MAINNET;
-const TON_RINKEBY = process.env.TON_RINKEBY;
+const DAOVault = artifacts.require('DAOVault');
 
 module.exports = async function (deployer, network) {
   if (process.env.SET) {
@@ -37,6 +19,8 @@ module.exports = async function (deployer, network) {
     const ton = await TON.at(data.TON);
 
     const factory = await CoinageFactory.at(data.Factory);
+    const daoVault = await DAOVault.at(data.DaoVault);
+
     await seigManager.setCoinageFactory(factory.address);
     // await factory.setSeigManager(seigManager.address);
 
@@ -63,10 +47,5 @@ module.exports = async function (deployer, network) {
 
     console.log('Start PowerTON...');
     await powerton.start();
-
-    await ton.addMinter(wton.address);
-
-    // owner 권한 변경 transferOwnership
   }
-}
-;
+};

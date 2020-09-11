@@ -58,9 +58,7 @@ module.exports = async function (deployer, network) {
     let powerton;
 
     let addrs = {};
-    // const Layer2 = await Layer2.deployed();
-    // const ton = await deployer.deploy(TON);
-    // console.log(ton);
+
     if (process.env.wton) {
       addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
       wton = await deployer.deploy(WTON, ton.address);
@@ -126,7 +124,6 @@ module.exports = async function (deployer, network) {
       fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
         if (err) throw err;
       });
-      // await seigManager.setDao(addrs.DaoVault); // TODO: to init?
     }
 
     if (process.env.powerton) {
@@ -142,19 +139,6 @@ module.exports = async function (deployer, network) {
         if (err) throw err;
       });
     }
-    // fs.writeFile('deployed.json', '{}', (err) => { if (err) throw err; });
-
-    // addrs = {
-    //   TON: ton.address,
-    //   WTON: wton.address,
-    //   Layer2Registry: registry.address,
-    //   DepositManager: depositManager.address,
-    //   SeigManager: seigManager.address,
-    //   PowerTON: powerton.address,
-    // };
-    // fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
-    //   if (err) throw err;
-    // });
 
     console.log(JSON.stringify(addrs, null, 2));
   }
