@@ -6,7 +6,7 @@ const _WTON = createCurrency('WTON');
 const TON = artifacts.require('TON.sol');
 const MTON = artifacts.require('MTON.sol');
 const WTON = artifacts.require('WTON.sol');
-const RootChainRegistry = artifacts.require('RootChainRegistry.sol');
+const Layer2Registry = artifacts.require('Layer2Registry.sol');
 const DepositManager = artifacts.require('DepositManager.sol');
 const SeigManager = artifacts.require('SeigManager.sol');
 const PowerTON = artifacts.require('PowerTON.sol');
@@ -49,7 +49,7 @@ module.exports = async function (deployer, network) {
   const mton = mtonAddr ? await MTON.at(mtonAddr) : await deployer.deploy(MTON);
 
   const wton = await deployer.deploy(WTON, mton.address);
-  const registry = await deployer.deploy(RootChainRegistry);
+  const registry = await deployer.deploy(Layer2Registry);
 
   const depositManager = await deployer.deploy(
     DepositManager,
@@ -77,7 +77,7 @@ module.exports = async function (deployer, network) {
   const addrs = {
     TON: mton.address,
     WTON: wton.address,
-    RootChainRegistry: registry.address,
+    Layer2Registry: registry.address,
     DepositManager: depositManager.address,
     SeigManager: seigManager.address,
     PowerTON: powerton.address,

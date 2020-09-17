@@ -25,8 +25,8 @@ const ROUND_DURATION_RINKEBY = Math.floor(ROUND_DURATION_MAINNET / (14 * 24 * 2)
 // 100 WTON per block as seigniorage
 const SEIG_PER_BLOCK = process.env.SEIG_PER_BLOCK || '3.92';
 
-const TON_MAINNET = process.env.TON_MAINNET;
-const TON_RINKEBY = process.env.TON_RINKEBY;
+const TON_MAINNET = '0x2be5e8c109e2197d077d13a82daead6a9b3433c5';
+const TON_RINKEBY = '0x3734E35231abE68818996dC07Be6a8889202DEe9';
 
 module.exports = async function (deployer, network) {
   if (process.env.DEPLOY) {

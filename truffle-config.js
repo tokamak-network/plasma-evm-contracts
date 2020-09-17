@@ -34,7 +34,6 @@ module.exports = {
     rinkeby: {
       provider: () => new PrivateKeyProvider(process.env.RINKEBY_PRIVATE_KEY, process.env.RINKEBY_PROVIDER_URL),
       network_id: 4, // eslint-disable-line camelcase
-      // gas: 5000000,
       gasPrice: 5e9,
       skipDryRun: true,
     },

@@ -18,35 +18,59 @@ const etherToken = '0x5c642140A3b6fA39Dfd1AA9eBA6C5239F5c457D5';
 module.exports = async function (deployer, network) {
   // skip production network
   if (process.env.SET_OPERATOR) {
-    let layer2;
-    let epochHandler;
     const data = JSON.parse(fs.readFileSync('deployed.json').toString());
     console.log(data);
-
-    await deployer.deploy(EpochHandler)
-      .then((_epochHandler) => { epochHandler = _epochHandler; })
-      .then(() => deployer.deploy(
+    if (process.env.epoch) {
+      addrs = JSON.parse(fs.readFileSync('l2.json').toString());
+      await deployer.deploy(EpochHandler)
+      .then((_epochHandler) => {
+        epochHandler = _epochHandler;
+        addrs.EpochHandler = epochHandler.address;
+      })
+      fs.writeFile('l2.json', JSON.stringify(addrs), (err) => {
+        if (err) throw err;
+      });
+    }
+    if (process.env.submit) {
+      addrs = JSON.parse(fs.readFileSync('l2.json').toString());
+      const submit = await deployer.deploy(
         SubmitHandler,
-        epochHandler.address,
-      )).then((submitHandler) => deployer.deploy(
+        addrs.EpochHandler
+      ).then((submitHandler) => {
+        addrs.SubmitHandler = submitHandler.address;
+      })
+      fs.writeFile('l2.json', JSON.stringify(addrs), (err) => {
+        if (err) throw err;
+      });
+    }
+    if (process.env.l2) {
+      addrs = JSON.parse(fs.readFileSync('l2.json').toString());
+      l2 = await deployer.deploy(
         Layer2,
-        epochHandler.address,
-        submitHandler.address,
+        addrs.EpochHandler,
+        addrs.SubmitHandler,
         etherToken,
         false,
         NRBEpochLength,
         statesRoot,
         transactionsRoot,
-        receiptsRoot))
-      .then(async () => { layer2 = await Layer2.deployed(); })
-      .then(() => layer2.setSeigManager(data.SeigManager))
-      .catch(e => { throw e; });
-
-    // await layer2.setSeigManager(data.SeigManager);
-    const registry = await Layer2Registry.at(data.Layer2Registry);
-
-    // register root chain and deploy coinage
-    console.log('register and deploy...');
-    await registry.registerAndDeployCoinage(layer2.address, data.SeigManager);
+        receiptsRoot
+      ).then((_layer2) => {
+        layer2 = _layer2
+        addrs.Layer2 = layer2.address;
+      })
+      fs.writeFile('l2.json', JSON.stringify(addrs), (err) => {
+        if (err) throw err;
+      });
+    }
+    if (process.env.setl2) {
+      addrs = JSON.parse(fs.readFileSync('l2.json').toString());
+      const layer2 = await Layer2.at(addrs.Layer2);
+      const registry = await Layer2Registry.at(data.Layer2Registry);
+      console.log('set seig manager...');
+      await layer2.setSeigManager(data.SeigManager);
+      console.log('register and deploy...');
+      await registry.registerAndDeployCoinage(addrs.Layer2, data.SeigManager);
+    }
   }
 };
