@@ -33,6 +33,7 @@ module.exports = async function (deployer, network) {
     }
     if (process.env.submit) {
       addrs = JSON.parse(fs.readFileSync('l2.json').toString());
+      console.log(addrs);
       const submit = await deployer.deploy(
         SubmitHandler,
         addrs.EpochHandler
@@ -45,6 +46,7 @@ module.exports = async function (deployer, network) {
     }
     if (process.env.l2) {
       addrs = JSON.parse(fs.readFileSync('l2.json').toString());
+      console.log(addrs);
       l2 = await deployer.deploy(
         Layer2,
         addrs.EpochHandler,
