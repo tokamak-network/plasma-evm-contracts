@@ -59,11 +59,10 @@
     "openzeppelin-solidity": "^2.5.0",
     "openzeppelin-test-helpers": "^0.4.2",
     "solidity-coverage": "^0.5.4",
-    "solidity-docgen": "github:OpenZeppelin/solidity-docgen#03f42b5e271b1e1c1d0b814b921ecdc086055255",
     "solidity-util": "github:willitscale/solidity-util",
     "solium": "^1.2.4",
     "truffle": "^5.1.20",
-    "truffle-hdwallet-provider": "^1.0.44",
+    "@truffle/hdwallet-provider": "^1.0.44",
     "truffle-privatekey-provider": "^1.5.0",
     "web3-utils": "^1.2.1"
   }
