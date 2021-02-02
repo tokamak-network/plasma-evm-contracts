@@ -13,7 +13,7 @@ const NRBEpochLength = process.env.NRB_EPOCH_LENGTH || 2;
 const statesRoot = '0xdb431b544b2f5468e3f771d7843d9c5df3b4edcf8bc1c599f18f0b4ea8709bc3';
 const transactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
 const receiptsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
-const etherToken = '0x5c642140A3b6fA39Dfd1AA9eBA6C5239F5c457D5';
+const etherToken = '0x6FfF2bc064A268B195C415E27cDaF842421a3BFe';
 
 module.exports = async function (deployer, network) {
   // skip production network
@@ -23,10 +23,10 @@ module.exports = async function (deployer, network) {
     if (process.env.epoch) {
       addrs = JSON.parse(fs.readFileSync('l2.json').toString());
       await deployer.deploy(EpochHandler)
-      .then((_epochHandler) => {
-        epochHandler = _epochHandler;
-        addrs.EpochHandler = epochHandler.address;
-      })
+        .then((_epochHandler) => {
+          epochHandler = _epochHandler;
+          addrs.EpochHandler = epochHandler.address;
+        });
       fs.writeFile('l2.json', JSON.stringify(addrs), (err) => {
         if (err) throw err;
       });
@@ -36,10 +36,10 @@ module.exports = async function (deployer, network) {
       console.log(addrs);
       const submit = await deployer.deploy(
         SubmitHandler,
-        addrs.EpochHandler
+        addrs.EpochHandler,
       ).then((submitHandler) => {
         addrs.SubmitHandler = submitHandler.address;
-      })
+      });
       fs.writeFile('l2.json', JSON.stringify(addrs), (err) => {
         if (err) throw err;
       });
@@ -56,11 +56,11 @@ module.exports = async function (deployer, network) {
         NRBEpochLength,
         statesRoot,
         transactionsRoot,
-        receiptsRoot
+        receiptsRoot,
       ).then((_layer2) => {
-        layer2 = _layer2
+        layer2 = _layer2;
         addrs.Layer2 = layer2.address;
-      })
+      });
       fs.writeFile('l2.json', JSON.stringify(addrs), (err) => {
         if (err) throw err;
       });
