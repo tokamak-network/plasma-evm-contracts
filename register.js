@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-axios.post('http://dashboard-api.tokamak.network/operators', {
+axios.post('http://dashboard-api.tokamak.network/rinkeby/operators', {
   genesis: {
     config: {
       chainId: process.env.chainid,
