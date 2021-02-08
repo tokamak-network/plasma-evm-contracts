@@ -12,6 +12,7 @@ const DAOVault = artifacts.require('DAOVault');
 module.exports = async function (deployer, network) {
   if (process.env.SET) {
     const data = JSON.parse(fs.readFileSync('deployed.json').toString());
+    console.log({ data });
     const seigManager = await SeigManager.at(data.SeigManager);
     const wton = await WTON.at(data.WTON);
     const powerton = await PowerTON.at(data.PowerTON);
