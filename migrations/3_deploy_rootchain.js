@@ -20,34 +20,29 @@ module.exports = async function (deployer, network) {
   if (process.env.SET_OPERATOR) {
     const data = JSON.parse(fs.readFileSync('deployed.json').toString());
     console.log(data);
+    let addrs = {};
     if (process.env.epoch) {
       addrs = JSON.parse(fs.readFileSync('l2.json').toString());
-      await deployer.deploy(EpochHandler)
-      .then((_epochHandler) => {
-        epochHandler = _epochHandler;
-        addrs.EpochHandler = epochHandler.address;
-      })
-      fs.writeFile('l2.json', JSON.stringify(addrs), (err) => {
-        if (err) throw err;
-      });
+      await deployer.deploy(EpochHandler);
+      const epochHandler = await EpochHandler.deployed();
+      addrs.EpochHandler = epochHandler.address;
+      fs.writeFileSync('l2.json', JSON.stringify(addrs));
     }
     if (process.env.submit) {
       addrs = JSON.parse(fs.readFileSync('l2.json').toString());
       console.log(addrs);
-      const submit = await deployer.deploy(
+      await deployer.deploy(
         SubmitHandler,
-        addrs.EpochHandler
-      ).then((submitHandler) => {
-        addrs.SubmitHandler = submitHandler.address;
-      })
-      fs.writeFile('l2.json', JSON.stringify(addrs), (err) => {
-        if (err) throw err;
-      });
+        addrs.EpochHandler,
+      );
+      const submit = await SubmitHandler.deployed();
+      addrs.SubmitHandler = submit.address;
+      fs.writeFileSync('l2.json', JSON.stringify(addrs));
     }
     if (process.env.l2) {
       addrs = JSON.parse(fs.readFileSync('l2.json').toString());
       console.log(addrs);
-      l2 = await deployer.deploy(
+      await deployer.deploy(
         Layer2,
         addrs.EpochHandler,
         addrs.SubmitHandler,
@@ -56,14 +51,11 @@ module.exports = async function (deployer, network) {
         NRBEpochLength,
         statesRoot,
         transactionsRoot,
-        receiptsRoot
-      ).then((_layer2) => {
-        layer2 = _layer2
-        addrs.Layer2 = layer2.address;
-      })
-      fs.writeFile('l2.json', JSON.stringify(addrs), (err) => {
-        if (err) throw err;
-      });
+        receiptsRoot,
+      );
+      const l2 = await Layer2.deployed();
+      addrs.Layer2 = l2.address;
+      fs.writeFileSync('l2.json', JSON.stringify(addrs));
     }
     if (process.env.setl2) {
       addrs = JSON.parse(fs.readFileSync('l2.json').toString());
