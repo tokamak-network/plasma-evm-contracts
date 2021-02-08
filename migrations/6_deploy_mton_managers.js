@@ -27,7 +27,12 @@ const MTON_RINKEBY = process.env.MTON_RINKEBY;
 
 module.exports = async function (deployer, network) {
   // only deploy at mainnet or rinkeby testnet
-  if (network.includes('mainnet') || network.includes('rinkeby') || network.includes('development')) return;
+  if (
+    network.includes('mainnet') ||
+    network.includes('rinkeby') ||
+    network.includes('development') ||
+    network.includes('ganache')
+  ) return;
 
   const mtonAddr = network.includes('mainnet')
     ? MTON_MAINNET : network.includes('rinkeby')
@@ -37,7 +42,7 @@ module.exports = async function (deployer, network) {
   const withdrawalDelay = network.includes('mainnet')
     ? WITHDRAWAL_DELAY_MAINNET : network.includes('rinkeby')
       ? WITHDRAWAL_DELAY_RINKEBY
-      : undefined;
+      : WITHDRAWAL_DELAY_MAINNET;
 
   const roundDuration = network.includes('mainnet')
     ? ROUND_DURATION_MAINNET : network.includes('rinkeby')
@@ -46,19 +51,32 @@ module.exports = async function (deployer, network) {
 
   console.log('Using MTON deployed at', mtonAddr);
 
-  const mton = mtonAddr ? await MTON.at(mtonAddr) : await deployer.deploy(MTON);
+  let mton = null;
+  if (mtonAddr) {
+    mton = await MTON.at(mtonAddr);
+  } else {
+    await deployer.deploy(MTON);
+    mton = await MTON.deployed();
+  }
 
-  const wton = await deployer.deploy(WTON, mton.address);
-  const registry = await deployer.deploy(Layer2Registry);
+  await deployer.deploy(WTON, mton.address);
+  const wton = await WTON.deployed();
 
-  const depositManager = await deployer.deploy(
+  await deployer.deploy(Layer2Registry);
+  const registry = await Layer2Registry.deployed();
+
+  console.log('wton.address= ', wton.address);
+  console.log('registry.address= ', registry.address);
+
+  await deployer.deploy(
     DepositManager,
     wton.address,
     registry.address,
     withdrawalDelay,
   );
+  const depositManager = await DepositManager.deployed();
 
-  const seigManager = await deployer.deploy(
+  await deployer.deploy(
     SeigManager,
     mton.address,
     wton.address,
@@ -66,13 +84,15 @@ module.exports = async function (deployer, network) {
     depositManager.address,
     _WTON(SEIG_PER_BLOCK).toFixed('ray'),
   );
+  const seigManager = await SeigManager.deployed();
 
-  const powerton = await deployer.deploy(
+  await deployer.deploy(
     PowerTON,
     seigManager.address,
     wton.address,
     roundDuration,
   );
+  const powerton = await PowerTON.deployed();
 
   const addrs = {
     TON: mton.address,
