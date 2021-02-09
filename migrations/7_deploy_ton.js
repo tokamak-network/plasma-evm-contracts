@@ -48,8 +48,7 @@ module.exports = async function (deployer, network) {
 
   if (!totalSupply.eq(ether('50000000'))) return;
 
-  await deployer.deploy(TON);
-  const token = await TON.deployed();
+  const token = await deployedOrDeploy(TON, deployer);
   await token.mint(swapper, swapperAmount);
   await token.mint(pub, pubAmount);
   await token.mint(team, teamAmount);
