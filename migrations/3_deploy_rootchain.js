@@ -5,6 +5,7 @@ const EtherToken = artifacts.require('EtherToken.sol');
 const Layer2Registry = artifacts.require('Layer2Registry');
 const axios = require('axios');
 const fs = require('fs');
+const { deployedOrDeploy } = require('../utils/deploy');
 
 const development = process.env.NODE_ENV !== 'production';
 // '0xDAA727d4F222DcEc6DF6ce3397c47Dee7Eb277A2'
@@ -13,7 +14,7 @@ const NRBEpochLength = process.env.NRB_EPOCH_LENGTH || 2;
 const statesRoot = '0xdb431b544b2f5468e3f771d7843d9c5df3b4edcf8bc1c599f18f0b4ea8709bc3';
 const transactionsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
 const receiptsRoot = '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421';
-const etherToken = '0x5c642140A3b6fA39Dfd1AA9eBA6C5239F5c457D5';
+const etherTokenAddress = '0x5c642140A3b6fA39Dfd1AA9eBA6C5239F5c457D5';
 
 module.exports = async function (deployer, network) {
   // skip production network
@@ -42,11 +43,18 @@ module.exports = async function (deployer, network) {
     if (process.env.l2) {
       addrs = JSON.parse(fs.readFileSync('l2.json').toString());
       console.log(addrs);
+      let etherToken = null;
+      try {
+        etherToken = await EtherToken.at(etherTokenAddress);
+      } catch {
+        etherToken = await deployedOrDeploy(EtherToken, deployer);
+      }
+
       await deployer.deploy(
         Layer2,
         addrs.EpochHandler,
         addrs.SubmitHandler,
-        etherToken,
+        etherToken.address,
         false,
         NRBEpochLength,
         statesRoot,

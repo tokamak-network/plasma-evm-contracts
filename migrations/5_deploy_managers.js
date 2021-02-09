@@ -1,5 +1,6 @@
 const { createCurrency } = require('@makerdao/currency');
 const fs = require('fs');
+const { deployedOrDeploy } = require('../utils/deploy');
 
 const _WTON = createCurrency('WTON');
 
@@ -54,8 +55,7 @@ module.exports = async function (deployer, network) {
     if (tonAddr) {
       ton = await TON.at(tonAddr);
     } else {
-      await deployer.deploy(TON);
-      ton = await TON.deployed();
+      ton = await deployedOrDeploy(TON, deployer);
     }
 
     let wton;

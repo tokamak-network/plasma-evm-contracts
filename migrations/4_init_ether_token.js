@@ -7,8 +7,7 @@ module.exports = async function (deployer, network) {
     network.includes('faraday') ||
     network.includes('mainnet') ||
     network.includes('rinkeby') ||
-    network.includes('development') ||
-    network.includes('ganache')
+    network.includes('development')
   ) return;
 
   const etherToken = await EtherToken.deployed();
