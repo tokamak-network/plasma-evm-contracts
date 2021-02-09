@@ -20,7 +20,7 @@ const EtherToken = contract.fromArtifact('EtherToken');
 const DepositManager = contract.fromArtifact('DepositManager');
 const SeigManager = contract.fromArtifact('SeigManager');
 const Layer2Registry = contract.fromArtifact('Layer2Registry');
-const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
+// const CustomIncrementCoinage = contract.fromArtifact('CustomIncrementCoinage');
 const PowerTON = contract.fromArtifact('PowerTON');
 
 const chai = require('chai');
@@ -282,7 +282,7 @@ describe('stake/PowerTON', function () {
     );
 
     // load tot token and coinage tokens
-    this.tot = await CustomIncrementCoinage.at(await this.seigManager.tot());
+    // this.tot = await CustomIncrementCoinage.at(await this.seigManager.tot());
     const coinageAddrs = await Promise.all(
       this.layer2s.map(layer2 => this.seigManager.coinages(layer2.address)),
     );
@@ -291,7 +291,7 @@ describe('stake/PowerTON', function () {
     this.coinagesByLayer2 = {};
     for (const addr of coinageAddrs) {
       const i = coinageAddrs.findIndex(a => a === addr);
-      this.coinages[i] = await CustomIncrementCoinage.at(addr);
+      // this.coinages[i] = await CustomIncrementCoinage.at(addr);
       this.coinagesByLayer2[this.layer2s[i].address] = this.coinages[i];
     }
 

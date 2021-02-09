@@ -8,7 +8,7 @@ const {
 
 const { padLeft } = require('./helpers/pad');
 const { appendHex } = require('./helpers/appendHex');
-const Data = require('./lib/Data');
+const Data = artifacts.require('./lib/Data');
 
 const EpochHandler = artifacts.require('EpochHandler.sol');
 const Layer2 = artifacts.require('Layer2.sol');
@@ -16,16 +16,16 @@ const RequestableSimpleToken = artifacts.require('RequestableSimpleToken.sol');
 
 require('chai')
   .use(require('chai-as-promised'))
-  .use(require('chai-bignumber')(web3.BigNumber))
+  .use(require('chai-bignumber')(web3.utils.BN))
   .should();
 
-const BigNumber = web3.BigNumber;
+const BigNumber = web3.utils.BN;
 const LOGTX = process.env.LOGTX || false;
 const VERBOSE = process.env.VERBOSE || false;
 
-const etherAmount = new BigNumber(10e18);
-const tokenAmount = new BigNumber(10e18);
-const exitAmount = tokenAmount.div(1000);
+const etherAmount = new BigNumber(10e14); // 10e18 = 10000000000000000000
+const tokenAmount = new BigNumber(10e14);
+const exitAmount = tokenAmount.div(web3.utils.toBN(1000));
 const emptyBytes32 = 0;
 
 // Layer2 contract parameters

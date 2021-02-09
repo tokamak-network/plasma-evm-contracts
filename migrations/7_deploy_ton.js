@@ -1,4 +1,5 @@
 const TON = artifacts.require('TON.sol');
+const { deployedOrDeploy } = require('../utils/deploy');
 
 const { BN, toWei } = require('web3-utils');
 const ether = n => new BN(toWei(n, 'ether'));
@@ -38,20 +39,22 @@ const totalSupply = swapperAmount
   .add(reserveAmount)
   .add(daoAmount);
 
-module.exports = function (deployer, network) {
-  if (network.includes('mainnet') || network.includes('rinkeby') || network.includes('development')) return;
+module.exports = async function (deployer, network) {
+  if (
+    network.includes('mainnet') ||
+    network.includes('rinkeby') ||
+    network.includes('development')
+  ) return;
+
   if (!totalSupply.eq(ether('50000000'))) return;
 
-  deployer.deploy(TON)
-    .then(async token => {
-      await token.mint(swapper, swapperAmount);
-      await token.mint(pub, pubAmount);
-      await token.mint(team, teamAmount);
-      await token.mint(advisor, advisorAmount);
-      await token.mint(marketing, marketingAmount);
-      await token.mint(business, businessAmount);
-      await token.mint(reserve, reserveAmount);
-      await token.mint(dao, daoAmount);
-    })
-    .catch(e => { throw e; });
+  const token = await deployedOrDeploy(TON, deployer);
+  await token.mint(swapper, swapperAmount);
+  await token.mint(pub, pubAmount);
+  await token.mint(team, teamAmount);
+  await token.mint(advisor, advisorAmount);
+  await token.mint(marketing, marketingAmount);
+  await token.mint(business, businessAmount);
+  await token.mint(reserve, reserveAmount);
+  await token.mint(dao, daoAmount);
 };

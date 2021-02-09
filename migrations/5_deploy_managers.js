@@ -1,5 +1,6 @@
 const { createCurrency } = require('@makerdao/currency');
 const fs = require('fs');
+const { deployedOrDeploy } = require('../utils/deploy');
 
 const _WTON = createCurrency('WTON');
 
@@ -15,10 +16,12 @@ const DAOVault = artifacts.require('DAOVault');
 
 // 1024 blocks
 // 93046 blocks (= 2 weeks)
+const WITHDRAWAL_DELAY_DEFAULT = 93046;
 const WITHDRAWAL_DELAY_MAINNET = 93046;
 const WITHDRAWAL_DELAY_RINKEBY = Math.floor(WITHDRAWAL_DELAY_MAINNET / (14 * 24 * 2)); // 30 min
 
 // 1209600 sec (= 2 weeks)
+const ROUND_DURATION_DEFAULT = 1209600;
 const ROUND_DURATION_MAINNET = 1209600;
 const ROUND_DURATION_RINKEBY = Math.floor(ROUND_DURATION_MAINNET / (14 * 24 * 2)); // 30 min
 
@@ -39,16 +42,22 @@ module.exports = async function (deployer, network) {
     const withdrawalDelay = network.includes('mainnet')
       ? WITHDRAWAL_DELAY_MAINNET : network.includes('rinkeby')
         ? WITHDRAWAL_DELAY_RINKEBY
-        : undefined;
+        : WITHDRAWAL_DELAY_DEFAULT;
 
     const roundDuration = network.includes('mainnet')
       ? ROUND_DURATION_MAINNET : network.includes('rinkeby')
         ? ROUND_DURATION_RINKEBY
-        : undefined;
+        : ROUND_DURATION_DEFAULT;
 
     console.log('Using TON deployed at', tonAddr);
 
-    const ton = tonAddr ? await TON.at(tonAddr) : await deployer.deploy(TON);
+    let ton = null;
+    if (tonAddr) {
+      ton = await TON.at(tonAddr);
+    } else {
+      ton = await deployedOrDeploy(TON, deployer);
+    }
+
     let wton;
     let registry;
     let depositManager;
@@ -58,60 +67,59 @@ module.exports = async function (deployer, network) {
     let powerton;
 
     let addrs = {};
+    addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
+    addrs.TON = ton.address;
+    fs.writeFileSync('deployed.json', JSON.stringify(addrs));
 
     if (process.env.wton) {
       addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
-      wton = await deployer.deploy(WTON, ton.address);
+      await deployer.deploy(WTON, ton.address);
+      wton = await WTON.deployed();
       addrs.WTON = wton.address;
-      fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
-        if (err) throw err;
-      });
+      fs.writeFileSync('deployed.json', JSON.stringify(addrs));
     }
 
     if (process.env.registry) {
       addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
-      registry = await deployer.deploy(Layer2Registry);
+      await deployer.deploy(Layer2Registry);
+      registry = await Layer2Registry.deployed();
       addrs.Layer2Registry = registry.address;
-      fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
-        if (err) throw err;
-      });
+      fs.writeFileSync('deployed.json', JSON.stringify(addrs));
     }
 
     if (process.env.deposit) {
       addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
-      depositManager = await deployer.deploy(
+      console.log(addrs.WTON, addrs.Layer2Registry, withdrawalDelay)
+      await deployer.deploy(
         DepositManager,
         addrs.WTON,
         addrs.Layer2Registry,
         withdrawalDelay,
       );
+      depositManager = await DepositManager.deployed();
       addrs.DepositManager = depositManager.address;
-      fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
-        if (err) throw err;
-      });
+      fs.writeFileSync('deployed.json', JSON.stringify(addrs));
     }
 
     if (process.env.factory) {
       addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
-      factory = await deployer.deploy(CoinageFactory);
+      await deployer.deploy(CoinageFactory);
+      factory = await CoinageFactory.deployed();
       addrs.Factory = factory.address;
-      fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
-        if (err) throw err;
-      });
+      fs.writeFileSync('deployed.json', JSON.stringify(addrs));
     }
 
     if (process.env.daoVault) {
       addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
-      daoVault = await deployer.deploy(DAOVault, addrs.WTON, 1609416000);
+      await deployer.deploy(DAOVault, addrs.WTON, 1609416000);
+      daoVault = await DAOVault.deployed();
       addrs.DaoVault = daoVault.address;
-      fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
-        if (err) throw err;
-      });
+      fs.writeFileSync('deployed.json', JSON.stringify(addrs));
     }
 
     if (process.env.seig) {
       addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
-      seigManager = await deployer.deploy(
+      await deployer.deploy(
         SeigManager,
         addrs.TON,
         addrs.WTON,
@@ -120,24 +128,22 @@ module.exports = async function (deployer, network) {
         _WTON(SEIG_PER_BLOCK).toFixed('ray'),
         addrs.Factory,
       );
+      seigManager = await SeigManager.deployed();
       addrs.SeigManager = seigManager.address;
-      fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
-        if (err) throw err;
-      });
+      fs.writeFileSync('deployed.json', JSON.stringify(addrs));
     }
 
     if (process.env.powerton) {
       addrs = JSON.parse(fs.readFileSync('deployed.json').toString());
-      powerton = await deployer.deploy(
+      await deployer.deploy(
         PowerTON,
         addrs.SeigManager,
         addrs.WTON,
         roundDuration,
       );
+      powerton = await PowerTON.deployed();
       addrs.PowerTON = powerton.address;
-      fs.writeFile('deployed.json', JSON.stringify(addrs), (err) => {
-        if (err) throw err;
-      });
+      fs.writeFileSync('deployed.json', JSON.stringify(addrs));
     }
 
     console.log(JSON.stringify(addrs, null, 2));

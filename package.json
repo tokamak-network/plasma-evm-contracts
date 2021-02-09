@@ -28,9 +28,11 @@
     "test:stake:compile": "npm run compile && npm run test:stake"
   },
   "dependencies": {
+    "axios": "^0.19.1",
+    "chai-as-promised": "^7.1.1",
+    "chai-bignumber": "^3.0.0",
     "chai-bytes": "^0.1.1",
-    "rlp": "^2.1.0",
-    "axios": "^0.19.1"
+    "rlp": "^2.1.0"
   },
   "devDependencies": {
     "@makerdao/currency": "^0.9.6",
