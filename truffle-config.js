@@ -59,7 +59,7 @@ module.exports = {
     //     gas: 0xfffffffffff,
     //     gasPrice: 0x01,
     //   },
-    ganache: { // order of migrations: 7->5->5.1->2->4->3
+    ganache: { // order of migrations: 7->5->2->4->3
       host: 'localhost',
       port: '7545',
       network_id: '5777', // eslint-disable-line camelcase
