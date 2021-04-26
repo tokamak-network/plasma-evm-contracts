@@ -11,6 +11,13 @@ module.exports = {
       gasPrice: 1e9,
       network_id: '*', // eslint-disable-line camelcase
     },
+    optimism: {
+      host: 'localhost',
+      port: 9545,
+      gas: 9000000,
+      gasPrice: 1e9,
+      network_id: '*', // eslint-disable-line camelcase
+    },
     rootchain: {
       host: 'localhost',
       port: 8546,
