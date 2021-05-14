@@ -1,7 +1,7 @@
 pragma solidity ^0.5.12;
 
-import { SafeMath } from "../../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
-import { Ownable } from "../../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 
 contract SeigCoinageToken is Ownable {
     using SafeMath for uint256;

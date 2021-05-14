@@ -1,4 +1,4 @@
-// https://github.com/OpenZeppelin/openzeppelin-solidity/blob/master/contracts/utils/Address.sol
+// https://github.com/OpenZeppelin/openzeppelin/blob/master/contracts/utils/Address.sol
 pragma solidity ^0.5.12;
 
 /**

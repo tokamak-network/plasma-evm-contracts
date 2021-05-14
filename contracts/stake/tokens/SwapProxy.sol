@@ -1,6 +1,6 @@
 pragma solidity ^0.5.12;
 
-import { ERC165 } from "../../../node_modules/openzeppelin-solidity/contracts/introspection/ERC165.sol";
+import { ERC165 } from "@openzeppelin/contracts/introspection/ERC165.sol";
 
 contract SwapProxy is ERC165 {
   constructor() public {

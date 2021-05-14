@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
 
-import { Ownable } from "../../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
-import { SafeMath } from "../../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { WTON } from "../tokens/WTON.sol";
 
 contract DAOVault is Ownable {

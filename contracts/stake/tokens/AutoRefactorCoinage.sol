@@ -1,20 +1,20 @@
-// based on ERC20 implementation of openzeppelin-solidity: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/7552af95e4ec6fccd64a95b206f59a1b4ff91517/contracts/token/ERC20/ERC20.sol
+// based on ERC20 implementation of openzeppelin/-solidity: https://github.com/OpenZeppelin/openzeppelin/-contracts/blob/7552af95e4ec6fccd64a95b206f59a1b4ff91517/contracts/token/ERC20/ERC20.sol
 pragma solidity ^0.5.12;
 
 import { AutoRefactorCoinageI } from "../interfaces/AutoRefactorCoinageI.sol";
-import { SafeMath } from "../../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
-import { Context } from "../../../node_modules/openzeppelin-solidity/contracts/GSN/Context.sol";
-import { Ownable } from "../../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
-import { IERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
-import { ERC20Detailed } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Detailed.sol";
-import { ERC20Mintable } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
-import { ERC20Burnable } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Burnable.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { Context } from "@openzeppelin/contracts/GSN/Context.sol";
+import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC20Detailed } from "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
+import { ERC20Mintable } from "@openzeppelin/contracts/token/ERC20/ERC20Mintable.sol";
+import { ERC20Burnable } from "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
 
 import { DSMath } from "../../lib/DSMath.sol";
 
 
 /**
- * @dev Implementation of coin age token based on ERC20 of openzeppelin-solidity
+ * @dev Implementation of coin age token based on ERC20 of openzeppelin/-solidity
  *
  * AutoRefactorCoinage stores `_totalSupply` and `_balances` as RAY BASED value,
  * `_allowances` as RAY FACTORED value.

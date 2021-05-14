@@ -1,4 +1,4 @@
-// https://github.com/OpenZeppelin/openzeppelin-contracts/blob/67bca85/contracts/access/Roles.sol
+// https://github.com/OpenZeppelin/openzeppelin/-contracts/blob/67bca85/contracts/ownership/Roles.sol
 pragma solidity ^0.5.12;
 
 /**

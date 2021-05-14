@@ -1,7 +1,7 @@
 pragma solidity ^0.5.12;
 
-import { ERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
-import { ERC165Checker } from "../../../node_modules/openzeppelin-solidity/contracts/introspection/ERC165Checker.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ERC165Checker } from "@openzeppelin/contracts/introspection/ERC165Checker.sol";
 
 import { OnApprove } from "./OnApprove.sol";
 
