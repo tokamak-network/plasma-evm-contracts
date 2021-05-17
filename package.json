@@ -28,7 +28,7 @@
     "test:stake:compile": "npm run compile && npm run test:stake"
   },
   "dependencies": {
-    "axios": "^0.19.1",
+    "axios": "^0.21.1",
     "chai-bignumber": "^3.0.0",
     "chai-bytes": "^0.1.1",
     "request": "^2.88.2",
