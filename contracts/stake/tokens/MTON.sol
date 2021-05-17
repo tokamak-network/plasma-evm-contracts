@@ -1,9 +1,9 @@
 pragma solidity ^0.5.12;
 
-import { Ownable } from "../../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
-import { ERC20Mintable } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
-import { ERC20Detailed } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Detailed.sol";
-import { ERC165Checker } from "../../../node_modules/openzeppelin-solidity/contracts/introspection/ERC165Checker.sol";
+import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
+import { ERC20Mintable } from "@openzeppelin/contracts/token/ERC20/ERC20Mintable.sol";
+import { ERC20Detailed } from "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
+import { ERC165Checker } from "@openzeppelin/contracts/introspection/ERC165Checker.sol";
 
 import { SeigManagerI } from "../interfaces/SeigManagerI.sol";
 import { SeigToken } from "./SeigToken.sol";

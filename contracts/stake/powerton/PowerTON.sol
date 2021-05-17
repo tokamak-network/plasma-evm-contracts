@@ -2,11 +2,11 @@ pragma solidity ^0.5.12;
 pragma experimental ABIEncoderV2;
 
 
-import { Ownable } from "../../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
-import { Pausable } from "../../../node_modules/openzeppelin-solidity/contracts/lifecycle/Pausable.sol";
-import { SafeMath } from "../../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
-import { IERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/lifecycle/Pausable.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import { WTON } from "../tokens/WTON.sol";
 import { AuthController } from "../tokens/AuthController.sol";

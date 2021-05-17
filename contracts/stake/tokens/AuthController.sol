@@ -1,6 +1,6 @@
 pragma solidity ^0.5.12;
 
-import { Ownable } from "../../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 
 
 interface MinterRoleRenounceTarget {

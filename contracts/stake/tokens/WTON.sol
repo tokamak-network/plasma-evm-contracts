@@ -1,20 +1,20 @@
 pragma solidity ^0.5.12;
 
-import { Ownable } from "../../../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol";
-import { SafeMath } from "../../../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
-import { IERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
-import { ERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
-import { ERC20Mintable } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
-import { ERC20Burnable } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Burnable.sol";
-import { ERC20Detailed } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/ERC20Detailed.sol";
-import { SafeERC20 } from "../../../node_modules/openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ERC20Mintable } from "@openzeppelin/contracts/token/ERC20/ERC20Mintable.sol";
+import { ERC20Burnable } from "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
+import { ERC20Detailed } from "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-import { ReentrancyGuard } from "../../../node_modules/openzeppelin-solidity/contracts/utils/ReentrancyGuard.sol";
-import { ERC165 } from "../../../node_modules/openzeppelin-solidity/contracts/introspection/ERC165.sol";
-import { ERC165Checker } from "../../../node_modules/openzeppelin-solidity/contracts/introspection/ERC165Checker.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { ERC165 } from "@openzeppelin/contracts/introspection/ERC165.sol";
+import { ERC165Checker } from "@openzeppelin/contracts/introspection/ERC165Checker.sol";
 
-import { DSMath } from "../../../node_modules/coinage-token/contracts/lib/DSMath.sol";
+// import { DSMath } from "../../../node_modules/coinage-token/contracts/lib/DSMath.sol";
 
 import { SeigManagerI } from "../interfaces/SeigManagerI.sol";
 
@@ -22,7 +22,7 @@ import { SeigToken } from "./SeigToken.sol";
 import { OnApprove } from "./OnApprove.sol";
 
 
-contract WTON is DSMath, ReentrancyGuard, Ownable, ERC20Mintable, ERC20Burnable, ERC20Detailed, SeigToken, OnApprove {
+contract WTON is ReentrancyGuard, Ownable, ERC20Mintable, ERC20Burnable, ERC20Detailed, SeigToken, OnApprove {
   using SafeERC20 for ERC20Mintable;
 
   ERC20Mintable public ton;
