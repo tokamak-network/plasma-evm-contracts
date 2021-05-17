@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const PrivateKeyProvider = require('truffle-privatekey-provider');
-
+const pk = '2bdd21761a483f71054e14f5b827213567971c676928d9a1808cbfa4b7501200';
 module.exports = {
   networks: {
     development: {
@@ -32,7 +32,7 @@ module.exports = {
       production: true,
     },
     rinkeby: {
-      provider: () => new PrivateKeyProvider(process.env.RINKEBY_PRIVATE_KEY, process.env.RINKEBY_PROVIDER_URL),
+      provider: () => new PrivateKeyProvider(pk, 'https://rinkeby.infura.io/v3/f6429583907549eca57832ec1a60b44f'),
       network_id: 4, // eslint-disable-line camelcase
       gasPrice: 5e9,
       skipDryRun: true,
