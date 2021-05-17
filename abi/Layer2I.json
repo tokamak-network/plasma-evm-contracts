@@ -1,0 +1,786 @@
+{
+  "contractName": "Layer2I",
+  "abi": [
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "operator",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "isLayer2",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "currentFork",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "forkNumber",
+          "type": "uint256"
+        }
+      ],
+      "name": "lastEpoch",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": false,
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_operator",
+          "type": "address"
+        }
+      ],
+      "name": "changeOperator",
+      "outputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "metadata": "{\"compiler\":{\"version\":\"0.5.12+commit.7709ece9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"constant\":false,\"inputs\":[{\"internalType\":\"address\",\"name\":\"_operator\",\"type\":\"address\"}],\"name\":\"changeOperator\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"currentFork\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"isLayer2\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"forkNumber\",\"type\":\"uint256\"}],\"name\":\"lastEpoch\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"operator\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"methods\":{}},\"userdoc\":{\"methods\":{}}},\"settings\":{\"compilationTarget\":{\"/home/modagi/github/onther/plasma-evm-contracts2/contracts/Layer2I.sol\":\"Layer2I\"},\"evmVersion\":\"petersburg\",\"libraries\":{},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"/home/modagi/github/onther/plasma-evm-contracts2/contracts/Layer2I.sol\":{\"keccak256\":\"0xe6b3b8109385e19d9ed7feea211138868c1c5a84a8111e0b668b8cb32d08e16a\",\"urls\":[\"bzz-raw://1991799c445b438494b17cd2187ec42f57d69900b0747922585d3d3102da7fd3\",\"dweb:/ipfs/QmbvjF9ZMZH9jnRWvMFr1xuBhfxegZD5R7cZjWgJxBZxro\"]}},\"version\":1}",
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "sourceMap": "",
+  "deployedSourceMap": "",
+  "source": "pragma solidity ^0.5.12;\n\ninterface Layer2I {\n  function operator() external view returns (address);\n  function isLayer2() external view returns (bool);\n  function currentFork() external view returns (uint);\n  function lastEpoch(uint forkNumber) external view returns (uint);\n  function changeOperator(address _operator) external;\n}\n",
+  "sourcePath": "/home/modagi/github/onther/plasma-evm-contracts2/contracts/Layer2I.sol",
+  "ast": {
+    "absolutePath": "/home/modagi/github/onther/plasma-evm-contracts2/contracts/Layer2I.sol",
+    "exportedSymbols": {
+      "Layer2I": [
+        2634
+      ]
+    },
+    "id": 2635,
+    "nodeType": "SourceUnit",
+    "nodes": [
+      {
+        "id": 2606,
+        "literals": [
+          "solidity",
+          "^",
+          "0.5",
+          ".12"
+        ],
+        "nodeType": "PragmaDirective",
+        "src": "0:24:4"
+      },
+      {
+        "baseContracts": [],
+        "contractDependencies": [],
+        "contractKind": "interface",
+        "documentation": null,
+        "fullyImplemented": false,
+        "id": 2634,
+        "linearizedBaseContracts": [
+          2634
+        ],
+        "name": "Layer2I",
+        "nodeType": "ContractDefinition",
+        "nodes": [
+          {
+            "body": null,
+            "documentation": null,
+            "id": 2611,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "operator",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 2607,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "65:2:4"
+            },
+            "returnParameters": {
+              "id": 2610,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2609,
+                  "name": "",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2611,
+                  "src": "91:7:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2608,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "91:7:4",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "90:9:4"
+            },
+            "scope": 2634,
+            "src": "48:52:4",
+            "stateMutability": "view",
+            "superFunction": null,
+            "visibility": "external"
+          },
+          {
+            "body": null,
+            "documentation": null,
+            "id": 2616,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "isLayer2",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 2612,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "120:2:4"
+            },
+            "returnParameters": {
+              "id": 2615,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2614,
+                  "name": "",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2616,
+                  "src": "146:4:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  },
+                  "typeName": {
+                    "id": 2613,
+                    "name": "bool",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "146:4:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "145:6:4"
+            },
+            "scope": 2634,
+            "src": "103:49:4",
+            "stateMutability": "view",
+            "superFunction": null,
+            "visibility": "external"
+          },
+          {
+            "body": null,
+            "documentation": null,
+            "id": 2621,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "currentFork",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 2617,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "175:2:4"
+            },
+            "returnParameters": {
+              "id": 2620,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2619,
+                  "name": "",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2621,
+                  "src": "201:4:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 2618,
+                    "name": "uint",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "201:4:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "200:6:4"
+            },
+            "scope": 2634,
+            "src": "155:52:4",
+            "stateMutability": "view",
+            "superFunction": null,
+            "visibility": "external"
+          },
+          {
+            "body": null,
+            "documentation": null,
+            "id": 2628,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "lastEpoch",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 2624,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2623,
+                  "name": "forkNumber",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2628,
+                  "src": "229:15:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 2622,
+                    "name": "uint",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "229:4:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "228:17:4"
+            },
+            "returnParameters": {
+              "id": 2627,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2626,
+                  "name": "",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2628,
+                  "src": "269:4:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 2625,
+                    "name": "uint",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "269:4:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "268:6:4"
+            },
+            "scope": 2634,
+            "src": "210:65:4",
+            "stateMutability": "view",
+            "superFunction": null,
+            "visibility": "external"
+          },
+          {
+            "body": null,
+            "documentation": null,
+            "id": 2633,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "changeOperator",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 2631,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2630,
+                  "name": "_operator",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2633,
+                  "src": "302:17:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2629,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "302:7:4",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "301:19:4"
+            },
+            "returnParameters": {
+              "id": 2632,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "329:0:4"
+            },
+            "scope": 2634,
+            "src": "278:52:4",
+            "stateMutability": "nonpayable",
+            "superFunction": null,
+            "visibility": "external"
+          }
+        ],
+        "scope": 2635,
+        "src": "26:306:4"
+      }
+    ],
+    "src": "0:333:4"
+  },
+  "legacyAST": {
+    "absolutePath": "/home/modagi/github/onther/plasma-evm-contracts2/contracts/Layer2I.sol",
+    "exportedSymbols": {
+      "Layer2I": [
+        2634
+      ]
+    },
+    "id": 2635,
+    "nodeType": "SourceUnit",
+    "nodes": [
+      {
+        "id": 2606,
+        "literals": [
+          "solidity",
+          "^",
+          "0.5",
+          ".12"
+        ],
+        "nodeType": "PragmaDirective",
+        "src": "0:24:4"
+      },
+      {
+        "baseContracts": [],
+        "contractDependencies": [],
+        "contractKind": "interface",
+        "documentation": null,
+        "fullyImplemented": false,
+        "id": 2634,
+        "linearizedBaseContracts": [
+          2634
+        ],
+        "name": "Layer2I",
+        "nodeType": "ContractDefinition",
+        "nodes": [
+          {
+            "body": null,
+            "documentation": null,
+            "id": 2611,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "operator",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 2607,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "65:2:4"
+            },
+            "returnParameters": {
+              "id": 2610,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2609,
+                  "name": "",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2611,
+                  "src": "91:7:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2608,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "91:7:4",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "90:9:4"
+            },
+            "scope": 2634,
+            "src": "48:52:4",
+            "stateMutability": "view",
+            "superFunction": null,
+            "visibility": "external"
+          },
+          {
+            "body": null,
+            "documentation": null,
+            "id": 2616,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "isLayer2",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 2612,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "120:2:4"
+            },
+            "returnParameters": {
+              "id": 2615,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2614,
+                  "name": "",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2616,
+                  "src": "146:4:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  },
+                  "typeName": {
+                    "id": 2613,
+                    "name": "bool",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "146:4:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "145:6:4"
+            },
+            "scope": 2634,
+            "src": "103:49:4",
+            "stateMutability": "view",
+            "superFunction": null,
+            "visibility": "external"
+          },
+          {
+            "body": null,
+            "documentation": null,
+            "id": 2621,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "currentFork",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 2617,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "175:2:4"
+            },
+            "returnParameters": {
+              "id": 2620,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2619,
+                  "name": "",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2621,
+                  "src": "201:4:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 2618,
+                    "name": "uint",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "201:4:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "200:6:4"
+            },
+            "scope": 2634,
+            "src": "155:52:4",
+            "stateMutability": "view",
+            "superFunction": null,
+            "visibility": "external"
+          },
+          {
+            "body": null,
+            "documentation": null,
+            "id": 2628,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "lastEpoch",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 2624,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2623,
+                  "name": "forkNumber",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2628,
+                  "src": "229:15:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 2622,
+                    "name": "uint",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "229:4:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "228:17:4"
+            },
+            "returnParameters": {
+              "id": 2627,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2626,
+                  "name": "",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2628,
+                  "src": "269:4:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 2625,
+                    "name": "uint",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "269:4:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "268:6:4"
+            },
+            "scope": 2634,
+            "src": "210:65:4",
+            "stateMutability": "view",
+            "superFunction": null,
+            "visibility": "external"
+          },
+          {
+            "body": null,
+            "documentation": null,
+            "id": 2633,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "changeOperator",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 2631,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2630,
+                  "name": "_operator",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2633,
+                  "src": "302:17:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2629,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "302:7:4",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "301:19:4"
+            },
+            "returnParameters": {
+              "id": 2632,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "329:0:4"
+            },
+            "scope": 2634,
+            "src": "278:52:4",
+            "stateMutability": "nonpayable",
+            "superFunction": null,
+            "visibility": "external"
+          }
+        ],
+        "scope": 2635,
+        "src": "26:306:4"
+      }
+    ],
+    "src": "0:333:4"
+  },
+  "compiler": {
+    "name": "solc",
+    "version": "0.5.12+commit.7709ece9.Emscripten.clang"
+  },
+  "networks": {},
+  "schemaVersion": "3.2.1",
+  "updatedAt": "2020-09-10T05:29:25.888Z",
+  "devdoc": {
+    "methods": {}
+  },
+  "userdoc": {
+    "methods": {}
+  }
+}

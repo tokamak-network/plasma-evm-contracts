@@ -6,11 +6,11 @@ import "../lib/Data.sol";
 import "../lib/Address.sol";
 import "../lib/BMT.sol";
 
-import "../RootChainStorage.sol";
-import "../RootChainEvent.sol";
+import "../Layer2Storage.sol";
+import "../Layer2Event.sol";
 
 
-contract EpochHandler is RootChainStorage, RootChainEvent {
+contract EpochHandler is Layer2Storage, Layer2Event {
   using SafeMath for uint;
   using SafeMath for uint64;
   using Math for *;

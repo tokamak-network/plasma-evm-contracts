@@ -53,13 +53,13 @@ contract WTON is DSMath, ReentrancyGuard, Ownable, ERC20Mintable, ERC20Burnable,
     _swapFromTON(owner, owner, tonAmount);
 
     uint256 wtonAmount = _toRAY(tonAmount);
-    (address depositManager, address rootchain) = _decodeTONApproveData(data);
+    (address depositManager, address layer2) = _decodeTONApproveData(data);
 
     // approve WTON to DepositManager
     _approve(owner, depositManager, wtonAmount);
 
     // call DepositManager.onApprove to deposit WTON
-    bytes memory depositManagerOnApproveData = _encodeDepositManagerOnApproveData(rootchain);
+    bytes memory depositManagerOnApproveData = _encodeDepositManagerOnApproveData(layer2);
     _callOnApprove(owner, depositManager, wtonAmount, depositManagerOnApproveData);
 
     return true;
@@ -70,22 +70,22 @@ contract WTON is DSMath, ReentrancyGuard, Ownable, ERC20Mintable, ERC20Burnable,
    */
   function _decodeTONApproveData(
     bytes memory data
-  ) internal pure returns (address depositManager, address rootchain) {
+  ) internal pure returns (address depositManager, address layer2) {
     require(data.length == 0x40);
 
     assembly {
       depositManager := mload(add(data, 0x20))
-      rootchain := mload(add(data, 0x40))
+      layer2 := mload(add(data, 0x40))
     }
   }
 
   function _encodeDepositManagerOnApproveData(
-    address rootchain
+    address layer2
   ) internal pure returns (bytes memory data) {
     data = new bytes(0x20);
 
     assembly {
-      mstore(add(data, 0x20), rootchain)
+      mstore(add(data, 0x20), layer2)
     }
   }
 
@@ -136,6 +136,9 @@ contract WTON is DSMath, ReentrancyGuard, Ownable, ERC20Mintable, ERC20Burnable,
     return _swapFromTON(msg.sender, to, tonAmount);
   }
 
+  function renounceTonMinter() external onlyOwner {
+    ton.renounceMinter();
+  }
 
   //////////////////////
   // Internal functions

@@ -1,3 +1,23 @@
+# Deployed contracts on mainnet
+
+## Tokens
+
+- TON: [0x2be5e8c109e2197D077D13A82dAead6a9b3433C5](https://etherscan.io/address/0x2be5e8c109e2197D077D13A82dAead6a9b3433C5)
+- WTON: [0xc4A11aaf6ea915Ed7Ac194161d2fC9384F15bff2](https://etherscan.io/address/0xc4A11aaf6ea915Ed7Ac194161d2fC9384F15bff2)
+
+## Managers
+
+- DepositManager: [0x56E465f654393fa48f007Ed7346105c7195CEe43](https://etherscan.io/address/0x56E465f654393fa48f007Ed7346105c7195CEe43)
+- SeigManager: [0x710936500aC59e8551331871Cbad3D33d5e0D909](https://etherscan.io/address/0x710936500aC59e8551331871Cbad3D33d5e0D909)
+
+## ETC
+
+- PowerTON: [0xd86d8950A4144D8a258930F6DD5f90CCE249E1CF](https://etherscan.io/address/0xd86d8950A4144D8a258930F6DD5f90CCE249E1CF)
+- Layer2Registry: [0x0b3E174A2170083e770D5d4Cf56774D221b7063e](https://etherscan.io/address/0x0b3E174A2170083e770D5d4Cf56774D221b7063e)
+- CoinageFactory: [0x5b40841eeCfB429452AB25216Afc1e1650C07747](https://etherscan.io/address/0x5b40841eeCfB429452AB25216Afc1e1650C07747)
+- DaoVault: [0x45AC3B12C38b6ab085ED5Bc2b30F99b3E3B1e726](https://etherscan.io/address/0x45AC3B12C38b6ab085ED5Bc2b30F99b3E3B1e726)
+
+
 # Plasma EVM RootChain contract
 
 [![Build Status](https://travis-ci.org/Onther-Tech/plasma-evm-contracts.svg?branch=master)](https://travis-ci.org/Onther-Tech/plasma-evm-contracts)

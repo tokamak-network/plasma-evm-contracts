@@ -1,0 +1,357 @@
+{
+  "contractName": "CoinageFactoryI",
+  "abi": [
+    {
+      "constant": false,
+      "inputs": [],
+      "name": "deploy",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "constant": false,
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "seigManager",
+          "type": "address"
+        }
+      ],
+      "name": "setSeigManager",
+      "outputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "metadata": "{\"compiler\":{\"version\":\"0.5.12+commit.7709ece9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"constant\":false,\"inputs\":[],\"name\":\"deploy\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"internalType\":\"address\",\"name\":\"seigManager\",\"type\":\"address\"}],\"name\":\"setSeigManager\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"methods\":{}},\"userdoc\":{\"methods\":{}}},\"settings\":{\"compilationTarget\":{\"/home/modagi/github/onther/plasma-evm-contracts2/contracts/stake/interfaces/CoinageFactoryI.sol\":\"CoinageFactoryI\"},\"evmVersion\":\"petersburg\",\"libraries\":{},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"/home/modagi/github/onther/plasma-evm-contracts2/contracts/stake/interfaces/CoinageFactoryI.sol\":{\"keccak256\":\"0x694017902270d566c06605587bcb9542ec852900319921de1d8fe7f682c05950\",\"urls\":[\"bzz-raw://0ebaff75cdf9b15190efea670098d02e75db686c3575e689e3436a8b9286f20f\",\"dweb:/ipfs/QmVA2AFp8bEABxYYDhSQoLWY3gigdUp6mXQcS5JoNJEj7R\"]}},\"version\":1}",
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "sourceMap": "",
+  "deployedSourceMap": "",
+  "source": "pragma solidity ^0.5.12;\n\ninterface CoinageFactoryI {\n  function deploy() external returns (address);\n  function setSeigManager(address seigManager) external;\n}\n",
+  "sourcePath": "/home/modagi/github/onther/plasma-evm-contracts2/contracts/stake/interfaces/CoinageFactoryI.sol",
+  "ast": {
+    "absolutePath": "/home/modagi/github/onther/plasma-evm-contracts2/contracts/stake/interfaces/CoinageFactoryI.sol",
+    "exportedSymbols": {
+      "CoinageFactoryI": [
+        11016
+      ]
+    },
+    "id": 11017,
+    "nodeType": "SourceUnit",
+    "nodes": [
+      {
+        "id": 11005,
+        "literals": [
+          "solidity",
+          "^",
+          "0.5",
+          ".12"
+        ],
+        "nodeType": "PragmaDirective",
+        "src": "0:24:34"
+      },
+      {
+        "baseContracts": [],
+        "contractDependencies": [],
+        "contractKind": "interface",
+        "documentation": null,
+        "fullyImplemented": false,
+        "id": 11016,
+        "linearizedBaseContracts": [
+          11016
+        ],
+        "name": "CoinageFactoryI",
+        "nodeType": "ContractDefinition",
+        "nodes": [
+          {
+            "body": null,
+            "documentation": null,
+            "id": 11010,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "deploy",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 11006,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "71:2:34"
+            },
+            "returnParameters": {
+              "id": 11009,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 11008,
+                  "name": "",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 11010,
+                  "src": "92:7:34",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 11007,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "92:7:34",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "91:9:34"
+            },
+            "scope": 11016,
+            "src": "56:45:34",
+            "stateMutability": "nonpayable",
+            "superFunction": null,
+            "visibility": "external"
+          },
+          {
+            "body": null,
+            "documentation": null,
+            "id": 11015,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "setSeigManager",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 11013,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 11012,
+                  "name": "seigManager",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 11015,
+                  "src": "128:19:34",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 11011,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "128:7:34",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "127:21:34"
+            },
+            "returnParameters": {
+              "id": 11014,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "157:0:34"
+            },
+            "scope": 11016,
+            "src": "104:54:34",
+            "stateMutability": "nonpayable",
+            "superFunction": null,
+            "visibility": "external"
+          }
+        ],
+        "scope": 11017,
+        "src": "26:134:34"
+      }
+    ],
+    "src": "0:161:34"
+  },
+  "legacyAST": {
+    "absolutePath": "/home/modagi/github/onther/plasma-evm-contracts2/contracts/stake/interfaces/CoinageFactoryI.sol",
+    "exportedSymbols": {
+      "CoinageFactoryI": [
+        11016
+      ]
+    },
+    "id": 11017,
+    "nodeType": "SourceUnit",
+    "nodes": [
+      {
+        "id": 11005,
+        "literals": [
+          "solidity",
+          "^",
+          "0.5",
+          ".12"
+        ],
+        "nodeType": "PragmaDirective",
+        "src": "0:24:34"
+      },
+      {
+        "baseContracts": [],
+        "contractDependencies": [],
+        "contractKind": "interface",
+        "documentation": null,
+        "fullyImplemented": false,
+        "id": 11016,
+        "linearizedBaseContracts": [
+          11016
+        ],
+        "name": "CoinageFactoryI",
+        "nodeType": "ContractDefinition",
+        "nodes": [
+          {
+            "body": null,
+            "documentation": null,
+            "id": 11010,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "deploy",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 11006,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "71:2:34"
+            },
+            "returnParameters": {
+              "id": 11009,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 11008,
+                  "name": "",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 11010,
+                  "src": "92:7:34",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 11007,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "92:7:34",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "91:9:34"
+            },
+            "scope": 11016,
+            "src": "56:45:34",
+            "stateMutability": "nonpayable",
+            "superFunction": null,
+            "visibility": "external"
+          },
+          {
+            "body": null,
+            "documentation": null,
+            "id": 11015,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "setSeigManager",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 11013,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 11012,
+                  "name": "seigManager",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 11015,
+                  "src": "128:19:34",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 11011,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "128:7:34",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "value": null,
+                  "visibility": "internal"
+                }
+              ],
+              "src": "127:21:34"
+            },
+            "returnParameters": {
+              "id": 11014,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "157:0:34"
+            },
+            "scope": 11016,
+            "src": "104:54:34",
+            "stateMutability": "nonpayable",
+            "superFunction": null,
+            "visibility": "external"
+          }
+        ],
+        "scope": 11017,
+        "src": "26:134:34"
+      }
+    ],
+    "src": "0:161:34"
+  },
+  "compiler": {
+    "name": "solc",
+    "version": "0.5.12+commit.7709ece9.Emscripten.clang"
+  },
+  "networks": {},
+  "schemaVersion": "3.2.1",
+  "updatedAt": "2020-09-10T05:29:25.958Z",
+  "devdoc": {
+    "methods": {}
+  },
+  "userdoc": {
+    "methods": {}
+  }
+}

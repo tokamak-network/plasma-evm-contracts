@@ -3,7 +3,7 @@ pragma solidity ^0.5.12;
 import "./lib/Data.sol";
 
 
-contract RootChainEvent {
+contract Layer2Event {
   event OperatorChanged(address _newOperator);
 
   event SessionTimeout(bool userActivated);

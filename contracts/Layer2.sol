@@ -11,12 +11,12 @@ import "./lib/BMT.sol";
 import "./roles/MapperRole.sol";
 import "./roles/SubmitterRole.sol";
 
-import "./RootChainStorage.sol";
-import "./RootChainEvent.sol";
-import "./RootChainBase.sol";
+import "./Layer2Storage.sol";
+import "./Layer2Event.sol";
+import "./Layer2Base.sol";
 
 
-contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRole, SubmitterRole {
+contract Layer2 is Layer2Storage, Layer2Event, Layer2Base, MapperRole, SubmitterRole {
   using SafeMath for uint;
   using SafeMath for uint64;
   using Math for *;
@@ -50,6 +50,11 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
       // TODO: reset fork
       fork.forkedBlock = 0;
     }
+    _;
+  }
+
+  modifier onlyOperatorOrSeigManager () {
+    require(msg.sender == operator || msg.sender == seigManager);
     _;
   }
 
@@ -106,7 +111,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
    * External Functions
    */
 
-  function changeOperator(address _operator) external onlyOperator {
+  function changeOperator(address _operator) external onlyOperatorOrSeigManager {
     operator = _operator;
     emit OperatorChanged(_operator);
   }
@@ -119,7 +124,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
     _addMapper(account);
   }
 
-  function setSeigManager(address account) public onlyOperator {
+  function setSeigManager(address account) public onlyOperatorOrSeigManager {
     seigManager = account;
   }
 
@@ -127,17 +132,17 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
    * @notice map requestable contract in child chain
    * NOTE: only operator?
    */
-  function mapRequestableContractByOperator(address _rootchain, address _childchain)
+  function mapRequestableContractByOperator(address _layer2, address _childchain)
     external
     onlyMapper
     returns (bool success)
   {
-    require(_rootchain.isContract());
-    require(requestableContracts[_rootchain] == address(0));
+    require(_layer2.isContract());
+    require(requestableContracts[_layer2] == address(0));
 
-    requestableContracts[_rootchain] = _childchain;
+    requestableContracts[_layer2] = _childchain;
 
-    emit RequestableContractMapped(_rootchain, _childchain);
+    emit RequestableContractMapped(_layer2, _childchain);
     return true;
   }
 
@@ -170,7 +175,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
     // disable UAF.
     revert();
     // return false;
-    // RootChainBase.prepareToSubmitURB();
+    // Layer2Base.prepareToSubmitURB();
   }
 
   function submitNRE(
@@ -187,7 +192,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
     finalizeBlocks
     returns (bool success)
   {
-    return RootChainBase._delegateSubmitNRE(
+    return Layer2Base._delegateSubmitNRE(
       _pos1,
       _pos2,
       _epochStateRoot,
@@ -209,7 +214,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
     finalizeBlocks
     returns (bool success)
   {
-    return RootChainBase._delegateSubmitORB(
+    return Layer2Base._delegateSubmitORB(
       _pos,
       _statesRoot,
       _transactionsRoot,
@@ -233,7 +238,7 @@ contract RootChain is RootChainStorage, RootChainEvent, RootChainBase, MapperRol
     revert();
     return false;
 
-    // return RootChainBase._delegateSubmitURB(
+    // return Layer2Base._delegateSubmitURB(
     //   _pos,
     //   _statesRoot,
     //   _transactionsRoot,

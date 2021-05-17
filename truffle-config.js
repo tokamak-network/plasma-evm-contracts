@@ -34,13 +34,19 @@ module.exports = {
     rinkeby: {
       provider: () => new PrivateKeyProvider(process.env.RINKEBY_PRIVATE_KEY, process.env.RINKEBY_PROVIDER_URL),
       network_id: 4, // eslint-disable-line camelcase
+      gasPrice: 5e9,
+      skipDryRun: true,
+    },
+    ropsten: {
+      provider: () => new PrivateKeyProvider(process.env.ROPSTEN_PRIVATE_KEY, process.env.ROPSTEN_PROVIDER_URL),
+      network_id: 3, // eslint-disable-line camelcase
       production: true,
     },
     mainnet: {
       provider: () => new PrivateKeyProvider(process.env.MAINNET_PRIVATE_KEY, process.env.MAINNET_PROVIDER_URL),
       network_id: 1, // eslint-disable-line camelcase
-      gasPrice: 8e9,
-      production: true,
+      gasPrice: 20e9,
+      skipDryRun: true,
     },
   //   ropsten: {
   //     provider: ropstenProvider,

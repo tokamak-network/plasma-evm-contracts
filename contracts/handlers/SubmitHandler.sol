@@ -6,14 +6,14 @@ import "../lib/Data.sol";
 import "../lib/Address.sol";
 import "../lib/BMT.sol";
 
-import "../RootChainStorage.sol";
-import "../RootChainEvent.sol";
-import "../RootChainBase.sol";
+import "../Layer2Storage.sol";
+import "../Layer2Event.sol";
+import "../Layer2Base.sol";
 
 import { SeigManagerI } from "../stake/interfaces/SeigManagerI.sol";
 
 
-contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
+contract SubmitHandler is Layer2Storage, Layer2Event, Layer2Base {
   using SafeMath for uint;
   using SafeMath for uint64;
   using Math for *;
@@ -54,7 +54,7 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
     _delegatePrepareORE();
 
     if (address(seigManager) != address(0)) {
-      require(SeigManagerI(seigManager).onCommit());
+      require(SeigManagerI(seigManager).updateSeigniorage());
     }
 
     return true;
@@ -120,7 +120,7 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
       }
 
       if (address(seigManager) != address(0)) {
-        require(SeigManagerI(seigManager).onCommit());
+        require(SeigManagerI(seigManager).updateSeigniorage());
       }
 
       return true;
@@ -178,7 +178,7 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
     }
 
     if (address(seigManager) != address(0)) {
-      require(SeigManagerI(seigManager).onCommit());
+      require(SeigManagerI(seigManager).updateSeigniorage());
     }
 
     return true;
@@ -259,7 +259,7 @@ contract SubmitHandler is RootChainStorage, RootChainEvent, RootChainBase {
     }
 
     if (address(seigManager) != address(0)) {
-      require(SeigManagerI(seigManager).onCommit());
+      require(SeigManagerI(seigManager).updateSeigniorage());
     }
 
     return true;
