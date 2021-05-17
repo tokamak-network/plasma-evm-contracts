@@ -1,10 +1,17 @@
 const { range, last, first } = require('lodash');
+<<<<<<< HEAD:test/RootChain.test.js
+const { expectEvent, time, expectRevert } = require('openzeppelin-test-helpers');
+// const { increaseTime, increaseTimeTo } = require('openzeppelin-solidity/test/helpers/increaseTime');
+// const { latestTime } = require('openzeppelin-solidity/test/helpers/latestTime');
+// const { EVMRevert } = require('openzeppelin-solidity/test/helpers/EVMRevert');
+=======
 const {
   BN, constants, expectEvent, expectRevert, time, ether, increaseTime, increaseTimeTo, latestTime, EVMRevert
 } = require('@openzeppelin/test-helpers');
 //const { increaseTime, increaseTimeTo } = require('openzeppelin-solidity/test/helpers/increaseTime');
 //const { latestTime } = require('openzeppelin-solidity/test/helpers/latestTime');
 //const { EVMRevert } = require('openzeppelin-solidity/test/helpers/EVMRevert');
+>>>>>>> ac7a54938805c18e0fd06f38d346897db9f61f7e:test/Layer2.test.js
 
 const { padLeft } = require('./helpers/pad');
 const { appendHex } = require('./helpers/appendHex');
@@ -82,7 +89,11 @@ contract('Layer2', async ([
 
     const firstBlock = lastFinalizedBlock + 1;
     const firstEpoch = new Data.PlasmaBlock(
+<<<<<<< HEAD:test/RootChain.test.js
+      await rootchain.getBlock(currentFork, firstBlock),
+=======
       await layer2.getBlock(currentFork, firstBlock)
+>>>>>>> ac7a54938805c18e0fd06f38d346897db9f61f7e:test/Layer2.test.js
     ).epochNumber.toNumber();
 
     currentFork += 1;
@@ -176,24 +187,40 @@ contract('Layer2', async ([
     preFork.forkedBlock.should.be.bignumber.equal(curFork.firstBlock);
 
     const lastFinalizedBlock = new Data.PlasmaBlock(
+<<<<<<< HEAD:test/RootChain.test.js
+      await rootchain.getBlock(previousFork, curFork.firstBlock.sub(1)),
+=======
       await layer2.getBlock(previousFork, curFork.firstBlock.sub(1))
+>>>>>>> ac7a54938805c18e0fd06f38d346897db9f61f7e:test/Layer2.test.js
     );
 
     lastFinalizedBlock.finalized.should.be.equal(true);
 
     const nextBlock = new Data.PlasmaBlock(
+<<<<<<< HEAD:test/RootChain.test.js
+      await rootchain.getBlock(previousFork, curFork.firstBlock),
+=======
       await layer2.getBlock(previousFork, curFork.firstBlock)
+>>>>>>> ac7a54938805c18e0fd06f38d346897db9f61f7e:test/Layer2.test.js
     );
 
     (nextBlock.timestamp.toNumber() === 0 || !nextBlock.finalized)
       .should.be.equal(true);
 
     const firstURB = new Data.PlasmaBlock(
+<<<<<<< HEAD:test/RootChain.test.js
+      await rootchain.getBlock(currentFork, curFork.firstBlock),
+    );
+
+    const URE = new Data.Epoch(
+      await rootchain.getEpoch(currentFork, firstURB.epochNumber),
+=======
       await layer2.getBlock(currentFork, curFork.firstBlock)
     );
 
     const URE = new Data.Epoch(
       await layer2.getEpoch(currentFork, firstURB.epochNumber)
+>>>>>>> ac7a54938805c18e0fd06f38d346897db9f61f7e:test/Layer2.test.js
     );
 
     URE.isEmpty.should.be.equal(false);
@@ -543,11 +570,11 @@ contract('Layer2', async ([
       finalizedAt: ${finalizedAt}
       block.timestamp: ${block.timestamp}
       block: ${JSON.stringify(block)}
-      await latestTime(): ${await latestTime()}
+      await latestTime(): ${await time.latest()}
     `);
 
-    if (await latestTime() < finalizedAt) {
-      await increaseTimeTo(finalizedAt);
+    if (await time.latest() < finalizedAt) {
+      await time.increaseTo(finalizedAt);
     }
     await layer2.finalizeBlock();
 
@@ -619,7 +646,7 @@ contract('Layer2', async ([
 
     for (const i of range(
       epoch.startBlockNumber.toNumber(),
-      epoch.endBlockNumber.toNumber() + 1
+      epoch.endBlockNumber.toNumber() + 1,
     )) {
       log(`
         Block#${i} ${JSON.stringify(new Data.PlasmaBlock(await layer2.getBlock(forkNumber, i)))}`);
@@ -909,7 +936,11 @@ contract('Layer2', async ([
         });
 
         it('cannot finalize requests before block is finalized', async () => {
+<<<<<<< HEAD:test/RootChain.test.js
+          await rootchain.finalizeRequest().should.be.rejectedWith(expectRevert);
+=======
           await layer2.finalizeRequest().should.be.rejectedWith(EVMRevert);
+>>>>>>> ac7a54938805c18e0fd06f38d346897db9f61f7e:test/Layer2.test.js
         });
 
         if (numInvalidExit > 0) {
@@ -919,8 +950,8 @@ contract('Layer2', async ([
               forks[currentFork].lastBlock,
               0,
               failedReceipt,
-              dummyProof
-            ).should.be.rejectedWith(EVMRevert);
+              dummyProof,
+            ).should.be.rejectedWith(expectRevert);
           });
         }
 
@@ -950,7 +981,7 @@ contract('Layer2', async ([
 
               log(`
               txIndices: ${txIndices}
-              await latestTime(): ${await latestTime()}
+              await latestTime(): ${await time.latest()}
               finalizedAt: ${finalizedAt}
               block: ${JSON.stringify(block)}
               rb: ${JSON.stringify(rb)}
@@ -964,7 +995,7 @@ contract('Layer2', async ([
                 blockNumber,
                 txindex,
                 failedReceipt,
-                dummyProof
+                dummyProof,
               )));
 
               txIndices = range(0, getLastExitIndex(blockNumber + 1));
@@ -975,7 +1006,7 @@ contract('Layer2', async ([
         it('should finalize requests', async () => {
           // TODO: can we remove below line?
           await finalizeBlocks();
-          await increaseTime(CP_EXIT + 1);
+          await time.increase(CP_EXIT + 1);
 
           await finalizeRequests();
         });
@@ -1355,11 +1386,15 @@ contract('Layer2', async ([
       it('should finalize blocks', finalizeBlocks);
 
       it('should not finalize ERUs before exit challenge period ends', async () => {
+<<<<<<< HEAD:test/RootChain.test.js
+        await rootchain.finalizeRequest().should.be.rejectedWith(expectRevert);
+=======
         await layer2.finalizeRequest().should.be.rejectedWith(EVMRevert);
+>>>>>>> ac7a54938805c18e0fd06f38d346897db9f61f7e:test/Layer2.test.js
       });
 
       it('should finalize ERUs after exit challenge period ends', async () => {
-        await increaseTime(CP_EXIT + 1);
+        await time.increase(CP_EXIT + 1);
         await finalizeRequests(numNewERUs, true);
       });
 
