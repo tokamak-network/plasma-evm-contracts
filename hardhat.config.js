@@ -12,6 +12,9 @@ module.exports = {
       ovm: true, // This sets the network as using the ovm and ensure contract will be compiled against that.
     },
   },
+  ovm: {
+    solcVersion: '0.5.16',
+  },
   solidity: {
     version: '0.5.12',
     settings: {
