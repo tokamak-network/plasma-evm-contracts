@@ -28,11 +28,12 @@
     "test:stake:compile": "npm run compile && npm run test:stake"
   },
   "dependencies": {
+    "@eth-optimism/hardhat-ovm": "^0.2.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "^2.5.1",
     "axios": "^0.19.1",
     "chai-bytes": "^0.1.1",
-    "hardhat": "^2.3.0",
+    "hardhat": "^2.4.1",
     "rlp": "^2.1.0"
   },
   "devDependencies": {
@@ -54,7 +55,7 @@
     "eslint-plugin-standard": "^4.0.1",
     "eth-block-tracker": "^4.4.2",
     "eth-gas-reporter": "^0.1.12",
-    "ethereum-waffle": "^3.3.0",
+    "ethereum-waffle": "^3.4.0",
     "ethereumjs-abi": "^0.6.5",
     "ethjs-abi": "^0.2.1",
     "ethlint": "^1.2.5",
