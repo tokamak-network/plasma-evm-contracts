@@ -1,3 +1,6 @@
+# Plasma EVM contracts built by Tokamak Network
+At present, all official development for Plasma EVM has been paused. If you're interested in contributing, please submit your pull requests, and we'll review them.
+
 # Deployed contracts on mainnet
 
 ## Tokens
